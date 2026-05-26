@@ -1,0 +1,9 @@
+node_modules
+dist
+.npm-cache
+.git
+.codex-git-store
+*.log
+*.zip
+.DS_Store
+*.local
