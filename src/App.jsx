@@ -52,6 +52,7 @@ import {
   ensureCloudCompany,
   getCurrentUser,
   getStoredSession,
+  storeSession,
   getSupabaseConfig,
   isSessionExpired,
   loadPublicSiteContent,
@@ -399,7 +400,12 @@ export default function App() {
   const handleCloudLogout = async () => {
     try {
       await signOut(cloud.session);
+    } catch {
+      // Ignore network errors — always clear local session
     } finally {
+      // Force clear stored session from localStorage so auto-login doesn't trigger on refresh
+      storeSession(null);
+      localStorage.removeItem("shiftpay.supabase.session");
       setCloud((previous) => ({
         ...previous,
         session: null,
