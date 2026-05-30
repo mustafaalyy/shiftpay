@@ -278,16 +278,18 @@ export default function App() {
     setSelectedSlipCode("");
   };
 
-  const applyWorkspace = (workspace, company) => {
+ const applyWorkspace = (workspace, company) => {
     const nextSettings = { ...DEFAULT_SETTINGS, ...settings, ...(company?.settings || {}), ...(workspace.settings || {}) };
     setSettings(nextSettings);
-    setDepartments(workspace.departments || []);
-    setShifts(workspace.shifts || []);
-    setEmployees(workspace.employees || []);
-    setReports(workspace.reports || []);
-    setAttendanceLogs(workspace.reports?.[0]?.logs || []);
-    setSelectedReportId(workspace.reports?.[0]?.id || "");
-    setReportMonth(workspace.reports?.[0]?.month || CURRENT_MONTH);
+    if (workspace.departments?.length > 0) setDepartments(workspace.departments);
+    if (workspace.shifts?.length > 0) setShifts(workspace.shifts);
+    if (workspace.employees?.length > 0) setEmployees(workspace.employees);
+    if (workspace.reports?.length > 0) {
+      setReports(workspace.reports);
+      setAttendanceLogs(workspace.reports[0]?.logs || []);
+      setSelectedReportId(workspace.reports[0]?.id || "");
+      setReportMonth(workspace.reports[0]?.month || CURRENT_MONTH);
+    }
     setSelectedSlipCode("");
   };
 
