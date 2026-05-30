@@ -90,9 +90,9 @@ export async function ensureCloudCompany(session, settings) {
     session
   );
 
-  await writeAuditLog(session, company.id, "company_created", "company", company.id, {
+  writeAuditLog(session, company.id, "company_created", "company", company.id, {
     name: company.name
-  });
+  }).catch(() => {});
 
   return company;
 }
@@ -204,11 +204,11 @@ export async function syncWorkspaceToCloud({
     session
   );
 
-  await writeAuditLog(session, companyId, "workspace_synced", "payroll_snapshot", snapshotId, {
+  writeAuditLog(session, companyId, "workspace_synced", "payroll_snapshot", snapshotId, {
     employees: employees.length,
     reports: reports.length,
     month: reportMonth
-  });
+  }).catch(() => {});
 }
 
 export async function updatePayrollStatus(session, companyId, snapshotId, status) {
