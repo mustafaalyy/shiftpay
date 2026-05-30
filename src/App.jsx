@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Archive,
   ArrowLeft,
@@ -70,6 +70,7 @@ const CURRENT_MONTH = new Date().toISOString().slice(0, 7);
 const defaultAttendance = [];
 const defaultReports = [];
 const SITE_ADMIN_EMAIL = (import.meta.env.VITE_SITE_ADMIN_EMAIL || "").trim().toLowerCase();
+const SITE_ADMIN_PASSWORD = (import.meta.env.VITE_SITE_ADMIN_PASSWORD || "").trim();
 
 function makeEmptyShift() {
   return {
@@ -233,6 +234,20 @@ export default function App() {
     return () => window.removeEventListener("hashchange", syncAdminHash);
   }, []);
 
+
+  useEffect(() => {
+    const rawSession = localStorage.getItem("shiftpay.siteAdminSession");
+    if (!rawSession) return;
+    try {
+      const savedSession = JSON.parse(rawSession);
+      if (savedSession?.localAdmin && savedSession?.user?.email === SITE_ADMIN_EMAIL) {
+        setSiteAdminSession(savedSession);
+      }
+    } catch {
+      localStorage.removeItem("shiftpay.siteAdminSession");
+    }
+  }, []);
+
   useEffect(() => {
     if (!cloud.configured) return;
     let mounted = true;
@@ -245,6 +260,26 @@ export default function App() {
       mounted = false;
     };
   }, [cloud.configured, setSiteContent]);
+
+  useEffect(() => {
+    if (!cloud.configured) return;
+    const startCloud = async () => {
+      try {
+        const oauthSession = await consumeOAuthSessionFromUrl();
+        const session = oauthSession || cloud.session;
+        if (session?.access_token) {
+          const connected = await bootstrapCloud(session, { silent: !oauthSession });
+          if (connected) setActiveView("dashboard");
+        }
+      } catch (error) {
+        setCloud((previous) => ({ ...previous, error: error.message }));
+        setAuthMode("signin");
+        setActiveView("auth");
+      }
+    };
+    startCloud();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     if (!cloud.session || !cloud.companyId || cloud.loading) return;
@@ -263,23 +298,8 @@ export default function App() {
       }).catch(() => {});
     }, 2000);
     return () => clearTimeout(timer);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [employees, departments, shifts, settings, reports]);
-      try {
-        const oauthSession = await consumeOAuthSessionFromUrl();
-        const session = oauthSession || cloud.session;
-        if (session?.access_token) {
-          const connected = await bootstrapCloud(session, { silent: !oauthSession });
-          if (connected) setActiveView("dashboard");
-        }
-      } catch (error) {
-        setCloud((previous) => ({ ...previous, error: error.message }));
-        setAuthMode("signin");
-        setActiveView("auth");
-      }
-    };
-    startCloud();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   const resetWorkspaceState = (nextSettings = settings) => {
     setSettings({ ...DEFAULT_SETTINGS, ...nextSettings });
@@ -293,7 +313,7 @@ export default function App() {
     setSelectedSlipCode("");
   };
 
- const applyWorkspace = (workspace, company) => {
+  const applyWorkspace = (workspace, company) => {
     const nextSettings = { ...DEFAULT_SETTINGS, ...settings, ...(company?.settings || {}), ...(workspace.settings || {}) };
     setSettings(nextSettings);
     if (workspace.departments?.length > 0) setDepartments(workspace.departments);
@@ -460,9 +480,19 @@ export default function App() {
 
   const handleSiteContentSave = async (session = cloud.session) => {
     if (!session) {
-      setNotice("سجل الدخول أولا لحفظ إعدادات الموقع على اللايف.");
+      setNotice("سجل الدخول أولا لحفظ إعدادات الموقع.");
       return;
     }
+
+    // The private site-admin login can be local-only using VITE_SITE_ADMIN_EMAIL/PASSWORD.
+    // In that case there is no Supabase access token, so we still save the content locally
+    // instead of failing with an auth error.
+    if (session.localAdmin) {
+      setSiteContent({ ...DEFAULT_SITE_CONTENT, ...siteContent });
+      setNotice("تم حفظ محتوى الصفحة الرئيسية محليا. للحفظ السحابي اربط حساب Supabase.");
+      return;
+    }
+
     setCloud((previous) => ({ ...previous, loading: true, error: "" }));
     try {
       const saved = await savePublicSiteContent(session, siteContent);
@@ -479,31 +509,47 @@ export default function App() {
       setSiteAdminError("اضبط VITE_SITE_ADMIN_EMAIL أولا حتى تكون لوحة إدارة الموقع مقفولة عليك فقط.");
       return;
     }
+
+    if (!SITE_ADMIN_PASSWORD) {
+      setSiteAdminError("اضبط VITE_SITE_ADMIN_PASSWORD في إعدادات الاستضافة أو ملف .env.local.");
+      return;
+    }
+
     setSiteAdminLoading(true);
     setSiteAdminError("");
-    try {
-      const session = await signInWithEmail({ email, password, persist: false });
-      const user = session.user || (await getCurrentUser(session));
-      const normalizedEmail = (user?.email || email || "").trim().toLowerCase();
-      if (normalizedEmail !== SITE_ADMIN_EMAIL) {
-        await signOut(session);
-        throw new Error("هذا الحساب غير مصرح له بإدارة الموقع.");
-      }
-      setSiteAdminSession({ ...session, user });
-    } catch (error) {
-      setSiteAdminError(error.message);
-    } finally {
-      setSiteAdminLoading(false);
+
+    const normalizedEmail = (email || "").trim().toLowerCase();
+    const normalizedPassword = (password || "").trim();
+
+    if (normalizedEmail === SITE_ADMIN_EMAIL && normalizedPassword === SITE_ADMIN_PASSWORD) {
+      const session = {
+        localAdmin: true,
+        user: {
+          id: "site-admin",
+          email: normalizedEmail,
+          role: "site-admin"
+        }
+      };
+      setSiteAdminSession(session);
+      localStorage.setItem("shiftpay.siteAdminSession", JSON.stringify(session));
+    } else {
+      setSiteAdminError("Invalid login credentials");
     }
+
+    setSiteAdminLoading(false);
   };
 
   const handleSiteAdminLogout = async () => {
-    try {
-      await signOut(siteAdminSession);
-    } finally {
-      setSiteAdminSession(null);
-      setSiteAdminError("");
+    if (siteAdminSession && !siteAdminSession.localAdmin) {
+      try {
+        await signOut(siteAdminSession);
+      } catch {
+        // Ignore remote logout errors so the local UI can always reset.
+      }
     }
+    localStorage.removeItem("shiftpay.siteAdminSession");
+    setSiteAdminSession(null);
+    setSiteAdminError("");
   };
 
   const navigate = (view) => {
