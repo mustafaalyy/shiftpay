@@ -247,8 +247,23 @@ export default function App() {
   }, [cloud.configured, setSiteContent]);
 
   useEffect(() => {
-    if (!cloud.configured) return;
-    const startCloud = async () => {
+    if (!cloud.session || !cloud.companyId || cloud.loading) return;
+    if (!employees.length && !departments.length && !shifts.length) return;
+    const timer = setTimeout(() => {
+      syncWorkspaceToCloud({
+        session: cloud.session,
+        companyId: cloud.companyId,
+        settings,
+        departments,
+        shifts,
+        employees,
+        reports,
+        payrollRows,
+        reportMonth: activeReportMonth
+      }).catch(() => {});
+    }, 2000);
+    return () => clearTimeout(timer);
+  }, [employees, departments, shifts, settings, reports]);
       try {
         const oauthSession = await consumeOAuthSessionFromUrl();
         const session = oauthSession || cloud.session;
