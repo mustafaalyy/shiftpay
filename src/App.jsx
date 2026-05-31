@@ -426,6 +426,8 @@ export default function App() {
     try {
       await signOut(cloud.session);
     } finally {
+      storeSession(null);
+      localStorage.removeItem("shiftpay.cloud.companyId");
       setCloud((previous) => ({
         ...previous,
         session: null,
@@ -437,9 +439,7 @@ export default function App() {
         error: "",
         lastSyncAt: ""
       }));
-      localStorage.setItem("shiftpay.cloud.companyId", company.id);
       resetWorkspaceState();
-      localStorage.removeItem("shiftpay.cloud.companyId");
       setNotice("تم تسجيل الخروج من السحابة. البيانات المحلية ما زالت محفوظة.");
       setActiveView("landing");
     }
