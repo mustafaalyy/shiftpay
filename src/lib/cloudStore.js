@@ -30,7 +30,7 @@ export {
   signOut,
   signUpWithEmail,
 storeSession,
-  refreshSession
+  
 };
 
 export async function loadPublicSiteContent() {
