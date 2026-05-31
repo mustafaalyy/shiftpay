@@ -437,7 +437,9 @@ export default function App() {
         error: "",
         lastSyncAt: ""
       }));
+      localStorage.setItem("shiftpay.cloud.companyId", company.id);
       resetWorkspaceState();
+      localStorage.removeItem("shiftpay.cloud.companyId");
       setNotice("تم تسجيل الخروج من السحابة. البيانات المحلية ما زالت محفوظة.");
       setActiveView("landing");
     }
