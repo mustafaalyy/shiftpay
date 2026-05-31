@@ -14,7 +14,8 @@ import {
   signInWithGoogle,
   signOut,
   signUpWithEmail,
-  storeSession
+  storeSession,
+  refreshSession
 } from "./supabaseClient";
 
 export {
