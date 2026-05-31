@@ -52,6 +52,7 @@ import {
   ensureCloudCompany,
   getCurrentUser,
   getStoredSession,
+  storeSession,
   getSupabaseConfig,
   isSessionExpired,
   loadPublicSiteContent,
@@ -63,8 +64,7 @@ import {
   signInWithGoogle,
   signOut,
   signUpWithEmail,
-  syncWorkspaceToCloud,
-  refreshSession
+  syncWorkspaceToCloud
 } from "./lib/cloudStore";
 
 const CURRENT_MONTH = new Date().toISOString().slice(0, 7);
@@ -158,7 +158,6 @@ export default function App() {
   );
   const [reportMonth, setReportMonth] = useLocalStorage("shiftpay.reportMonth", CURRENT_MONTH);
   const [notice, setNotice] = useState("");
-  const [syncStatus, setSyncStatus] = useState(""); // "saving" | "saved" | "error" | ""
   const [uploadState, setUploadState] = useState({ loading: false, summary: null });
   const [selectedSlipCode, setSelectedSlipCode] = useState("");
   const [exporting, setExporting] = useState("");
@@ -168,7 +167,7 @@ export default function App() {
     session: getStoredSession(),
     user: getStoredSession()?.user || null,
     companies: [],
-    companyId: localStorage.getItem("shiftpay.cloud.companyId") || "",
+    companyId: "",
     auditLogs: [],
     payrollSnapshots: [],
     loading: false,
@@ -286,40 +285,18 @@ export default function App() {
   useEffect(() => {
     if (!cloud.session || !cloud.companyId || cloud.loading) return;
     if (!employees.length && !departments.length && !shifts.length) return;
-    setSyncStatus("saving");
-    const timer = setTimeout(async () => {
-      try {
-        let session = cloud.session;
-        if (isSessionExpired(session)) {
-          const refreshed = await refreshSession(session);
-          if (!refreshed) {
-            setCloud((prev) => ({ ...prev, session: null }));
-            storeSession(null);
-            setNotice("انتهت جلسة تسجيل دخولك، سجل دخول مجددًا.");
-            setActiveView("auth");
-            setSyncStatus("error");
-            return;
-          }
-          session = refreshed;
-          setCloud((prev) => ({ ...prev, session: refreshed }));
-        }
-        await syncWorkspaceToCloud({
-          session,
-          companyId: cloud.companyId,
-          settings,
-          departments,
-          shifts,
-          employees,
-          reports,
-          payrollRows,
-          reportMonth: activeReportMonth
-        });
-        setSyncStatus("saved");
-        setTimeout(() => setSyncStatus(""), 3000);
-      } catch {
-        setSyncStatus("error");
-        setTimeout(() => setSyncStatus(""), 5000);
-      }
+    const timer = setTimeout(() => {
+      syncWorkspaceToCloud({
+        session: cloud.session,
+        companyId: cloud.companyId,
+        settings,
+        departments,
+        shifts,
+        employees,
+        reports,
+        payrollRows,
+        reportMonth: activeReportMonth
+      }).catch(() => {});
     }, 2000);
     return () => clearTimeout(timer);
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -340,7 +317,6 @@ export default function App() {
   const applyWorkspace = (workspace, company) => {
     const nextSettings = { ...DEFAULT_SETTINGS, ...settings, ...(company?.settings || {}), ...(workspace.settings || {}) };
     setSettings(nextSettings);
-    // Only overwrite local data if cloud actually returned data — never replace with empty arrays
     if (workspace.departments?.length > 0) setDepartments(workspace.departments);
     if (workspace.shifts?.length > 0) setShifts(workspace.shifts);
     if (workspace.employees?.length > 0) setEmployees(workspace.employees);
@@ -383,7 +359,6 @@ export default function App() {
         loading: false,
         lastSyncAt: new Date().toISOString()
       }));
-      localStorage.setItem("shiftpay.cloud.companyId", company.id);
       if (!options.silent) setNotice("تم الاتصال بالسحابة وتحميل بيانات الشركة.");
       return true;
     } catch (error) {
@@ -425,9 +400,12 @@ export default function App() {
   const handleCloudLogout = async () => {
     try {
       await signOut(cloud.session);
+    } catch {
+      // Ignore network errors — always clear local session
     } finally {
+      // Force clear stored session from localStorage so auto-login doesn't trigger on refresh
       storeSession(null);
-      localStorage.removeItem("shiftpay.cloud.companyId");
+      localStorage.removeItem("shiftpay.supabase.session");
       setCloud((previous) => ({
         ...previous,
         session: null,
@@ -888,22 +866,6 @@ export default function App() {
               onNavigate={() => navigate("settings")}
             />
           ) : null}
-          {syncStatus === "saving" && (
-            <div className="mb-2 flex items-center gap-2 text-xs text-slate-400">
-              <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-blue-400"></span>
-              جاري الحفظ...
-            </div>
-          )}
-          {syncStatus === "saved" && (
-            <div className="mb-2 flex items-center gap-2 text-xs text-emerald-500">
-              <span>✓</span> تم الحفظ
-            </div>
-          )}
-          {syncStatus === "error" && (
-            <div className="mb-2 flex items-center gap-2 text-xs text-red-400">
-              <span>✗</span> فشل الحفظ — تحقق من الاتصال
-            </div>
-          )}
           {notice ? (
             <div className="mb-4 flex items-center justify-between rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-800">
               <span>{notice}</span>
@@ -2450,7 +2412,6 @@ function EmployeesView({ employees, setEmployees, departments, shifts, shiftCopy
   };
 
   const setArchived = (employeeId, active) => {
-    if (!active && !window.confirm("هل أنت متأكد من أرشفة هذا الموظف؟")) return;
     setEmployees(employees.map((employee) => (employee.id === employeeId ? { ...employee, active } : employee)));
     setNotice(active ? "تمت استعادة الموظف." : "تمت أرشفة الموظف.");
   };
