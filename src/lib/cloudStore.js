@@ -23,6 +23,7 @@ export {
   getStoredSession,
   getSupabaseConfig,
   isSessionExpired,
+  refreshSession,
   consumeOAuthSessionFromUrl,
   signInWithEmail,
   signInWithGoogle,
