@@ -383,6 +383,7 @@ export default function App() {
         loading: false,
         lastSyncAt: new Date().toISOString()
       }));
+      localStorage.setItem("shiftpay.cloud.companyId", company.id);
       if (!options.silent) setNotice("تم الاتصال بالسحابة وتحميل بيانات الشركة.");
       return true;
     } catch (error) {
