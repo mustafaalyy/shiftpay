@@ -168,7 +168,7 @@ export default function App() {
     session: getStoredSession(),
     user: getStoredSession()?.user || null,
     companies: [],
-    companyId: "",
+    companyId: localStorage.getItem("shiftpay.cloud.companyId") || "",
     auditLogs: [],
     payrollSnapshots: [],
     loading: false,
