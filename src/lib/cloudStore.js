@@ -29,7 +29,8 @@ export {
   signInWithGoogle,
   signOut,
   signUpWithEmail,
-  storeSession
+storeSession,
+  refreshSession
 };
 
 export async function loadPublicSiteContent() {
