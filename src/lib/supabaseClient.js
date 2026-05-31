@@ -52,6 +52,24 @@ export async function signUpWithEmail({ email, password, companyName, phoneCount
   return result;
 }
 
+export async function refreshSession(session) {
+  if (!session?.refresh_token) return null;
+  try {
+    const result = await authFetch('/token?grant_type=refresh_token', {
+      method: 'POST',
+      body: { refresh_token: session.refresh_token }
+    });
+    if (result?.access_token) {
+      const refreshed = { ...result, user: session.user };
+      storeSession(refreshed);
+      return refreshed;
+    }
+  } catch {
+    // Refresh failed — session truly expired
+  }
+  return null;
+}
+
 export async function signInWithEmail({ email, password, persist = true }) {
   const result = await authFetch("/token?grant_type=password", {
     method: "POST",
