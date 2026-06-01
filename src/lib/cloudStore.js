@@ -10,6 +10,7 @@ import {
   getStoredSession,
   getSupabaseConfig,
   isSessionExpired,
+  restFetchAnon,
   signInWithEmail,
   signInWithGoogle,
   signOut,
@@ -39,6 +40,8 @@ export async function loadPublicSiteContent() {
 }
 
 export async function savePublicSiteContent(session, content) {
+  if (!session || session.localAdmin) return savePublicSiteContentAnon(content);
+
   const rows = await dbUpsert(
     "site_settings",
     {
@@ -49,6 +52,20 @@ export async function savePublicSiteContent(session, content) {
     },
     session
   );
+  return rows[0]?.content || content;
+}
+
+export async function savePublicSiteContentAnon(content) {
+  const rows = await restFetchAnon(`/site_settings?on_conflict=${encodeURIComponent("id")}`, {
+    method: "POST",
+    body: {
+      id: "public",
+      content,
+      updated_by: null,
+      updated_at: new Date().toISOString()
+    },
+    prefer: "resolution=merge-duplicates,return=representation"
+  });
   return rows[0]?.content || content;
 }
 

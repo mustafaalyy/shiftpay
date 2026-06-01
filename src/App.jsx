@@ -521,18 +521,9 @@ export default function App() {
       return;
     }
 
-    // The private site-admin login can be local-only using VITE_SITE_ADMIN_EMAIL/PASSWORD.
-    // In that case there is no Supabase access token, so we still save the content locally
-    // instead of failing with an auth error.
-    if (session.localAdmin) {
-      setSiteContent({ ...DEFAULT_SITE_CONTENT, ...siteContent });
-      setNotice("تم حفظ محتوى الصفحة الرئيسية محليا. للحفظ السحابي اربط حساب Supabase.");
-      return;
-    }
-
     setCloud((previous) => ({ ...previous, loading: true, error: "" }));
     try {
-      const saved = await savePublicSiteContent(session, siteContent);
+      const saved = await savePublicSiteContent(session.localAdmin ? null : session, siteContent);
       setSiteContent({ ...DEFAULT_SITE_CONTENT, ...saved });
       setCloud((previous) => ({ ...previous, loading: false }));
       setNotice("تم حفظ محتوى الصفحة الرئيسية وبيانات الدعم على اللايف.");
@@ -909,22 +900,28 @@ export default function App() {
               onNavigate={() => navigate("settings")}
             />
           ) : null}
-          {syncStatus === "saving" && (
-            <div className="mb-2 flex items-center gap-2 text-xs text-slate-400">
-              <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-blue-400"></span>
-              جاري الحفظ...
+          {syncStatus ? (
+            <div
+              className={`fixed bottom-5 left-5 z-50 flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-extrabold text-white shadow-2xl transition-all duration-300 ease-out ${
+                syncStatus === "saving"
+                  ? "bg-blue-600"
+                  : syncStatus === "saved"
+                    ? "bg-emerald-600"
+                    : "bg-rose-600"
+              } translate-y-0 opacity-100`}
+            >
+              {syncStatus === "saving" ? (
+                <>
+                  <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/70 border-t-transparent" />
+                  <span>جاري الحفظ...</span>
+                </>
+              ) : syncStatus === "saved" ? (
+                <span>تم الحفظ ✓</span>
+              ) : (
+                <span>فشل الحفظ ✗</span>
+              )}
             </div>
-          )}
-          {syncStatus === "saved" && (
-            <div className="mb-2 flex items-center gap-2 text-xs text-emerald-500">
-              <span>✓</span> تم الحفظ
-            </div>
-          )}
-          {syncStatus === "error" && (
-            <div className="mb-2 flex items-center gap-2 text-xs text-red-400">
-              <span>✗</span> فشل الحفظ — تحقق من الاتصال
-            </div>
-          )}
+          ) : null}
           {notice ? (
             <div className="mb-4 flex items-center justify-between rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-800">
               <span>{notice}</span>
@@ -1035,14 +1032,16 @@ function PublicHomePage({ siteContent, isAuthenticated, onSignup, onSignin, onLo
                 {isAuthenticated ? "فتح النظام" : siteContent.primaryCta}
                 <ArrowLeft size={18} />
               </button>
-              <button
-                type="button"
-                onClick={secondaryAction}
-                className="inline-flex items-center justify-center gap-2 rounded-lg border border-white/20 bg-white/10 px-6 py-3 text-base font-extrabold text-white backdrop-blur transition hover:bg-white/15"
-              >
-                {isAuthenticated ? "الانتقال للنظام" : siteContent.secondaryCta}
-                <Users size={18} />
-              </button>
+              {!isAuthenticated ? (
+                <button
+                  type="button"
+                  onClick={secondaryAction}
+                  className="inline-flex items-center justify-center gap-2 rounded-lg border border-white/20 bg-white/10 px-6 py-3 text-base font-extrabold text-white backdrop-blur transition hover:bg-white/15"
+                >
+                  {siteContent.secondaryCta}
+                  <Users size={18} />
+                </button>
+              ) : null}
             </div>
             <div className="mt-8 grid max-w-xl grid-cols-3 gap-3">
               {[
@@ -3837,8 +3836,8 @@ function EmployeeCard({ employee, departments, shifts, shiftCopy, onEdit, onArch
     <article className="rounded-lg border border-line p-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="text-lg font-extrabold text-ink">{employee.name}</p>
-          <p className="mt-1 text-sm font-bold text-slate-400">{employee.code}</p>
+          <p className="text-base font-extrabold text-ink">{employee.name}</p>
+          <p className="mt-1 text-xs font-bold text-slate-400">{employee.code}</p>
         </div>
         <span
           className={`rounded-full px-3 py-1 text-xs font-extrabold ${
@@ -3848,11 +3847,10 @@ function EmployeeCard({ employee, departments, shifts, shiftCopy, onEdit, onArch
           {employee.active ? "نشط" : "مؤرشف"}
         </span>
       </div>
-      <div className="mt-4 grid gap-3 sm:grid-cols-2">
-        <MetricPill label="القسم" value={department} />
-        <MetricPill label={shiftCopy.definite} value={shift} />
-        <MetricPill label="الراتب" value={formatCurrency(employee.salary)} />
-        <MetricPill label="الإجازات" value={`${employee.vacationBalance} يوم`} />
+      <div className="mt-3 flex flex-wrap gap-2 text-xs font-bold text-slate-500">
+        <span>{department}</span>
+        <span>•</span>
+        <span>{shiftCopy.definite}: {shift}</span>
       </div>
       <div className="mt-4 flex flex-wrap gap-2">
         <SecondaryButton type="button" onClick={onEdit} icon={Pencil}>

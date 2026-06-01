@@ -203,6 +203,24 @@ async function restFetch(path, { method, body, session, prefer } = {}) {
   return parseResponse(response);
 }
 
+export async function restFetchAnon(path, { method, body, prefer } = {}) {
+  const config = getSupabaseConfig();
+  if (!config.isConfigured) throw new Error(CLOUD_DISABLED_MESSAGE);
+
+  const headers = {
+    apikey: config.anonKey,
+    "Content-Type": "application/json"
+  };
+  if (prefer) headers.Prefer = prefer;
+
+  const response = await fetch(`${config.url}/rest/v1${path}`, {
+    method,
+    headers,
+    body: body ? JSON.stringify(body) : undefined
+  });
+  return parseResponse(response);
+}
+
 function buildHeaders(config, session) {
   return {
     apikey: config.anonKey,
