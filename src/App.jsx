@@ -265,7 +265,10 @@ export default function App() {
   }, [cloud.configured, setSiteContent]);
 
   useEffect(() => {
-    if (!cloud.configured) return;
+    if (!cloud.configured) {
+      setIsBooting(false);
+      return;
+    }
     const startCloud = async () => {
       try {
         const oauthSession = await consumeOAuthSessionFromUrl();
