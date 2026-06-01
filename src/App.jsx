@@ -1065,19 +1065,6 @@ function PublicHomePage({ siteContent, isAuthenticated, onSignup, onSignin, onLo
                   قابل للتصدير
                 </span>
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                {[
-                  ["الموظفون", "42"],
-                  ["الحضور", "91%"],
-                  ["التأخير", "126 د"],
-                  ["الصافي", "480K"]
-                ].map(([label, value]) => (
-                  <div key={label} className="rounded-lg bg-slate-50 p-4 text-ink">
-                    <p className="text-xs font-bold text-slate-500">{label}</p>
-                    <p className="mt-2 text-2xl font-extrabold">{value}</p>
-                  </div>
-                ))}
-              </div>
               <div className="mt-4 rounded-lg bg-white p-4 text-ink">
                 {["أحمد محمود", "سارة علي", "محمود حسن"].map((name, index) => (
                   <div key={name} className="flex items-center justify-between border-b border-slate-100 py-3 last:border-b-0">
