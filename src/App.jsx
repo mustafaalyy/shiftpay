@@ -3836,7 +3836,7 @@ function EmployeeCard({ employee, departments, shifts, shiftCopy, onEdit, onArch
     <article className="rounded-lg border border-line p-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="text-base font-extrabold text-ink">{employee.name}</p>
+          <p className="text-sm font-extrabold text-ink">{employee.name}</p>
           <p className="mt-1 text-xs font-bold text-slate-400">{employee.code}</p>
         </div>
         <span
