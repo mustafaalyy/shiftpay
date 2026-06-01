@@ -64,7 +64,8 @@ import {
   signOut,
   signUpWithEmail,
   syncWorkspaceToCloud,
-  refreshSession
+  refreshSession,
+  storeSession
 } from "./lib/cloudStore";
 
 const CURRENT_MONTH = new Date().toISOString().slice(0, 7);
