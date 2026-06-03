@@ -84,6 +84,7 @@ export function signInWithGoogle() {
   if (!config.isConfigured) throw new Error(CLOUD_DISABLED_MESSAGE);
 
   const redirectTo = getRedirectUrl();
+  // redirect_to uses the current app domain (for example shiftpay.online); the Google "Continue to" app name is controlled from the Supabase/Google OAuth app settings, not this URL.
   const params = new URLSearchParams({
     provider: "google",
     redirect_to: redirectTo

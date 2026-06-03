@@ -1284,9 +1284,9 @@ function AuthPage({ mode, setMode, siteContent, cloud, onLogin, onGoogleLogin, o
           </h1>
           <div className="mt-8 grid gap-3">
             {[
-              "تأكيد بريد إلكتروني مع رجوع للمنصة مباشرة",
-              "تسجيل سريع بحساب Google بعد تفعيله من Supabase",
-              "رقم هاتف بمفتاح الدولة للشركات في مصر والخليج"
+              "احسب رواتب موظفيك في ثوانٍ من ملف البصمة",
+              "ادعم شيفتات متعددة، إجازات، وأوفر تايم تلقائياً",
+              "تقارير احترافية جاهزة للتصدير في أي وقت"
             ].map((item) => (
               <div key={item} className="flex items-center gap-3 rounded-lg bg-white/10 p-3 text-sm font-bold">
                 <CheckCircle2 size={18} className="text-emerald-300" />
@@ -2394,7 +2394,16 @@ function EmployeesView({ employees, setEmployees, departments, shifts, shiftCopy
     notes: ""
   };
   const [form, setForm] = useState(emptyEmployee);
-  const [editingId, setEditingId] = useState("");
+  const [inlineEditingId, setInlineEditingId] = useState("");
+  const [inlineForm, setInlineForm] = useState({
+    departmentId: departments[0]?.id || "",
+    shiftId: shifts[0]?.id || "",
+    salary: "",
+    vacationBalance: 0,
+    extraDeductions: 0,
+    bonuses: 0,
+    notes: ""
+  });
   const [filter, setFilter] = useState("active");
   const [employeeSearch, setEmployeeSearch] = useState("");
   const [importSummary, setImportSummary] = useState(null);
@@ -2416,25 +2425,14 @@ function EmployeesView({ employees, setEmployees, departments, shifts, shiftCopy
       bonuses: Number(form.bonuses) || 0
     };
 
-    if (editingId) {
-      setEmployees(
-        employees.map((employee) => (employee.id === editingId ? { ...employee, ...payload } : employee))
-      );
-      setNotice("تم تحديث بيانات الموظف.");
-    } else {
-      setEmployees([...employees, { id: makeId("emp"), ...payload, active: true }]);
-      setNotice("تمت إضافة الموظف.");
-    }
-
+    setEmployees([...employees, { id: makeId("emp"), ...payload, active: true }]);
+    setNotice("تمت إضافة الموظف.");
     setForm(emptyEmployee);
-    setEditingId("");
   };
 
   const editEmployee = (employee) => {
-    setEditingId(employee.id);
-    setForm({
-      code: employee.code,
-      name: employee.name,
+    setInlineEditingId(employee.id);
+    setInlineForm({
       departmentId: employee.departmentId,
       shiftId: employee.shiftId,
       salary: employee.salary,
@@ -2443,6 +2441,21 @@ function EmployeesView({ employees, setEmployees, departments, shifts, shiftCopy
       bonuses: employee.bonuses,
       notes: employee.notes || ""
     });
+  };
+
+  const saveInlineEmployee = (employeeId) => {
+    const payload = {
+      departmentId: inlineForm.departmentId,
+      shiftId: inlineForm.shiftId,
+      salary: Number(inlineForm.salary) || 0,
+      vacationBalance: Number(inlineForm.vacationBalance) || 0,
+      extraDeductions: Number(inlineForm.extraDeductions) || 0,
+      bonuses: Number(inlineForm.bonuses) || 0,
+      notes: inlineForm.notes || ""
+    };
+    setEmployees(employees.map((employee) => (employee.id === employeeId ? { ...employee, ...payload } : employee)));
+    setInlineEditingId("");
+    setNotice("تم تحديث بيانات الموظف.");
   };
 
   const setArchived = (employeeId, active) => {
@@ -2556,20 +2569,7 @@ function EmployeesView({ employees, setEmployees, departments, shifts, shiftCopy
 
       <form onSubmit={saveEmployee} className="rounded-lg border border-line bg-white p-5 shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h2 className="text-xl font-extrabold text-ink">
-            {editingId ? "تعديل موظف" : "إضافة موظف"}
-          </h2>
-          {editingId ? (
-            <SecondaryButton
-              type="button"
-              onClick={() => {
-                setEditingId("");
-                setForm(emptyEmployee);
-              }}
-            >
-              إلغاء التعديل
-            </SecondaryButton>
-          ) : null}
+          <h2 className="text-xl font-extrabold text-ink">إضافة موظف</h2>
         </div>
         <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           <InputField
@@ -2678,16 +2678,21 @@ function EmployeesView({ employees, setEmployees, departments, shifts, shiftCopy
         {visibleEmployees.length ? (
           <div className="grid gap-3 lg:grid-cols-2">
             {visibleEmployees.map((employee) => (
-            <EmployeeCard
-              key={employee.id}
+              <EmployeeCard
+                key={employee.id}
                 employee={employee}
                 departments={departments}
                 shifts={shifts}
                 shiftCopy={shiftCopy}
+                isEditing={inlineEditingId === employee.id}
+                editForm={inlineForm}
+                onEditFormChange={setInlineForm}
                 onEdit={() => editEmployee(employee)}
-              onArchive={() => setArchived(employee.id, false)}
-              onRestore={() => setArchived(employee.id, true)}
-            />
+                onSaveEdit={() => saveInlineEmployee(employee.id)}
+                onCancelEdit={() => setInlineEditingId("")}
+                onArchive={() => setArchived(employee.id, false)}
+                onRestore={() => setArchived(employee.id, true)}
+              />
             ))}
           </div>
         ) : (
@@ -3804,7 +3809,20 @@ function ReportExportSurface({ refTarget, rows, settings, monthLabel, shiftCopy 
   );
 }
 
-function EmployeeCard({ employee, departments, shifts, shiftCopy, onEdit, onArchive, onRestore }) {
+function EmployeeCard({
+  employee,
+  departments,
+  shifts,
+  shiftCopy,
+  isEditing,
+  editForm,
+  onEditFormChange,
+  onEdit,
+  onSaveEdit,
+  onCancelEdit,
+  onArchive,
+  onRestore
+}) {
   const department = departments.find((item) => item.id === employee.departmentId)?.name || "غير محدد";
   const shift = shifts.find((item) => item.id === employee.shiftId)?.name || "غير محدد";
 
@@ -3828,20 +3846,95 @@ function EmployeeCard({ employee, departments, shifts, shiftCopy, onEdit, onArch
         <span>•</span>
         <span>{shiftCopy.definite}: {shift}</span>
       </div>
-      <div className="mt-4 flex flex-wrap gap-2">
-        <SecondaryButton type="button" onClick={onEdit} icon={Pencil}>
-          تعديل
-        </SecondaryButton>
-        {employee.active ? (
-          <SecondaryButton type="button" onClick={onArchive} icon={Archive}>
-            أرشفة
+      {isEditing ? (
+        <form
+          onSubmit={(event) => {
+            event.preventDefault();
+            onSaveEdit();
+          }}
+          className="mt-4 rounded-lg border border-line bg-slate-50 p-4"
+        >
+          <div className="grid gap-3 md:grid-cols-2">
+            <SelectField
+              label="القسم"
+              value={editForm.departmentId}
+              onChange={(event) => onEditFormChange({ ...editForm, departmentId: event.target.value })}
+            >
+              {departments.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.name}
+                </option>
+              ))}
+            </SelectField>
+            <SelectField
+              label={shiftCopy.definite}
+              value={editForm.shiftId}
+              onChange={(event) => onEditFormChange({ ...editForm, shiftId: event.target.value })}
+            >
+              {shifts.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.name}
+                </option>
+              ))}
+            </SelectField>
+            <InputField
+              label="الراتب الأساسي"
+              type="number"
+              value={editForm.salary}
+              onChange={(event) => onEditFormChange({ ...editForm, salary: event.target.value })}
+            />
+            <InputField
+              label="رصيد الإجازات"
+              type="number"
+              value={editForm.vacationBalance}
+              onChange={(event) => onEditFormChange({ ...editForm, vacationBalance: event.target.value })}
+            />
+            <InputField
+              label="مكافآت"
+              type="number"
+              value={editForm.bonuses}
+              onChange={(event) => onEditFormChange({ ...editForm, bonuses: event.target.value })}
+            />
+            <InputField
+              label="خصومات إضافية"
+              type="number"
+              value={editForm.extraDeductions}
+              onChange={(event) => onEditFormChange({ ...editForm, extraDeductions: event.target.value })}
+            />
+            <label className="md:col-span-2">
+              <span className="mb-2 block text-sm font-bold text-slate-700">ملاحظات</span>
+              <textarea
+                value={editForm.notes}
+                onChange={(event) => onEditFormChange({ ...editForm, notes: event.target.value })}
+                className="min-h-20 w-full rounded-lg border border-line bg-white px-4 py-3 text-ink outline-none transition focus:border-primary focus:ring-4 focus:ring-blue-100"
+              />
+            </label>
+          </div>
+          <div className="mt-4 flex flex-wrap gap-2">
+            <PrimaryButton type="submit" icon={Save}>
+              حفظ
+            </PrimaryButton>
+            <SecondaryButton type="button" onClick={onCancelEdit}>
+              إلغاء
+            </SecondaryButton>
+          </div>
+        </form>
+      ) : (
+        <div className="mt-4 flex flex-wrap gap-2">
+          <SecondaryButton type="button" onClick={onEdit} icon={Pencil}>
+            تعديل
           </SecondaryButton>
-        ) : (
-          <SecondaryButton type="button" onClick={onRestore} icon={RotateCcw}>
-            استعادة
-          </SecondaryButton>
-        )}
-      </div>
+          {employee.active ? (
+            <SecondaryButton type="button" onClick={onArchive} icon={Archive}>
+              أرشفة
+            </SecondaryButton>
+          ) : (
+            <SecondaryButton type="button" onClick={onRestore} icon={RotateCcw}>
+              استعادة
+            </SecondaryButton>
+          )}
+        </div>
+      )}
     </article>
   );
 }
