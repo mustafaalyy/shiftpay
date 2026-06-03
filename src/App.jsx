@@ -1065,14 +1065,16 @@ function PublicHomePage({ siteContent, isAuthenticated, onSignup, onSignin, onLo
                   قابل للتصدير
                 </span>
               </div>
-              <div className="mt-4 rounded-lg bg-white p-4 text-ink">
-                {["أحمد محمود", "سارة علي", "محمود حسن"].map((name, index) => (
-                  <div key={name} className="flex items-center justify-between border-b border-slate-100 py-3 last:border-b-0">
-                    <div>
-                      <p className="font-extrabold">{name}</p>
-                      <p className="text-xs font-bold text-slate-400">{["ملتزم", "مراجعة", "متكرر"][index]}</p>
-                    </div>
-                    <p className="font-extrabold text-primary">{["15,750", "22,100", "18,400"][index]}</p>
+              <div className="mt-4 grid grid-cols-2 gap-3">
+                {[
+                  ["الموظفون", "42"],
+                  ["الأقسام", "8"],
+                  ["التأخير", "126"],
+                  ["الصافي", "480K"]
+                ].map(([label, value]) => (
+                  <div key={label} className="rounded-lg bg-slate-50 p-4 text-ink">
+                    <p className="text-xs font-bold text-slate-500">{label}</p>
+                    <p className="mt-2 text-2xl font-extrabold">{value}</p>
                   </div>
                 ))}
               </div>
@@ -1706,19 +1708,6 @@ function HeroScene() {
               <p className="mt-2 text-2xl font-extrabold">
                 {["٤٢", "٨", "١٢٦ د", "٤٨٠K"][index]}
               </p>
-            </div>
-          ))}
-        </div>
-        <div className="mt-4 overflow-hidden rounded-lg border border-white/20 bg-white">
-          {["أحمد محمود", "سارة علي", "محمود حسن", "نوران سامي"].map((name, index) => (
-            <div key={name} className="grid grid-cols-5 gap-3 border-b border-slate-100 px-4 py-3 text-sm text-slate-700 last:border-b-0">
-              <span className="font-bold text-ink">{name}</span>
-              <span>{["HR", "IT", "Sales", "Ops"][index]}</span>
-              <span>{["ملتزم", "مراجعة", "متكرر", "مراجعة"][index]}</span>
-              <span>{["٢١", "٢٠", "١٩", "١٨"][index]} يوم</span>
-              <span className="font-extrabold text-primary">
-                {["١٥,٧٥٠", "٢٢,١٠٠", "١٨,٤٠٠", "١٦,٣٠٠"][index]}
-              </span>
             </div>
           ))}
         </div>
