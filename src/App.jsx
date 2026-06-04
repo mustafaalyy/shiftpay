@@ -90,6 +90,8 @@ function makeEmptyShift() {
       { id: makeId("ot"), afterMinutes: 15, bonusAmount: 40 },
       { id: makeId("ot"), afterMinutes: 60, bonusAmount: 150 }
     ],
+    shiftKind: "standard",
+    monthlyShiftTarget: "",
     segments: [{ id: makeId("seg"), startTime: "09:00", endTime: "17:00" }]
   };
 }

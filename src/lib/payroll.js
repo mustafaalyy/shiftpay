@@ -261,6 +261,8 @@ export const DEFAULT_SHIFTS = [
       { id: "ot-m-15", afterMinutes: 15, bonusAmount: 40 },
       { id: "ot-m-60", afterMinutes: 60, bonusAmount: 150 }
     ],
+    shiftKind: "standard",
+    monthlyShiftTarget: 0,
     segments: [{ startTime: "09:00", endTime: "17:00" }]
   },
   {
@@ -280,6 +282,8 @@ export const DEFAULT_SHIFTS = [
       { id: "ot-s-15", afterMinutes: 15, bonusAmount: 50 },
       { id: "ot-s-60", afterMinutes: 60, bonusAmount: 180 }
     ],
+    shiftKind: "standard",
+    monthlyShiftTarget: 0,
     segments: [{ startTime: "14:00", endTime: "22:00" }]
   }
 ];
@@ -295,6 +299,9 @@ export const DEFAULT_EMPLOYEES = [
     vacationBalance: 2,
     extraDeductions: 0,
     bonuses: 750,
+    shiftAssignmentMode: "fixed",
+    weeklyRestMode: "fixed",
+    flexibleWeeklyRestDays: 0,
     notes: "مسؤول ملفات الموظفين",
     active: true
   },
@@ -308,6 +315,9 @@ export const DEFAULT_EMPLOYEES = [
     vacationBalance: 1,
     extraDeductions: 300,
     bonuses: 1200,
+    shiftAssignmentMode: "fixed",
+    weeklyRestMode: "fixed",
+    flexibleWeeklyRestDays: 0,
     notes: "مهندسة نظم",
     active: true
   },
@@ -321,6 +331,9 @@ export const DEFAULT_EMPLOYEES = [
     vacationBalance: 3,
     extraDeductions: 0,
     bonuses: 1900,
+    shiftAssignmentMode: "fixed",
+    weeklyRestMode: "fixed",
+    flexibleWeeklyRestDays: 0,
     notes: "مبيعات الشركات",
     active: true
   },
@@ -334,6 +347,9 @@ export const DEFAULT_EMPLOYEES = [
     vacationBalance: 0,
     extraDeductions: 500,
     bonuses: 400,
+    shiftAssignmentMode: "fixed",
+    weeklyRestMode: "fixed",
+    flexibleWeeklyRestDays: 0,
     notes: "عمليات التشغيل",
     active: true
   },
@@ -347,6 +363,9 @@ export const DEFAULT_EMPLOYEES = [
     vacationBalance: 1,
     extraDeductions: 0,
     bonuses: 0,
+    shiftAssignmentMode: "fixed",
+    weeklyRestMode: "fixed",
+    flexibleWeeklyRestDays: 0,
     notes: "تم أرشفته مؤقتا",
     active: false
   }
@@ -561,16 +580,25 @@ export function calculatePayroll({ employees, departments, shifts, attendanceLog
   const groupedLogs = groupAttendance(attendanceLogs);
   const departmentMap = mapById(departments);
   const shiftMap = mapById(shifts);
+  const availableShifts = shifts.length ? shifts : DEFAULT_SHIFTS;
   const scheduledDayCount = Math.max(
     Number(settings.payrollMonthDays) || scheduledDates.length,
     1
   );
 
   return activeEmployees.map((employee) => {
-    const shift = shiftMap[employee.shiftId] || shifts[0] || DEFAULT_SHIFTS[0];
+    const shift = shiftMap[employee.shiftId] || availableShifts[0] || DEFAULT_SHIFTS[0];
     const department = departmentMap[employee.departmentId]?.name || "غير محدد";
-    const segments = getShiftSegments(shift);
-    const dailySalary = Number(employee.salary || 0) / scheduledDayCount;
+    const usesAutoShift = employee.shiftAssignmentMode === "auto";
+    const shiftCountMode = isShiftCountMode(shift);
+    const scheduledUnits = shiftCountMode ? getMonthlyShiftTarget(shift, scheduledDates.length) : scheduledDates.length;
+    const dailySalary = Number(employee.salary || 0) / Math.max(
+      shiftCountMode ? scheduledUnits : scheduledDayCount,
+      1
+    );
+    const evaluationDates = shiftCountMode
+      ? getEmployeeLogDates(groupedLogs, employee.code, activeReportMonth)
+      : scheduledDates;
 
     let presentDays = 0;
     let lateCount = 0;
@@ -580,22 +608,51 @@ export function calculatePayroll({ employees, departments, shifts, attendanceLog
     let overtimeMinutes = 0;
     let overtimeBonuses = 0;
     let incompleteSplitDays = 0;
+    let autoShiftDays = 0;
+    const presentDates = new Set();
+    const detectedShiftCounts = new Map();
     const splitWarnings = [];
 
-    scheduledDates.forEach((date) => {
-      const log = groupedLogs.get(`${employee.code}__${date}`);
+    evaluationDates.forEach((date) => {
+      const detected = usesAutoShift
+        ? detectShiftForDate({
+            groupedLogs,
+            employeeCode: employee.code,
+            date,
+            shifts: availableShifts
+          })
+        : { shift, score: 0, needsReview: false };
+      const activeShift = detected.shift || shift;
+      const log = buildShiftLogForDate(groupedLogs, employee.code, date, activeShift);
       if (!log) return;
 
-      const dayResult = evaluateShiftDay({ log, shift, segments });
+      const dayResult = evaluateShiftDay({
+        log,
+        shift: activeShift,
+        segments: getShiftSegments(activeShift),
+        requiresCompleteSession: isShiftCountMode(activeShift)
+      });
       if (!dayResult.hasWork) return;
 
       presentDays += 1;
+      presentDates.add(date);
       lateCount += dayResult.lateCount;
       lateMinutes += dayResult.lateMinutes;
       lateDeductions += dayResult.lateDeductions;
       overtimeCount += dayResult.overtimeCount;
       overtimeMinutes += dayResult.overtimeMinutes;
       overtimeBonuses += dayResult.overtimeBonuses;
+
+      if (usesAutoShift) {
+        autoShiftDays += 1;
+        detectedShiftCounts.set(activeShift.name, (detectedShiftCounts.get(activeShift.name) || 0) + 1);
+        if (detected.needsReview) {
+          splitWarnings.push({
+            date,
+            label: "الشيفت المكتشف تلقائيا يحتاج مراجعة"
+          });
+        }
+      }
 
       if (dayResult.incomplete) {
         incompleteSplitDays += 1;
@@ -606,8 +663,16 @@ export function calculatePayroll({ employees, departments, shifts, attendanceLog
       }
     });
 
-    const absenceDays = Math.max(0, scheduledDates.length - presentDays);
-    const vacationUsage = Math.min(absenceDays, Number(employee.vacationBalance) || 0);
+    const missingDates = scheduledDates.filter((date) => !presentDates.has(date));
+    const flexibleRestDates =
+      !shiftCountMode && employee.weeklyRestMode === "flexible"
+        ? allocateFlexibleRestDates(missingDates, Number(employee.flexibleWeeklyRestDays) || 0)
+        : [];
+    const flexibleRestUsage = flexibleRestDates.length;
+    const absenceDays = shiftCountMode
+      ? Math.max(0, scheduledUnits - presentDays)
+      : Math.max(0, missingDates.length - flexibleRestUsage);
+    const vacationUsage = shiftCountMode ? 0 : Math.min(absenceDays, Number(employee.vacationBalance) || 0);
     const unpaidAbsenceDays = Math.max(0, absenceDays - vacationUsage);
     const absenceDeductions = unpaidAbsenceDays * dailySalary;
     const extraDeductions = Number(employee.extraDeductions) || 0;
@@ -616,16 +681,28 @@ export function calculatePayroll({ employees, departments, shifts, attendanceLog
     const totalDeductions = lateDeductions + absenceDeductions + extraDeductions;
     const netSalary = Number(employee.salary || 0) - totalDeductions + bonuses;
     const status = getAttendanceStatus({ absenceDays, lateCount, incompleteSplitDays });
+    const detectedShiftSummary = [...detectedShiftCounts.entries()]
+      .map(([name, count]) => `${name} (${count})`)
+      .join("، ");
+    const operationNotes = [
+      shiftCountMode ? `حساب بعدد الشيفتات: ${presentDays}/${scheduledUnits}` : "",
+      usesAutoShift && detectedShiftSummary ? `اكتشاف تلقائي: ${detectedShiftSummary}` : "",
+      flexibleRestUsage > 0 ? `راحة مرنة: ${flexibleRestUsage} يوم` : "",
+      incompleteSplitDays > 0 ? "يوجد شيفت غير مكتمل" : ""
+    ].filter(Boolean);
 
     return {
       employeeId: employee.id,
       employeeCode: employee.code,
       employeeName: employee.name,
       department,
-      shift: shift.name,
+      shift: usesAutoShift && detectedShiftSummary ? detectedShiftSummary : shift.name,
+      shiftMode: usesAutoShift ? "auto" : "fixed",
+      shiftKind: shift.shiftKind || "standard",
+      autoShiftDays,
       status,
       attendanceDays: presentDays,
-      scheduledDays: scheduledDates.length,
+      scheduledDays: scheduledUnits,
       officialHolidays: getEffectiveHolidays(settings, Number(activeReportMonth.slice(0, 4))).filter(
         (holiday) => holiday.date.startsWith(activeReportMonth)
       ).length,
@@ -634,6 +711,8 @@ export function calculatePayroll({ employees, departments, shifts, attendanceLog
       incompleteSplitDays,
       splitWarnings,
       absenceDays,
+      flexibleRestUsage,
+      flexibleRestDates,
       vacationUsage,
       unpaidAbsenceDays,
       lateDeductions,
@@ -648,7 +727,8 @@ export function calculatePayroll({ employees, departments, shifts, attendanceLog
       salary: Number(employee.salary) || 0,
       netSalary,
       currency: settings.currency || "جنيه",
-      reportMonth: activeReportMonth
+      reportMonth: activeReportMonth,
+      operationNotes
     };
   });
 }
