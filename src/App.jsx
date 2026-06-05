@@ -285,7 +285,11 @@ export default function App() {
         const session = oauthSession || cloud.session;
         if (session?.access_token) {
           const connected = await bootstrapCloud(session, { silent: !oauthSession });
-          if (connected) setActiveView("dashboard");
+          if (connected) {
+            const appViews = ["dashboard","departments","shifts","employees","attendance","reports","settings"];
+            const hash = window.location.hash.replace("#", "");
+            setActiveView(appViews.includes(hash) ? hash : "dashboard");
+          }
         }
       } catch (error) {
         setCloud((previous) => ({ ...previous, error: error.message }));
@@ -1914,19 +1918,44 @@ function DashboardView({
 }
 
 function DepartmentsView({ departments, setDepartments, setNotice }) {
-  const [form, setForm] = useState({ name: "" });
+  const [customName, setCustomName] = useState("");
+  const [selected, setSelected] = useState(DEPARTMENT_PRESETS[0]);
+  const [editingId, setEditingId] = useState("");
+  const [editName, setEditName] = useState("");
+
+  const isCustom = selected === "__custom__";
+  const finalName = isCustom ? customName.trim() : selected;
 
   const addDepartment = (event) => {
     event.preventDefault();
-    const name = form.name.trim();
-    if (!name) return;
-    if (departments.some((department) => department.name.toLowerCase() === name.toLowerCase())) {
+    if (!finalName) return;
+    if (departments.some((d) => d.name.toLowerCase() === finalName.toLowerCase())) {
       setNotice("هذا القسم موجود بالفعل.");
       return;
     }
-    setDepartments([...departments, { id: makeId("dep"), name }]);
-    setForm({ name: "" });
+    setDepartments([...departments, { id: makeId("dep"), name: finalName }]);
+    setSelected(DEPARTMENT_PRESETS[0]);
+    setCustomName("");
     setNotice("تمت إضافة القسم.");
+  };
+
+  const startEdit = (dep) => {
+    setEditingId(dep.id);
+    setEditName(dep.name);
+  };
+
+  const saveEdit = (id) => {
+    const name = editName.trim();
+    if (!name) return;
+    setDepartments(departments.map((d) => d.id === id ? { ...d, name } : d));
+    setEditingId("");
+    setNotice("تم تحديث القسم.");
+  };
+
+  const deleteDepartment = (id) => {
+    if (!window.confirm("هل أنت متأكد من حذف هذا القسم؟")) return;
+    setDepartments(departments.filter((d) => d.id !== id));
+    setNotice("تم حذف القسم.");
   };
 
   return (
@@ -1934,19 +1963,31 @@ function DepartmentsView({ departments, setDepartments, setNotice }) {
       <PageHeader
         eyebrow="إدارة الهيكل"
         title="الأقسام"
-        description="أضف الأقسام من الخيارات الجاهزة، أو استخدم خيار Other لإدخال قسم مخصص."
+        description="أضف الأقسام من الاقتراحات أو أدخل اسماً مخصصاً."
       />
       <section className="grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
         <form onSubmit={addDepartment} className="rounded-lg border border-line bg-white p-5 shadow-sm">
           <h2 className="text-xl font-extrabold text-ink">قسم جديد</h2>
           <div className="mt-5 space-y-4">
-            <InputField
-              label="اسم القسم"
-              value={form.name}
-              onChange={(event) => setForm({ name: event.target.value })}
-              placeholder="مثال: المحاسبة، الإنتاج، المبيعات..."
-              required
-            />
+            <SelectField
+              label="اختر القسم"
+              value={selected}
+              onChange={(e) => setSelected(e.target.value)}
+            >
+              {DEPARTMENT_PRESETS.map((p) => (
+                <option key={p} value={p}>{p}</option>
+              ))}
+              <option value="__custom__">✏️ أدخل اسماً مخصصاً...</option>
+            </SelectField>
+            {isCustom && (
+              <InputField
+                label="اسم القسم المخصص"
+                value={customName}
+                onChange={(e) => setCustomName(e.target.value)}
+                placeholder="مثال: اللوجستيات، التسويق..."
+                required
+              />
+            )}
             <PrimaryButton type="submit" icon={Plus} full>
               إضافة القسم
             </PrimaryButton>
@@ -1960,12 +2001,55 @@ function DepartmentsView({ departments, setDepartments, setNotice }) {
                 key={department.id}
                 className="flex items-center justify-between gap-3 rounded-lg border border-line p-4"
               >
-                <div className="flex items-center gap-3">
-                  <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-50 text-primary">
-                    <Building2 size={20} />
-                  </span>
-                  <span className="font-extrabold text-ink">{department.name}</span>
-                </div>
+                {editingId === department.id ? (
+                  <div className="flex flex-1 items-center gap-2">
+                    <input
+                      className="flex-1 rounded-lg border border-primary px-3 py-2 text-sm outline-none"
+                      value={editName}
+                      onChange={(e) => setEditName(e.target.value)}
+                      autoFocus
+                    />
+                    <button
+                      type="button"
+                      onClick={() => saveEdit(department.id)}
+                      className="rounded-lg bg-primary px-3 py-2 text-xs font-bold text-white hover:opacity-90"
+                    >
+                      حفظ
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEditingId("")}
+                      className="rounded-lg border border-line px-3 py-2 text-xs font-bold text-slate-500 hover:bg-slate-50"
+                    >
+                      إلغاء
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    <div className="flex items-center gap-3">
+                      <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-50 text-primary">
+                        <Building2 size={20} />
+                      </span>
+                      <span className="font-extrabold text-ink">{department.name}</span>
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => startEdit(department)}
+                        className="rounded-lg border border-line p-2 text-slate-500 hover:border-primary hover:text-primary"
+                      >
+                        <Pencil size={14} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => deleteDepartment(department.id)}
+                        className="rounded-lg border border-line p-2 text-slate-500 hover:border-rose-300 hover:text-rose-600"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  </>
+                )}
               </div>
             ))}
           </div>

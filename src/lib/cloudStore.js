@@ -278,7 +278,9 @@ function toShiftRow(item, companyId) {
     late_rules: item.lateRules || [],
     overtime_rate_per_minute: Number(item.overtimeRatePerMinute) || 0,
     overtime_rules: item.overtimeRules || [],
-    segments: item.segments || []
+    segments: item.segments || [],
+    shift_kind: item.shiftKind || "standard",
+    monthly_shift_target: Number(item.monthlyShiftTarget) || 0
   };
 }
 
@@ -293,7 +295,9 @@ function fromShiftRow(row) {
     lateRules: row.late_rules || [],
     overtimeRatePerMinute: row.overtime_rate_per_minute || 0,
     overtimeRules: row.overtime_rules || [],
-    segments: row.segments || []
+    segments: row.segments || [],
+    shiftKind: row.shift_kind || "standard",
+    monthlyShiftTarget: row.monthly_shift_target || 0
   };
 }
 
@@ -310,7 +314,9 @@ function toEmployeeRow(item, companyId) {
     extra_deductions: Number(item.extraDeductions) || 0,
     bonuses: Number(item.bonuses) || 0,
     notes: item.notes || "",
-    active: item.active
+    active: item.active !== false,
+    shift_assignment_mode: item.shiftAssignmentMode || "fixed",
+    flexible_weekly_rest_days: Number(item.flexibleWeeklyRestDays) || 0
   };
 }
 
@@ -326,7 +332,9 @@ function fromEmployeeRow(row) {
     extraDeductions: row.extra_deductions,
     bonuses: row.bonuses,
     notes: row.notes || "",
-    active: row.active
+    active: row.active,
+    shiftAssignmentMode: row.shift_assignment_mode || "fixed",
+    flexibleWeeklyRestDays: row.flexible_weekly_rest_days || 0
   };
 }
 
