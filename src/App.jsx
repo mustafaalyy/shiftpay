@@ -17,6 +17,7 @@ import {
   LogOut,
   Mail,
   Pencil,
+  Trash2,
   Phone,
   Plus,
   Printer,
@@ -2029,6 +2030,16 @@ function ShiftsView({ shifts, setShifts, setNotice, shiftCopy }) {
     setEditingId("");
   };
 
+  const deleteShift = (shiftId) => {
+    if (!window.confirm("هل أنت متأكد من حذف هذا الشيفت؟")) return;
+    setShifts(shifts.filter((s) => s.id !== shiftId));
+    setNotice("تم حذف الشيفت.");
+    if (editingId === shiftId) {
+      setEditingId("");
+      setForm(makeEmptyShift());
+    }
+  };
+
   const editShift = (shift) => {
     setEditingId(shift.id);
     setForm({
@@ -2363,14 +2374,24 @@ function ShiftsView({ shifts, setShifts, setNotice, shiftCopy }) {
                       {shift.startTime} - {shift.endTime}
                     </p>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => editShift(shift)}
-                    className="inline-flex items-center gap-2 rounded-lg border border-line px-3 py-2 text-sm font-bold text-slate-700 hover:border-primary hover:text-primary"
-                  >
-                    <Pencil size={16} />
-                    تعديل
-                  </button>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => editShift(shift)}
+                      className="inline-flex items-center gap-2 rounded-lg border border-line px-3 py-2 text-sm font-bold text-slate-700 hover:border-primary hover:text-primary"
+                    >
+                      <Pencil size={16} />
+                      تعديل
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => deleteShift(shift.id)}
+                      className="inline-flex items-center gap-2 rounded-lg border border-rose-200 px-3 py-2 text-sm font-bold text-rose-600 hover:bg-rose-50"
+                    >
+                      <Trash2 size={16} />
+                      حذف
+                    </button>
+                  </div>
                 </div>
                 <div className="mt-4 grid gap-3 sm:grid-cols-2">
                   <MetricPill label="فترة السماح" value={`${shift.gracePeriod} دقيقة`} />
