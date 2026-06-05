@@ -572,7 +572,13 @@ export function buildDefaultAttendance() {
       })
   );
 }
+function isShiftCountMode(shift) {
+  return shift?.shiftKind === "shift_count";
+}
 
+function getMonthlyShiftTarget(shift, fallback) {
+  return Number(shift?.monthlyShiftTarget) || fallback;
+}
 export function calculatePayroll({ employees, departments, shifts, attendanceLogs, settings, reportMonth }) {
   const activeEmployees = employees.filter((employee) => employee.active);
   const activeReportMonth = reportMonth || getReportMonth(attendanceLogs);
