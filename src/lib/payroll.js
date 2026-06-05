@@ -579,6 +579,39 @@ function isShiftCountMode(shift) {
 function getMonthlyShiftTarget(shift, fallback) {
   return Number(shift?.monthlyShiftTarget) || fallback;
 }
+
+function getEmployeeLogDates(groupedLogs, employeeCode, reportMonth) {
+  const logs = groupedLogs[employeeCode] || {};
+  return Object.keys(logs).filter((date) => date.startsWith(reportMonth));
+}
+
+function detectShiftForDate({ groupedLogs, employeeCode, date, shifts }) {
+  const logs = groupedLogs[employeeCode]?.[date];
+  if (!logs || logs.length === 0) return { shift: shifts[0], score: 0, needsReview: false };
+  const checkIn = logs[0]?.checkIn;
+  if (!checkIn) return { shift: shifts[0], score: 0, needsReview: false };
+  const checkInMinutes = parseTimeToMinutes(checkIn);
+  let best = { shift: shifts[0], diff: Infinity, needsReview: false };
+  for (const shift of shifts) {
+    const start = parseTimeToMinutes(shift.startTime);
+    const diff = Math.abs(checkInMinutes - start);
+    if (diff < best.diff) best = { shift, diff, needsReview: diff > 90 };
+  }
+  return { shift: best.shift, score: best.diff, needsReview: best.needsReview };
+}
+
+function buildShiftLogForDate(groupedLogs, employeeCode, date, shift) {
+  const logs = groupedLogs[employeeCode]?.[date];
+  if (!logs || logs.length === 0) return null;
+  const checkIn = logs[0]?.checkIn || null;
+  const checkOut = logs[logs.length - 1]?.checkOut || null;
+  return { date, checkIn, checkOut, raw: logs };
+}
+
+function allocateFlexibleRestDates(missingDates, allowedRestDays) {
+  return missingDates.slice(0, allowedRestDays);
+}
+
 export function calculatePayroll({ employees, departments, shifts, attendanceLogs, settings, reportMonth }) {
   const activeEmployees = employees.filter((employee) => employee.active);
   const activeReportMonth = reportMonth || getReportMonth(attendanceLogs);
