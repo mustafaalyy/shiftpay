@@ -141,7 +141,13 @@ function getShiftCopy(countryCode) {
 }
 
 export default function App() {
-  const [activeView, setActiveView] = useState(() => (window.location.hash === "#site-admin" ? "site-admin" : "landing"));
+  const [activeView, setActiveView] = useState(() => {
+    if (window.location.hash === "#site-admin") return "site-admin";
+    const hash = window.location.hash.replace("#", "");
+    const appViews = ["dashboard","departments","shifts","employees","attendance","reports","settings"];
+    if (appViews.includes(hash)) return hash;
+    return "landing";
+  });
   const [isBooting, setIsBooting] = useState(() => Boolean(getStoredSession()));
   const [authMode, setAuthMode] = useState("signup");
   const [siteAdminSession, setSiteAdminSession] = useState(null);
@@ -585,9 +591,12 @@ export default function App() {
 
   const navigate = (view) => {
     setActiveView(view);
+    const appViews = ["dashboard","departments","shifts","employees","attendance","reports","settings"];
     if (view === "site-admin") {
       window.location.hash = "site-admin";
-    } else if (window.location.hash === "#site-admin") {
+    } else if (appViews.includes(view)) {
+      window.location.hash = view;
+    } else {
       window.history.replaceState({}, document.title, `${window.location.origin}${window.location.pathname}`);
     }
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -1905,18 +1914,18 @@ function DashboardView({
 }
 
 function DepartmentsView({ departments, setDepartments, setNotice }) {
-  const [form, setForm] = useState({ preset: DEPARTMENT_PRESETS[0], custom: "" });
-  const selectedName = form.preset === "Other" ? form.custom.trim() : form.preset;
+  const [form, setForm] = useState({ name: "" });
 
   const addDepartment = (event) => {
     event.preventDefault();
-    if (!selectedName) return;
-    if (departments.some((department) => department.name.toLowerCase() === selectedName.toLowerCase())) {
+    const name = form.name.trim();
+    if (!name) return;
+    if (departments.some((department) => department.name.toLowerCase() === name.toLowerCase())) {
       setNotice("هذا القسم موجود بالفعل.");
       return;
     }
-    setDepartments([...departments, { id: makeId("dep"), name: selectedName }]);
-    setForm({ preset: DEPARTMENT_PRESETS[0], custom: "" });
+    setDepartments([...departments, { id: makeId("dep"), name }]);
+    setForm({ name: "" });
     setNotice("تمت إضافة القسم.");
   };
 
@@ -1931,25 +1940,13 @@ function DepartmentsView({ departments, setDepartments, setNotice }) {
         <form onSubmit={addDepartment} className="rounded-lg border border-line bg-white p-5 shadow-sm">
           <h2 className="text-xl font-extrabold text-ink">قسم جديد</h2>
           <div className="mt-5 space-y-4">
-            <SelectField
-              label="اختر القسم"
-              value={form.preset}
-              onChange={(event) => setForm({ ...form, preset: event.target.value })}
-            >
-              {DEPARTMENT_PRESETS.map((department) => (
-                <option key={department} value={department}>
-                  {department}
-                </option>
-              ))}
-            </SelectField>
-            {form.preset === "Other" ? (
-              <InputField
-                label="اسم القسم"
-                value={form.custom}
-                onChange={(event) => setForm({ ...form, custom: event.target.value })}
-                placeholder="مثال: Legal"
-              />
-            ) : null}
+            <InputField
+              label="اسم القسم"
+              value={form.name}
+              onChange={(event) => setForm({ name: event.target.value })}
+              placeholder="مثال: المحاسبة، الإنتاج، المبيعات..."
+              required
+            />
             <PrimaryButton type="submit" icon={Plus} full>
               إضافة القسم
             </PrimaryButton>
