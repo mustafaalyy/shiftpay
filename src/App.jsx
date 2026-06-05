@@ -2010,7 +2010,9 @@ function ShiftsView({ shifts, setShifts, setNotice, shiftCopy }) {
           startTime: segment.startTime,
           endTime: segment.endTime
         }))
-        .filter((segment) => segment.startTime && segment.endTime)
+        .filter((segment) => segment.startTime && segment.endTime),
+      shiftKind: form.shiftKind || "standard",
+      monthlyShiftTarget: Number(form.monthlyShiftTarget) || 0
     };
     payload.startTime = payload.segments[0]?.startTime || form.startTime;
     payload.endTime = payload.segments.at(-1)?.endTime || form.endTime;
@@ -2044,7 +2046,9 @@ function ShiftsView({ shifts, setShifts, setNotice, shiftCopy }) {
         : [{ id: makeId("ot"), afterMinutes: 15, bonusAmount: (shift.overtimeRatePerMinute || 0) * 15 }],
       segments: shift.segments?.length
         ? shift.segments.map((segment, index) => ({ id: segment.id || `seg-${index}`, ...segment }))
-        : [{ id: makeId("seg"), startTime: shift.startTime, endTime: shift.endTime }]
+        : [{ id: makeId("seg"), startTime: shift.startTime, endTime: shift.endTime }],
+      shiftKind: shift.shiftKind || "standard",
+      monthlyShiftTarget: shift.monthlyShiftTarget || ""
     });
   };
 
@@ -2186,6 +2190,31 @@ function ShiftsView({ shifts, setShifts, setNotice, shiftCopy }) {
               onChange={(event) => setForm({ ...form, overtimeRatePerMinute: event.target.value })}
               required
             />
+          </div>
+          <div className="mt-5 rounded-lg border border-line bg-amber-50 p-4">
+            <h3 className="font-extrabold text-ink mb-3">خيارات متقدمة</h3>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <label>
+                <span className="mb-2 block text-sm font-bold text-slate-700">نوع الشيفت</span>
+                <select
+                  value={form.shiftKind}
+                  onChange={(event) => setForm({ ...form, shiftKind: event.target.value })}
+                  className="w-full rounded-lg border border-line bg-white px-4 py-3 text-ink outline-none transition focus:border-primary focus:ring-4 focus:ring-blue-100"
+                >
+                  <option value="standard">عادي (بالأيام)</option>
+                  <option value="shift_count">بعدد الشيفتات (24 ساعة / متغير)</option>
+                </select>
+              </label>
+              {form.shiftKind === "shift_count" && (
+                <InputField
+                  label="عدد الشيفتات الشهرية المستهدفة"
+                  type="number"
+                  min="1"
+                  value={form.monthlyShiftTarget}
+                  onChange={(event) => setForm({ ...form, monthlyShiftTarget: event.target.value })}
+                />
+              )}
+            </div>
           </div>
           <div className="mt-5 rounded-lg border border-line bg-slate-50 p-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
@@ -2393,7 +2422,9 @@ function EmployeesView({ employees, setEmployees, departments, shifts, shiftCopy
     vacationBalance: 0,
     extraDeductions: 0,
     bonuses: 0,
-    notes: ""
+    notes: "",
+    shiftAssignmentMode: "fixed",
+    flexibleWeeklyRestDays: 0
   };
   const [form, setForm] = useState(emptyEmployee);
   const [inlineEditingId, setInlineEditingId] = useState("");
@@ -2404,7 +2435,9 @@ function EmployeesView({ employees, setEmployees, departments, shifts, shiftCopy
     vacationBalance: 0,
     extraDeductions: 0,
     bonuses: 0,
-    notes: ""
+    notes: "",
+    shiftAssignmentMode: "fixed",
+    flexibleWeeklyRestDays: 0
   });
   const [filter, setFilter] = useState("active");
   const [employeeSearch, setEmployeeSearch] = useState("");
@@ -2424,7 +2457,9 @@ function EmployeesView({ employees, setEmployees, departments, shifts, shiftCopy
       salary: Number(form.salary) || 0,
       vacationBalance: Number(form.vacationBalance) || 0,
       extraDeductions: Number(form.extraDeductions) || 0,
-      bonuses: Number(form.bonuses) || 0
+      bonuses: Number(form.bonuses) || 0,
+      shiftAssignmentMode: form.shiftAssignmentMode || "fixed",
+      flexibleWeeklyRestDays: Number(form.flexibleWeeklyRestDays) || 0
     };
 
     setEmployees([...employees, { id: makeId("emp"), ...payload, active: true }]);
@@ -2641,6 +2676,30 @@ function EmployeesView({ employees, setEmployees, departments, shifts, shiftCopy
               className="min-h-24 w-full rounded-lg border border-line bg-white px-4 py-3 text-ink outline-none transition focus:border-primary focus:ring-4 focus:ring-blue-100"
             />
           </label>
+          <div className="md:col-span-2 xl:col-span-4 rounded-lg border border-line bg-slate-50 p-4">
+            <h3 className="font-extrabold text-ink mb-3">خيارات متقدمة</h3>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <label>
+                <span className="mb-2 block text-sm font-bold text-slate-700">وضع تحديد الشيفت</span>
+                <select
+                  value={form.shiftAssignmentMode}
+                  onChange={(event) => setForm({ ...form, shiftAssignmentMode: event.target.value })}
+                  className="w-full rounded-lg border border-line bg-white px-4 py-3 text-ink outline-none transition focus:border-primary focus:ring-4 focus:ring-blue-100"
+                >
+                  <option value="fixed">ثابت (الشيفت المحدد)</option>
+                  <option value="auto">تلقائي (اكتشاف من وقت البصمة)</option>
+                </select>
+              </label>
+              <InputField
+                label="أيام الراحة المرنة في الأسبوع"
+                type="number"
+                min="0"
+                max="7"
+                value={form.flexibleWeeklyRestDays}
+                onChange={(event) => setForm({ ...form, flexibleWeeklyRestDays: event.target.value })}
+              />
+            </div>
+          </div>
         </div>
         <div className="mt-5">
           <PrimaryButton type="submit" icon={Save}>
