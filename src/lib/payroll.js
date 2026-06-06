@@ -1237,19 +1237,36 @@ function evaluateShiftDay({ log, shift, segments }) {
       segments.length > 1
         ? punches.filter((time) => time >= windowStart && time <= windowEnd)
         : punches;
-    const checkIn = segmentPunches[0] ?? null;
-    // checkOut = last punch in window
-    // For split shifts: limit to segment end + 90min buffer to avoid bleeding into next segment
-    const checkOutCandidates = segments.length > 1
-      ? segmentPunches.filter((t) => t <= end + 90)
-      : segmentPunches;
-    const checkOut = checkOutCandidates.length > 1
-      ? checkOutCandidates.at(-1)
-      : null;
+
+    // For split shifts: distinguish checkIn (near segment start) vs checkOut (near segment end)
+    let checkIn = null;
+    let checkOut = null;
+
+    if (segments.length > 1) {
+      // Punches within 3h of segment start = checkIn candidates
+      const checkInWindow = segmentPunches.filter((t) => t <= start + 180);
+      // Punches within 3h after segment start and up to end+90 = checkOut candidates
+      const checkOutWindow = segmentPunches.filter((t) => t >= start + 30 && t <= end + 90);
+
+      checkIn = checkInWindow[0] ?? null;
+      checkOut = checkOutWindow.length > 1
+        ? checkOutWindow.at(-1)
+        : checkOutWindow.length === 1 && checkOutWindow[0] !== checkIn
+          ? checkOutWindow[0]
+          : null;
+
+      // If no checkIn found but we have a punch near segment end, treat as present (checkOut only)
+      if (checkIn === null && checkOutWindow.length > 0) {
+        checkOut = checkOutWindow.at(-1);
+      }
+    } else {
+      checkIn = segmentPunches[0] ?? null;
+      checkOut = segmentPunches.length > 1 ? segmentPunches.at(-1) : null;
+    }
 
     if (checkIn !== null || checkOut !== null) result.hasWork = true;
 
-    // Late check: only if checkIn is after start + grace
+    // Late check: only if checkIn is after start + grace (and we have a real checkIn)
     if (checkIn !== null && checkIn > start + grace) {
       const minutes = checkIn - (start + grace);
       result.lateCount += 1;
@@ -1263,11 +1280,6 @@ function evaluateShiftDay({ log, shift, segments }) {
       result.overtimeCount += 1;
       result.overtimeMinutes += minutes;
       result.overtimeBonuses += getOvertimeBonus(minutes, shift);
-    }
-
-    if (segments.length > 1 && checkIn === null) {
-      result.incomplete = true;
-      result.warning = "شيفت مقسم غير مكتمل";
     }
   });
 
