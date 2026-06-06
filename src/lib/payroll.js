@@ -1243,19 +1243,19 @@ function evaluateShiftDay({ log, shift, segments }) {
     let checkOut = null;
 
     if (segments.length > 1) {
-      // Punches within 3h of segment start = checkIn candidates
-      const checkInWindow = segmentPunches.filter((t) => t <= start + 180);
-      // Punches within 3h after segment start and up to end+90 = checkOut candidates
-      const checkOutWindow = segmentPunches.filter((t) => t >= start + 30 && t <= end + 90);
+      // checkIn = punches within grace+60min of segment start
+      const checkInCutoff = start + grace + 60;
+      const checkInWindow = segmentPunches.filter((t) => t >= windowStart && t <= checkInCutoff);
+      // checkOut = punches from segment midpoint to end+90
+      const midpoint = Math.round((start + end) / 2);
+      const checkOutWindow = segmentPunches.filter((t) => t >= midpoint && t <= end + 90);
 
       checkIn = checkInWindow[0] ?? null;
-      checkOut = checkOutWindow.length > 1
+      checkOut = checkOutWindow.length > 0 && checkOutWindow.at(-1) !== checkIn
         ? checkOutWindow.at(-1)
-        : checkOutWindow.length === 1 && checkOutWindow[0] !== checkIn
-          ? checkOutWindow[0]
-          : null;
+        : null;
 
-      // If no checkIn found but we have a punch near segment end, treat as present (checkOut only)
+      // If no checkIn but have checkOut near end → present without recorded entry
       if (checkIn === null && checkOutWindow.length > 0) {
         checkOut = checkOutWindow.at(-1);
       }
