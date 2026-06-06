@@ -616,6 +616,7 @@ function buildShiftLogForDate(groupedLogs, employeeCode, date, shift) {
     date,
     checkIn: log.checkIn !== null ? minutesToTime(log.checkIn) : "",
     checkOut: log.checkOut !== null ? minutesToTime(log.checkOut) : "",
+    punches: log.punches || [],
     raw: log
   };
 }
@@ -1227,16 +1228,28 @@ function evaluateShiftDay({ log, shift, segments }) {
 
     const nextStart = parseTimeToMinutes(segments[index + 1]?.startTime);
     const windowStart = start - 180;
-    const windowEnd = nextStart !== null ? nextStart - 1 : end + 360;
+    // For split shifts: each segment window ends at segment end + half the gap to next segment
+    const windowEnd = nextStart !== null
+      ? Math.round((end + nextStart) / 2)
+      : end + 360;
+
     const segmentPunches =
       segments.length > 1
         ? punches.filter((time) => time >= windowStart && time <= windowEnd)
         : punches;
     const checkIn = segmentPunches[0] ?? null;
-    const checkOut = segmentPunches.length > 1 ? segmentPunches.at(-1) : null;
+    // checkOut = last punch in window
+    // For split shifts: limit to segment end + 90min buffer to avoid bleeding into next segment
+    const checkOutCandidates = segments.length > 1
+      ? segmentPunches.filter((t) => t <= end + 90)
+      : segmentPunches;
+    const checkOut = checkOutCandidates.length > 1
+      ? checkOutCandidates.at(-1)
+      : null;
 
     if (checkIn !== null || checkOut !== null) result.hasWork = true;
 
+    // Late check: only if checkIn is after start + grace
     if (checkIn !== null && checkIn > start + grace) {
       const minutes = checkIn - (start + grace);
       result.lateCount += 1;
@@ -1244,6 +1257,7 @@ function evaluateShiftDay({ log, shift, segments }) {
       result.lateDeductions += getLateDeduction(minutes, shift);
     }
 
+    // Overtime: checkOut beyond segment end
     if (checkOut !== null && checkOut > end) {
       const minutes = checkOut - end;
       result.overtimeCount += 1;
@@ -1251,7 +1265,7 @@ function evaluateShiftDay({ log, shift, segments }) {
       result.overtimeBonuses += getOvertimeBonus(minutes, shift);
     }
 
-    if (segments.length > 1 && (checkIn === null || checkOut === null || checkOut <= checkIn)) {
+    if (segments.length > 1 && checkIn === null) {
       result.incomplete = true;
       result.warning = "شيفت مقسم غير مكتمل";
     }
