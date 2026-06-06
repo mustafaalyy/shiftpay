@@ -581,16 +581,24 @@ function getMonthlyShiftTarget(shift, fallback) {
 }
 
 function getEmployeeLogDates(groupedLogs, employeeCode, reportMonth) {
-  const logs = groupedLogs[employeeCode] || {};
-  return Object.keys(logs).filter((date) => date.startsWith(reportMonth));
+  const dates = [];
+  groupedLogs.forEach((_, key) => {
+    const sep = key.indexOf("__");
+    if (sep === -1) return;
+    const code = key.slice(0, sep);
+    const date = key.slice(sep + 2);
+    if (String(code).trim() === String(employeeCode).trim() && date.startsWith(reportMonth)) {
+      dates.push(date);
+    }
+  });
+  return dates;
 }
 
 function detectShiftForDate({ groupedLogs, employeeCode, date, shifts }) {
-  const logs = groupedLogs[employeeCode]?.[date];
-  if (!logs || logs.length === 0) return { shift: shifts[0], score: 0, needsReview: false };
-  const checkIn = logs[0]?.checkIn;
-  if (!checkIn) return { shift: shifts[0], score: 0, needsReview: false };
-  const checkInMinutes = parseTimeToMinutes(checkIn);
+  const key = `${String(employeeCode).trim()}__${date}`;
+  const log = groupedLogs.get(key);
+  if (!log || log.checkIn === null) return { shift: shifts[0], score: 0, needsReview: false };
+  const checkInMinutes = log.checkIn;
   let best = { shift: shifts[0], diff: Infinity, needsReview: false };
   for (const shift of shifts) {
     const start = parseTimeToMinutes(shift.startTime);
@@ -601,11 +609,15 @@ function detectShiftForDate({ groupedLogs, employeeCode, date, shifts }) {
 }
 
 function buildShiftLogForDate(groupedLogs, employeeCode, date, shift) {
-  const logs = groupedLogs[employeeCode]?.[date];
-  if (!logs || logs.length === 0) return null;
-  const checkIn = logs[0]?.checkIn || null;
-  const checkOut = logs[logs.length - 1]?.checkOut || null;
-  return { date, checkIn, checkOut, raw: logs };
+  const key = `${String(employeeCode).trim()}__${date}`;
+  const log = groupedLogs.get(key);
+  if (!log) return null;
+  return {
+    date,
+    checkIn: log.checkIn !== null ? minutesToTime(log.checkIn) : "",
+    checkOut: log.checkOut !== null ? minutesToTime(log.checkOut) : "",
+    raw: log
+  };
 }
 
 function allocateFlexibleRestDates(missingDates, allowedRestDays) {
