@@ -281,14 +281,14 @@ export default function App() {
     }
     const startCloud = async () => {
       try {
+        const appViews = ["dashboard","departments","shifts","employees","attendance","reports","settings"];
+        const savedHash = window.location.hash.replace("#", "");
         const oauthSession = await consumeOAuthSessionFromUrl();
         const session = oauthSession || cloud.session;
         if (session?.access_token) {
           const connected = await bootstrapCloud(session, { silent: !oauthSession });
           if (connected) {
-            const appViews = ["dashboard","departments","shifts","employees","attendance","reports","settings"];
-            const hash = window.location.hash.replace("#", "");
-            setActiveView(appViews.includes(hash) ? hash : "dashboard");
+            setActiveView(appViews.includes(savedHash) ? savedHash : "dashboard");
           }
         }
       } catch (error) {
@@ -310,6 +310,10 @@ export default function App() {
     const timer = setTimeout(async () => {
       try {
         let session = cloud.session;
+        if (!session?.access_token) {
+          setSyncStatus("error");
+          return;
+        }
         if (isSessionExpired(session)) {
           const refreshed = await refreshSession(session);
           if (!refreshed) {
@@ -322,6 +326,7 @@ export default function App() {
           }
           session = refreshed;
           setCloud((prev) => ({ ...prev, session: refreshed }));
+          storeSession(refreshed);
         }
         await syncWorkspaceToCloud({
           session,
@@ -336,14 +341,14 @@ export default function App() {
         });
         setSyncStatus("saved");
         setTimeout(() => setSyncStatus(""), 3000);
-      } catch {
+      } catch (err) {
+        console.error("Sync error:", err?.message || err);
         setSyncStatus("error");
         setTimeout(() => setSyncStatus(""), 5000);
       }
     }, 2000);
     return () => clearTimeout(timer);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [employees, departments, shifts, settings, reports]);
+  }, [employees, departments, shifts, settings, reports, cloud.session, cloud.companyId, cloud.loading]);
 
   const resetWorkspaceState = (nextSettings = settings) => {
     setSettings({ ...DEFAULT_SETTINGS, ...nextSettings });
