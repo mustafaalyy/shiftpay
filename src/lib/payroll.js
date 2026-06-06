@@ -694,6 +694,9 @@ export function calculatePayroll({ employees, departments, shifts, attendanceLog
       overtimeCount += dayResult.overtimeCount;
       overtimeMinutes += dayResult.overtimeMinutes;
       overtimeBonuses += dayResult.overtimeBonuses;
+      if (dayResult.overtimeMinutes > 0) {
+        console.log(`[OT] ${employee.code} ${date}: ${dayResult.overtimeMinutes}min = ${dayResult.overtimeBonuses}`);
+      }
 
       if (usesAutoShift) {
         autoShiftDays += 1;
