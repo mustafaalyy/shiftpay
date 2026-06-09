@@ -648,6 +648,9 @@ export function calculatePayroll({ employees, departments, shifts, attendanceLog
       shiftCountMode ? scheduledUnits : scheduledDayCount,
       1
     );
+    if (employee.code === "E02") {
+      console.log("[DEBUG E02 evalDates]", evaluationDates?.slice(0,5), "total:", evaluationDates?.length);
+    }
     const evaluationDates = shiftCountMode
       ? getEmployeeLogDates(groupedLogs, employee.code, activeReportMonth)
       : scheduledDates;
@@ -677,9 +680,6 @@ export function calculatePayroll({ employees, departments, shifts, attendanceLog
       const activeShift = detected.shift || shift;
       const log = buildShiftLogForDate(groupedLogs, employee.code, date, activeShift);
       if (!log) return;
-      if (employee.code === "E02" && date === "2025-06-07") {
-        console.log("[DEBUG E02 log]", JSON.stringify({checkIn: log.checkIn, checkOut: log.checkOut, punches: log.punches}));
-      }
 
       const dayResult = evaluateShiftDay({
         log,
