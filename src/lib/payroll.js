@@ -648,9 +648,6 @@ export function calculatePayroll({ employees, departments, shifts, attendanceLog
       shiftCountMode ? scheduledUnits : scheduledDayCount,
       1
     );
-    if (employee.code === "E02") {
-      console.log("[DEBUG E02 evalDates]", evaluationDates?.slice(0,5), "total:", evaluationDates?.length);
-    }
     const evaluationDates = shiftCountMode
       ? getEmployeeLogDates(groupedLogs, employee.code, activeReportMonth)
       : scheduledDates;
@@ -698,7 +695,7 @@ export function calculatePayroll({ employees, departments, shifts, attendanceLog
       overtimeMinutes += dayResult.overtimeMinutes;
       overtimeBonuses += dayResult.overtimeBonuses;
       if (dayResult.overtimeMinutes > 0) {
-        console.log(`[OT] ${employee.code} ${date}: ${dayResult.overtimeMinutes}min = ${dayResult.overtimeBonuses}`);
+
       }
 
       if (usesAutoShift) {
