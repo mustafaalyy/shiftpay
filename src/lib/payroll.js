@@ -1267,6 +1267,13 @@ function evaluateShiftDay({ log, shift, segments }) {
       checkOut = segmentPunches.length > 1 ? segmentPunches.at(-1) : null;
     }
 
+    // Fix overnight: if checkOut < checkIn, it crossed midnight → add 1440
+    if (checkIn !== null && checkOut !== null && checkOut < checkIn) {
+      checkOut += 1440;
+    }
+    // Fix overnight: if end < start, the shift end is next day
+    const adjustedEnd = end < start ? end + 1440 : end;
+
     if (checkIn !== null || checkOut !== null) result.hasWork = true;
 
     // Late check: only if checkIn is after start + grace (and we have a real checkIn)
@@ -1278,8 +1285,8 @@ function evaluateShiftDay({ log, shift, segments }) {
     }
 
     // Overtime: checkOut beyond segment end
-    if (checkOut !== null && checkOut > end) {
-      const minutes = checkOut - end;
+    if (checkOut !== null && checkOut > adjustedEnd) {
+      const minutes = checkOut - adjustedEnd;
       result.overtimeCount += 1;
       result.overtimeMinutes += minutes;
       result.overtimeBonuses += getOvertimeBonus(minutes, shift);
