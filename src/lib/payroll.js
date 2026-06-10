@@ -253,13 +253,14 @@ export const DEFAULT_SHIFTS = [
     lateDeductionPerMinute: 1.5,
     overtimeRatePerMinute: 2,
     lateRules: [
-      { id: "rule-m-5", afterMinutes: 5, deductionAmount: 25 },
-      { id: "rule-m-10", afterMinutes: 10, deductionAmount: 50 },
-      { id: "rule-m-30", afterMinutes: 30, deductionAmount: 100 }
+      { id: "rule-m-15", afterMinutes: 15, deductionFraction: 0.25 },
+      { id: "rule-m-30", afterMinutes: 30, deductionFraction: 0.5 },
+      { id: "rule-m-60", afterMinutes: 60, deductionFraction: 1.0 }
     ],
     overtimeRules: [
-      { id: "ot-m-15", afterMinutes: 15, bonusAmount: 40 },
-      { id: "ot-m-60", afterMinutes: 60, bonusAmount: 150 }
+      { id: "ot-m-30", afterMinutes: 30, overtimeMultiplier: 1.0 },
+      { id: "ot-m-60", afterMinutes: 60, overtimeMultiplier: 1.5 },
+      { id: "ot-m-120", afterMinutes: 120, overtimeMultiplier: 2.0 }
     ],
     shiftKind: "standard",
     monthlyShiftTarget: 0,
@@ -274,13 +275,14 @@ export const DEFAULT_SHIFTS = [
     lateDeductionPerMinute: 2,
     overtimeRatePerMinute: 2.5,
     lateRules: [
-      { id: "rule-s-5", afterMinutes: 5, deductionAmount: 30 },
-      { id: "rule-s-15", afterMinutes: 15, deductionAmount: 80 },
-      { id: "rule-s-30", afterMinutes: 30, deductionAmount: 140 }
+      { id: "rule-s-15", afterMinutes: 15, deductionFraction: 0.25 },
+      { id: "rule-s-30", afterMinutes: 30, deductionFraction: 0.5 },
+      { id: "rule-s-60", afterMinutes: 60, deductionFraction: 1.0 }
     ],
     overtimeRules: [
-      { id: "ot-s-15", afterMinutes: 15, bonusAmount: 50 },
-      { id: "ot-s-60", afterMinutes: 60, bonusAmount: 180 }
+      { id: "ot-s-30", afterMinutes: 30, overtimeMultiplier: 1.0 },
+      { id: "ot-s-60", afterMinutes: 60, overtimeMultiplier: 1.5 },
+      { id: "ot-s-120", afterMinutes: 120, overtimeMultiplier: 2.0 }
     ],
     shiftKind: "standard",
     monthlyShiftTarget: 0,
@@ -648,6 +650,17 @@ export function calculatePayroll({ employees, departments, shifts, attendanceLog
       shiftCountMode ? scheduledUnits : scheduledDayCount,
       1
     );
+    const shiftHours = (() => {
+      const segs = getShiftSegments(shift);
+      return segs.reduce((total, seg) => {
+        const s = parseTimeToMinutes(seg.startTime);
+        const e = parseTimeToMinutes(seg.endTime);
+        if (s === null || e === null) return total;
+        const dur = e < s ? e + 1440 - s : e - s;
+        return total + dur / 60;
+      }, 0) || 8;
+    })();
+    const hourlySalary = dailySalary / shiftHours;
     const evaluationDates = shiftCountMode
       ? getEmployeeLogDates(groupedLogs, employee.code, activeReportMonth)
       : scheduledDates;
@@ -682,7 +695,9 @@ export function calculatePayroll({ employees, departments, shifts, attendanceLog
         log,
         shift: activeShift,
         segments: getShiftSegments(activeShift),
-        requiresCompleteSession: isShiftCountMode(activeShift)
+        requiresCompleteSession: isShiftCountMode(activeShift),
+        dailySalary,
+        hourlySalary
       });
       if (!dayResult.hasWork) return;
 
@@ -1214,7 +1229,7 @@ function groupAttendance(attendanceLogs) {
   return grouped;
 }
 
-function evaluateShiftDay({ log, shift, segments }) {
+function evaluateShiftDay({ log, shift, segments, dailySalary, hourlySalary }) {
   const punches = getAttendancePunches(log);
   const grace = Number(shift.gracePeriod) || 0;
   const result = {
@@ -1286,7 +1301,7 @@ function evaluateShiftDay({ log, shift, segments }) {
       const minutes = checkIn - (start + grace);
       result.lateCount += 1;
       result.lateMinutes += minutes;
-      result.lateDeductions += getLateDeduction(minutes, shift);
+      result.lateDeductions += getLateDeduction(minutes, shift, dailySalary);
     }
 
     // Overtime: checkOut beyond segment end
@@ -1294,7 +1309,7 @@ function evaluateShiftDay({ log, shift, segments }) {
       const minutes = checkOut - adjustedEnd;
       result.overtimeCount += 1;
       result.overtimeMinutes += minutes;
-      result.overtimeBonuses += getOvertimeBonus(minutes, shift);
+      result.overtimeBonuses += getOvertimeBonus(minutes, shift, hourlySalary);
     }
   });
 
@@ -1354,35 +1369,52 @@ function listDatesInMonth(month, workDays) {
   return dates;
 }
 
-function getLateDeduction(minutes, shift) {
+function getLateDeduction(minutes, shift, dailySalary) {
   const rules = Array.isArray(shift.lateRules)
     ? shift.lateRules
         .map((rule) => ({
           afterMinutes: Number(rule.afterMinutes) || 0,
-          deductionAmount: Number(rule.deductionAmount) || 0
+          deductionFraction: rule.deductionFraction !== undefined ? Number(rule.deductionFraction) : null,
+          deductionAmount: rule.deductionAmount !== undefined ? Number(rule.deductionAmount) : null
         }))
         .filter((rule) => rule.afterMinutes > 0)
         .sort((a, b) => a.afterMinutes - b.afterMinutes)
     : [];
 
   const activeRule = rules.filter((rule) => minutes >= rule.afterMinutes).pop();
-  if (activeRule) return activeRule.deductionAmount;
+  if (activeRule) {
+    // New system: fraction of daily salary
+    if (activeRule.deductionFraction !== null && dailySalary) {
+      return Math.round(activeRule.deductionFraction * dailySalary);
+    }
+    // Legacy: fixed amount
+    if (activeRule.deductionAmount !== null) return activeRule.deductionAmount;
+  }
   return minutes * (Number(shift.lateDeductionPerMinute) || 0);
 }
 
-function getOvertimeBonus(minutes, shift) {
+function getOvertimeBonus(minutes, shift, hourlySalary) {
   const rules = Array.isArray(shift.overtimeRules)
     ? shift.overtimeRules
         .map((rule) => ({
           afterMinutes: Number(rule.afterMinutes) || 0,
-          bonusAmount: Number(rule.bonusAmount) || 0
+          overtimeMultiplier: rule.overtimeMultiplier !== undefined ? Number(rule.overtimeMultiplier) : null,
+          bonusAmount: rule.bonusAmount !== undefined ? Number(rule.bonusAmount) : null
         }))
         .filter((rule) => rule.afterMinutes > 0)
         .sort((a, b) => a.afterMinutes - b.afterMinutes)
     : [];
 
   const activeRule = rules.filter((rule) => minutes >= rule.afterMinutes).pop();
-  if (activeRule) return activeRule.bonusAmount;
+  if (activeRule) {
+    // New system: multiplier × hourly salary × OT hours
+    if (activeRule.overtimeMultiplier !== null && hourlySalary) {
+      const otHours = minutes / 60;
+      return Math.round(otHours * hourlySalary * activeRule.overtimeMultiplier);
+    }
+    // Legacy: fixed amount
+    if (activeRule.bonusAmount !== null) return activeRule.bonusAmount;
+  }
   return minutes * (Number(shift.overtimeRatePerMinute) || 0);
 }
 

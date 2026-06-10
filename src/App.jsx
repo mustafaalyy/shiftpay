@@ -84,12 +84,14 @@ function makeEmptyShift() {
     lateDeductionPerMinute: 1.5,
     overtimeRatePerMinute: 2,
     lateRules: [
-      { id: makeId("rule"), afterMinutes: 5, deductionAmount: 25 },
-      { id: makeId("rule"), afterMinutes: 10, deductionAmount: 50 }
+      { id: makeId("rule"), afterMinutes: 15, deductionFraction: 0.25 },
+      { id: makeId("rule"), afterMinutes: 30, deductionFraction: 0.5 },
+      { id: makeId("rule"), afterMinutes: 60, deductionFraction: 1.0 }
     ],
     overtimeRules: [
-      { id: makeId("ot"), afterMinutes: 15, bonusAmount: 40 },
-      { id: makeId("ot"), afterMinutes: 60, bonusAmount: 150 }
+      { id: makeId("ot"), afterMinutes: 30, overtimeMultiplier: 1.0 },
+      { id: makeId("ot"), afterMinutes: 60, overtimeMultiplier: 1.5 },
+      { id: makeId("ot"), afterMinutes: 120, overtimeMultiplier: 2.0 }
     ],
     shiftKind: "standard",
     monthlyShiftTarget: "",
@@ -2079,7 +2081,7 @@ function ShiftsView({ shifts, setShifts, setNotice, shiftCopy }) {
         .map((rule) => ({
           id: rule.id || makeId("rule"),
           afterMinutes: Number(rule.afterMinutes) || 0,
-          deductionAmount: Number(rule.deductionAmount) || 0
+          deductionFraction: Number(rule.deductionFraction) || 0
         }))
         .filter((rule) => rule.afterMinutes > 0)
         .sort((a, b) => a.afterMinutes - b.afterMinutes),
@@ -2087,7 +2089,7 @@ function ShiftsView({ shifts, setShifts, setNotice, shiftCopy }) {
         .map((rule) => ({
           id: rule.id || makeId("ot"),
           afterMinutes: Number(rule.afterMinutes) || 0,
-          bonusAmount: Number(rule.bonusAmount) || 0
+          overtimeMultiplier: Number(rule.overtimeMultiplier) || 1
         }))
         .filter((rule) => rule.afterMinutes > 0)
         .sort((a, b) => a.afterMinutes - b.afterMinutes),
@@ -2137,10 +2139,10 @@ function ShiftsView({ shifts, setShifts, setNotice, shiftCopy }) {
       overtimeRatePerMinute: shift.overtimeRatePerMinute || 0,
       lateRules: shift.lateRules?.length
         ? shift.lateRules
-        : [{ id: makeId("rule"), afterMinutes: 5, deductionAmount: shift.lateDeductionPerMinute * 5 }],
+        : [{ id: makeId("rule"), afterMinutes: 15, deductionFraction: 0.25 }],
       overtimeRules: shift.overtimeRules?.length
         ? shift.overtimeRules
-        : [{ id: makeId("ot"), afterMinutes: 15, bonusAmount: (shift.overtimeRatePerMinute || 0) * 15 }],
+        : [{ id: makeId("ot"), afterMinutes: 30, overtimeMultiplier: 1.0 }],
       segments: shift.segments?.length
         ? shift.segments.map((segment, index) => ({ id: segment.id || `seg-${index}`, ...segment }))
         : [{ id: makeId("seg"), startTime: shift.startTime, endTime: shift.endTime }],
@@ -2371,17 +2373,21 @@ function ShiftsView({ shifts, setShifts, setNotice, shiftCopy }) {
               {form.lateRules.map((rule) => (
                 <div key={rule.id} className="grid gap-3 rounded-lg bg-white p-3 sm:grid-cols-[1fr_1fr_auto]">
                   <InputField
-                    label="بعد دقائق"
+                    label="بعد دقائق تأخير"
                     type="number"
                     value={rule.afterMinutes}
                     onChange={(event) => updateLateRule(rule.id, { afterMinutes: event.target.value })}
                   />
-                  <InputField
-                    label="قيمة الخصم"
-                    type="number"
-                    value={rule.deductionAmount}
-                    onChange={(event) => updateLateRule(rule.id, { deductionAmount: event.target.value })}
-                  />
+                  <SelectField
+                    label="الخصم"
+                    value={rule.deductionFraction ?? 0.25}
+                    onChange={(event) => updateLateRule(rule.id, { deductionFraction: Number(event.target.value) })}
+                  >
+                    <option value={0.25}>ربع يوم (25%)</option>
+                    <option value={0.5}>نص يوم (50%)</option>
+                    <option value={0.75}>ثلاثة أرباع يوم (75%)</option>
+                    <option value={1.0}>يوم كامل (100%)</option>
+                  </SelectField>
                   <button
                     type="button"
                     onClick={() => removeLateRule(rule.id)}
@@ -2409,17 +2415,20 @@ function ShiftsView({ shifts, setShifts, setNotice, shiftCopy }) {
               {form.overtimeRules.map((rule) => (
                 <div key={rule.id} className="grid gap-3 rounded-lg bg-white p-3 sm:grid-cols-[1fr_1fr_auto]">
                   <InputField
-                    label="بعد دقائق"
+                    label="بعد دقائق إضافية"
                     type="number"
                     value={rule.afterMinutes}
                     onChange={(event) => updateOvertimeRule(rule.id, { afterMinutes: event.target.value })}
                   />
-                  <InputField
-                    label="قيمة المكافأة"
-                    type="number"
-                    value={rule.bonusAmount}
-                    onChange={(event) => updateOvertimeRule(rule.id, { bonusAmount: event.target.value })}
-                  />
+                  <SelectField
+                    label="مضاعف الساعة"
+                    value={rule.overtimeMultiplier ?? 1}
+                    onChange={(event) => updateOvertimeRule(rule.id, { overtimeMultiplier: Number(event.target.value) })}
+                  >
+                    <option value={1.0}>× 1 (نفس سعر الساعة)</option>
+                    <option value={1.5}>× 1.5 (ساعة ونص)</option>
+                    <option value={2.0}>× 2 (ساعتين)</option>
+                  </SelectField>
                   <button
                     type="button"
                     onClick={() => removeOvertimeRule(rule.id)}
