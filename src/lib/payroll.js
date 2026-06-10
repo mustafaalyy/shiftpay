@@ -1189,19 +1189,24 @@ function groupAttendance(attendanceLogs) {
     const current = grouped.get(key) || { checkIn: null, checkOut: null, punches: [] };
     const punches = [...new Set([...current.punches, ...rawPunches])].sort((a, b) => a - b);
 
+    const mergedCheckIn = checkIn === null
+      ? current.checkIn ?? punches[0] ?? null
+      : current.checkIn === null
+        ? checkIn
+        : Math.min(current.checkIn, checkIn);
+    const rawCheckOut = checkOut === null
+      ? current.checkOut ?? (punches.length > 1 ? punches.at(-1) : null)
+      : current.checkOut === null
+        ? checkOut
+        : Math.max(current.checkOut, checkOut);
+    // Normalize overnight: if checkOut < checkIn, it crossed midnight → add 1440
+    const mergedCheckOut = (rawCheckOut !== null && mergedCheckIn !== null && rawCheckOut < mergedCheckIn)
+      ? rawCheckOut + 1440
+      : rawCheckOut;
+
     grouped.set(key, {
-      checkIn:
-        checkIn === null
-          ? current.checkIn ?? punches[0] ?? null
-          : current.checkIn === null
-            ? checkIn
-            : Math.min(current.checkIn, checkIn),
-      checkOut:
-        checkOut === null
-          ? current.checkOut ?? (punches.length > 1 ? punches.at(-1) : null)
-          : current.checkOut === null
-            ? checkOut
-            : Math.max(current.checkOut, checkOut),
+      checkIn: mergedCheckIn,
+      checkOut: mergedCheckOut,
       punches
     });
   });
