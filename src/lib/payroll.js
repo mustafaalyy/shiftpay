@@ -1328,7 +1328,7 @@ function getAttendancePunches(log) {
 }
 
 function parsePunchValue(value) {
-  if (typeof value === "number" && value > 24 && value <= 1440) return Math.round(value);
+  if (typeof value === "number" && value > 24) return Math.round(value);
   return parseTimeToMinutes(value);
 }
 
