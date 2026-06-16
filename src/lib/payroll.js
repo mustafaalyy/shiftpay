@@ -1162,14 +1162,27 @@ function compactAttendanceLogs(logs) {
   });
 
   return [...grouped.values()]
-    .map((log) => ({
-      employeeCode: log.employeeCode,
-      name: log.name,
-      date: log.date,
-      checkIn: log.checkIn === null ? "" : minutesToTime(log.checkIn),
-      checkOut: log.checkOut === null ? "" : minutesToTime(log.checkOut),
-      punches: log.punches.map(minutesToTime)
-    }))
+    .map((log) => {
+      // Overnight fix: if checkOut < checkIn, it crossed midnight → add 1440
+      let finalCheckOut = log.checkOut;
+      if (log.checkIn !== null && log.checkOut !== null && log.checkOut < log.checkIn) {
+        finalCheckOut = log.checkOut + 1440;
+      }
+      // Normalize punches: any punch before checkIn that's small (overnight) gets +1440
+      const finalPunches = log.punches.map((p) => {
+        if (log.checkIn !== null && p < log.checkIn && log.checkIn - p > 720) return p + 1440;
+        return p;
+      }).sort((a, b) => a - b);
+
+      return {
+        employeeCode: log.employeeCode,
+        name: log.name,
+        date: log.date,
+        checkIn: log.checkIn === null ? "" : minutesToTime(log.checkIn),
+        checkOut: finalCheckOut === null ? "" : minutesToTime(finalCheckOut),
+        punches: finalPunches.map(minutesToTime)
+      };
+    })
     .sort((a, b) => `${a.date}-${a.employeeCode}`.localeCompare(`${b.date}-${b.employeeCode}`));
 }
 
@@ -1328,7 +1341,7 @@ function getAttendancePunches(log) {
 }
 
 function parsePunchValue(value) {
-  if (typeof value === "number" && value > 24) return Math.round(value);
+  if (typeof value === "number" && value > 24 && value <= 1440) return Math.round(value);
   return parseTimeToMinutes(value);
 }
 
