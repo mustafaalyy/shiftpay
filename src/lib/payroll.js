@@ -1217,20 +1217,23 @@ function groupAttendance(attendanceLogs) {
     const current = grouped.get(key) || { checkIn: null, checkOut: null, punches: [] };
     const punches = [...new Set([...current.punches, ...rawPunches])].sort((a, b) => a - b);
 
+    // Use explicit checkIn/checkOut from the file, not sort-based detection
     const mergedCheckIn = checkIn === null
       ? current.checkIn ?? punches[0] ?? null
       : current.checkIn === null
         ? checkIn
         : Math.min(current.checkIn, checkIn);
-    const rawCheckOut = checkOut === null
+    let rawCheckOut = checkOut === null
       ? current.checkOut ?? (punches.length > 1 ? punches.at(-1) : null)
       : current.checkOut === null
         ? checkOut
         : Math.max(current.checkOut, checkOut);
     // Normalize overnight: if checkOut < checkIn, it crossed midnight → add 1440
-    const mergedCheckOut = (rawCheckOut !== null && mergedCheckIn !== null && rawCheckOut < mergedCheckIn)
-      ? rawCheckOut + 1440
-      : rawCheckOut;
+    // Use threshold of 360 min (6 hours) to detect genuine overnight vs data issue
+    if (rawCheckOut !== null && mergedCheckIn !== null && rawCheckOut < mergedCheckIn) {
+      rawCheckOut = rawCheckOut + 1440;
+    }
+    const mergedCheckOut = rawCheckOut;
 
     grouped.set(key, {
       checkIn: mergedCheckIn,
@@ -1243,7 +1246,19 @@ function groupAttendance(attendanceLogs) {
 }
 
 function evaluateShiftDay({ log, shift, segments, dailySalary, hourlySalary }) {
-  const punches = getAttendancePunches(log);
+  const rawPunches = getAttendancePunches(log);
+  // For overnight logs, checkOut might be > 1440 (e.g. 25:00 = 1500)
+  // We need to keep the log's explicit checkIn/checkOut and build punches around them
+  const logCheckIn = parsePunchValue(log.checkIn);
+  const logCheckOut = parsePunchValue(log.checkOut);
+  // If checkOut < checkIn by raw parse, it was normalized to +1440 in groupAttendance
+  // so logCheckOut here is already correct (e.g. 1500)
+  // Rebuild punches using normalized values only
+  const punches = logCheckIn !== null && logCheckOut !== null
+    ? [logCheckIn, logCheckOut].sort((a,b) => a-b)
+    : logCheckIn !== null
+      ? [logCheckIn]
+      : rawPunches;
   const grace = Number(shift.gracePeriod) || 0;
   const result = {
     hasWork: false,
