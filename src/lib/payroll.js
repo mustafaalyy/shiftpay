@@ -411,7 +411,7 @@ export function parseTimeToMinutes(value) {
   if (ampm === "am" || ampm === "ص") {
     if (hours === 12) hours = 0;
   }
-  if (minutes > 59) return null; // allow hours >= 24 for overnight shifts
+  if (hours > 47 || minutes > 59) return null;
   return hours * 60 + minutes;
 }
 
