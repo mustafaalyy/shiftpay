@@ -74,6 +74,7 @@ const defaultAttendance = [];
 const defaultReports = [];
 const SITE_ADMIN_EMAIL = (import.meta.env.VITE_SITE_ADMIN_EMAIL || "").trim().toLowerCase();
 const SITE_ADMIN_PASSWORD = (import.meta.env.VITE_SITE_ADMIN_PASSWORD || "").trim();
+const SITE_ADMIN_USERNAME = (import.meta.env.VITE_SITE_ADMIN_USERNAME || "admin").trim().toLowerCase();
 
 function makeEmptyShift() {
   return {
@@ -144,7 +145,7 @@ function getShiftCopy(countryCode) {
 
 export default function App() {
   const [activeView, setActiveView] = useState(() => {
-    if (window.location.hash === "#site-admin") return "site-admin";
+    if (window.location.hash === "#site-admin" || window.location.hash === "#admin") return "site-admin";
     const hash = window.location.hash.replace("#", "");
     const appViews = ["dashboard","departments","shifts","employees","attendance","reports","settings"];
     if (appViews.includes(hash)) return hash;
@@ -242,7 +243,7 @@ export default function App() {
 
   useEffect(() => {
     const syncAdminHash = () => {
-      if (window.location.hash === "#site-admin") setActiveView("site-admin");
+      if (window.location.hash === "#site-admin" || window.location.hash === "#admin") setActiveView("site-admin");
     };
     syncAdminHash();
     window.addEventListener("hashchange", syncAdminHash);
@@ -553,35 +554,33 @@ export default function App() {
   };
 
   const handleSiteAdminLogin = async ({ email, password }) => {
-    if (!SITE_ADMIN_EMAIL) {
-      setSiteAdminError("اضبط VITE_SITE_ADMIN_EMAIL أولا حتى تكون لوحة إدارة الموقع مقفولة عليك فقط.");
-      return;
-    }
-
     if (!SITE_ADMIN_PASSWORD) {
-      setSiteAdminError("اضبط VITE_SITE_ADMIN_PASSWORD في إعدادات الاستضافة أو ملف .env.local.");
+      setSiteAdminError("اضبط VITE_SITE_ADMIN_PASSWORD في إعدادات الـ Vercel.");
       return;
     }
 
     setSiteAdminLoading(true);
     setSiteAdminError("");
 
-    const normalizedEmail = (email || "").trim().toLowerCase();
+    const normalizedInput = (email || "").trim().toLowerCase();
     const normalizedPassword = (password || "").trim();
 
-    if (normalizedEmail === SITE_ADMIN_EMAIL && normalizedPassword === SITE_ADMIN_PASSWORD) {
+    const emailMatch = SITE_ADMIN_EMAIL && normalizedInput === SITE_ADMIN_EMAIL;
+    const usernameMatch = normalizedInput === SITE_ADMIN_USERNAME;
+
+    if ((emailMatch || usernameMatch) && normalizedPassword === SITE_ADMIN_PASSWORD) {
       const session = {
         localAdmin: true,
         user: {
           id: "site-admin",
-          email: normalizedEmail,
+          email: normalizedInput,
           role: "site-admin"
         }
       };
       setSiteAdminSession(session);
       localStorage.setItem("shiftpay.siteAdminSession", JSON.stringify(session));
     } else {
-      setSiteAdminError("Invalid login credentials");
+      setSiteAdminError("اسم المستخدم أو كلمة المرور غلط");
     }
 
     setSiteAdminLoading(false);
@@ -1170,7 +1169,7 @@ function SiteAdminPage({
   notice,
   setNotice
 }) {
-  const [form, setForm] = useState({ email: SITE_ADMIN_EMAIL, password: "" });
+  const [form, setForm] = useState({ email: "", password: "" });
 
   const submit = (event) => {
     event.preventDefault();
@@ -1232,8 +1231,8 @@ function SiteAdminPage({
             </p>
             <form onSubmit={submit} className="mt-5 space-y-4">
               <InputField
-                label="إيميل الأدمن"
-                type="email"
+                label="اسم المستخدم أو الإيميل"
+                type="text"
                 value={form.email}
                 onChange={(event) => setForm({ ...form, email: event.target.value })}
                 required
@@ -1245,13 +1244,13 @@ function SiteAdminPage({
                 onChange={(event) => setForm({ ...form, password: event.target.value })}
                 required
               />
-              <PrimaryButton type="submit" icon={Users} disabled={loading || !SITE_ADMIN_EMAIL} full>
+              <PrimaryButton type="submit" icon={Users} disabled={loading || !SITE_ADMIN_PASSWORD} full>
                 {loading ? "جاري الدخول" : "دخول لوحة الموقع"}
               </PrimaryButton>
             </form>
-            {!SITE_ADMIN_EMAIL ? (
+            {!SITE_ADMIN_PASSWORD ? (
               <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm font-bold leading-7 text-amber-800">
-                أضف VITE_SITE_ADMIN_EMAIL في إعدادات الاستضافة حتى يتم قفل لوحة الموقع على إيميلك.
+                أضف VITE_SITE_ADMIN_PASSWORD و VITE_SITE_ADMIN_USERNAME في إعدادات الـ Vercel.
               </div>
             ) : null}
             {error ? (
@@ -3225,6 +3224,37 @@ function ReportsView({
             اعتماد التقرير
           </PrimaryButton>
         </div>
+        {reports.length > 1 && (
+          <div className="rounded-lg border border-blue-100 bg-blue-50 p-4">
+            <h3 className="mb-3 font-extrabold text-ink flex items-center gap-2">
+              <Archive size={16} className="text-primary" />
+              أرشيف التقارير ({reports.length} تقرير)
+            </h3>
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+              {reports.map((report) => (
+                <button
+                  key={report.id}
+                  type="button"
+                  onClick={() => { setSelectedReportId(report.id); if (report.month) setReportMonth(report.month); }}
+                  className={`flex items-center justify-between rounded-lg border px-4 py-3 text-right text-sm font-bold transition ${
+                    selectedReportId === report.id || (!selectedReportId && report.id === reports[0]?.id)
+                      ? "border-primary bg-white text-primary shadow-sm"
+                      : "border-line bg-white text-slate-600 hover:border-primary hover:text-primary"
+                  }`}
+                >
+                  <span>{getMonthLabel(report.month)}</span>
+                  <span className={`rounded px-2 py-0.5 text-xs ${
+                    report.status === "approved" ? "bg-emerald-100 text-emerald-700" :
+                    report.status === "paid" ? "bg-blue-100 text-blue-700" :
+                    "bg-slate-100 text-slate-500"
+                  }`}>
+                    {report.status === "approved" ? "معتمد" : report.status === "paid" ? "مدفوع" : "مسودة"}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
         <div className="grid gap-4 lg:grid-cols-4">
           <SelectField label="التقرير المحفوظ" value={selectedReportId} onChange={handleReportSelect}>
             {reports.map((report) => (
