@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Archive,
+  ChevronLeft,
   ArrowLeft,
   BadgeCheck,
   Building2,
@@ -18,6 +19,7 @@ import {
   Mail,
   Pencil,
   Trash2,
+  MessageCircle,
   Phone,
   Plus,
   Printer,
@@ -147,7 +149,7 @@ export default function App() {
   const [activeView, setActiveView] = useState(() => {
     if (window.location.hash === "#site-admin" || window.location.hash === "#admin") return "site-admin";
     const hash = window.location.hash.replace("#", "");
-    const appViews = ["dashboard","departments","shifts","employees","attendance","reports","settings"];
+    const appViews = ["dashboard","departments","shifts","employees","attendance","reports","archive","settings"];
     if (appViews.includes(hash)) return hash;
     return "landing";
   });
@@ -284,7 +286,7 @@ export default function App() {
     }
     const startCloud = async () => {
       try {
-        const appViews = ["dashboard","departments","shifts","employees","attendance","reports","settings"];
+        const appViews = ["dashboard","departments","shifts","employees","attendance","reports","archive","settings"];
         const savedHash = window.location.hash.replace("#", "");
         const oauthSession = await consumeOAuthSessionFromUrl();
         const session = oauthSession || cloud.session;
@@ -601,7 +603,7 @@ export default function App() {
 
   const navigate = (view) => {
     setActiveView(view);
-    const appViews = ["dashboard","departments","shifts","employees","attendance","reports","settings"];
+    const appViews = ["dashboard","departments","shifts","employees","attendance","reports","archive","settings"];
     if (view === "site-admin") {
       window.location.hash = "site-admin";
     } else if (appViews.includes(view)) {
@@ -744,6 +746,18 @@ export default function App() {
         onReport={() => navigate("reports")}
       />
     ),
+    archive: (
+      <ArchiveView
+        reports={reports}
+        onNavigate={navigate}
+        onSelectReport={(report) => {
+          setSelectedReportId(report.id);
+          if (report.month) setReportMonth(report.month);
+          navigate("reports");
+        }}
+        getMonthLabel={getMonthLabel}
+      />
+    ),
     reports: (
       <ReportsView
         payrollRows={payrollRows}
@@ -764,6 +778,7 @@ export default function App() {
         exporting={exporting}
         shiftCopy={shiftCopy}
         setNotice={setNotice}
+        onNavigate={navigate}
       />
     ),
     settings: (
@@ -1136,14 +1151,22 @@ function PublicHomePage({ siteContent, isAuthenticated, onSignup, onSignin, onLo
           <div>
             <p className="mb-3 font-extrabold text-ink">التواصل والدعم</p>
             <div className="space-y-3 text-sm font-bold text-slate-600">
-              <p className="flex items-center gap-2">
-                <Phone size={17} className="text-primary" />
+              <a
+                href={`https://wa.me/${(siteContent.supportPhone || "").replace(/[^0-9]/g, "")}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2 hover:text-primary transition-colors"
+              >
+                <MessageCircle size={17} className="text-green-500" />
                 {siteContent.supportPhone}
-              </p>
-              <p className="flex items-center gap-2">
+              </a>
+              <a
+                href={`mailto:${siteContent.supportEmail}`}
+                className="flex items-center gap-2 hover:text-primary transition-colors"
+              >
                 <Mail size={17} className="text-primary" />
                 {siteContent.supportEmail}
-              </p>
+              </a>
               <p className="flex items-center gap-2">
                 <Headphones size={17} className="text-primary" />
                 {siteContent.supportText}
@@ -1152,6 +1175,72 @@ function PublicHomePage({ siteContent, isAuthenticated, onSignup, onSignin, onLo
           </div>
         </div>
       </footer>
+    </div>
+  );
+}
+
+function ArchiveView({ reports, onNavigate, onSelectReport, getMonthLabel }) {
+  const [search, setSearch] = useState("");
+
+  const filtered = reports.filter((r) =>
+    !search || getMonthLabel(r.month).includes(search) || r.month?.includes(search)
+  );
+
+  const statusLabel = (status) =>
+    status === "approved" ? "معتمد" : status === "paid" ? "مدفوع" : "مسودة";
+  const statusClass = (status) =>
+    status === "approved" ? "bg-emerald-100 text-emerald-700" :
+    status === "paid" ? "bg-blue-100 text-blue-700" :
+    "bg-slate-100 text-slate-500";
+
+  return (
+    <div className="space-y-6">
+      <PageHeader
+        eyebrow="السجلات"
+        title="أرشيف التقارير"
+        description="كل تقارير الرواتب السابقة في مكان واحد."
+      />
+      <div className="flex items-center gap-3">
+        <button
+          type="button"
+          onClick={() => onNavigate("reports")}
+          className="inline-flex items-center gap-2 rounded-lg border border-line px-4 py-2 text-sm font-bold text-slate-600 hover:border-primary hover:text-primary"
+        >
+          <ArrowLeft size={15} />
+          رجوع للتقرير الحالي
+        </button>
+        <input
+          type="text"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="ابحث بالشهر..."
+          className="rounded-lg border border-line px-4 py-2 text-sm outline-none focus:border-primary focus:ring-4 focus:ring-blue-100"
+        />
+      </div>
+      {filtered.length === 0 ? (
+        <div className="rounded-lg border border-line bg-white p-10 text-center text-slate-500">
+          لا توجد تقارير
+        </div>
+      ) : (
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {filtered.map((report) => (
+            <button
+              key={report.id}
+              type="button"
+              onClick={() => onSelectReport(report)}
+              className="flex items-center justify-between rounded-lg border border-line bg-white px-5 py-4 text-right shadow-sm transition hover:border-primary hover:shadow-md"
+            >
+              <div>
+                <p className="font-extrabold text-ink">{getMonthLabel(report.month)}</p>
+                <p className="mt-1 text-xs text-slate-400">{report.fileName || "تقرير"}</p>
+              </div>
+              <span className={`rounded px-3 py-1 text-xs font-bold ${statusClass(report.status)}`}>
+                {statusLabel(report.status)}
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -2272,22 +2361,7 @@ function ShiftsView({ shifts, setShifts, setNotice, shiftCopy }) {
               }
               required
             />
-            <InputField
-              label="خصم الدقيقة"
-              type="number"
-              step="0.5"
-              value={form.lateDeductionPerMinute}
-              onChange={(event) => setForm({ ...form, lateDeductionPerMinute: event.target.value })}
-              required
-            />
-            <InputField
-              label="مكافأة دقيقة الوقت الإضافي"
-              type="number"
-              step="0.5"
-              value={form.overtimeRatePerMinute}
-              onChange={(event) => setForm({ ...form, overtimeRatePerMinute: event.target.value })}
-              required
-            />
+
           </div>
           <div className="mt-5 rounded-lg border border-line bg-amber-50 p-4">
             <h3 className="font-extrabold text-ink mb-3">خيارات متقدمة</h3>
@@ -3132,7 +3206,8 @@ function ReportsView({
   onSlipPdf,
   exporting,
   shiftCopy,
-  setNotice
+  setNotice,
+  onNavigate
 }) {
   const [reportSearch, setReportSearch] = useState("");
   const [departmentFilter, setDepartmentFilter] = useState("all");
@@ -3226,12 +3301,24 @@ function ReportsView({
         </div>
         {reports.length > 1 && (
           <div className="rounded-lg border border-blue-100 bg-blue-50 p-4">
-            <h3 className="mb-3 font-extrabold text-ink flex items-center gap-2">
-              <Archive size={16} className="text-primary" />
-              أرشيف التقارير ({reports.length} تقرير)
-            </h3>
-            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-              {reports.map((report) => (
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="font-extrabold text-ink flex items-center gap-2">
+                <Archive size={16} className="text-primary" />
+                آخر التقارير
+              </h3>
+              {reports.length > 3 && (
+                <button
+                  type="button"
+                  onClick={() => onNavigate("archive")}
+                  className="text-sm font-bold text-primary hover:underline flex items-center gap-1"
+                >
+                  عرض الكل ({reports.length})
+                  <ChevronLeft size={14} />
+                </button>
+              )}
+            </div>
+            <div className="grid gap-2 sm:grid-cols-3">
+              {reports.slice(0, 3).map((report) => (
                 <button
                   key={report.id}
                   type="button"
