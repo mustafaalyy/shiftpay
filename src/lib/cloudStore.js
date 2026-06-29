@@ -316,7 +316,10 @@ function toEmployeeRow(item, companyId) {
     notes: item.notes || "",
     active: item.active !== false,
     shift_assignment_mode: item.shiftAssignmentMode || "fixed",
-    flexible_weekly_rest_days: Number(item.flexibleWeeklyRestDays) || 0
+    flexible_weekly_rest_days: Number(item.flexibleWeeklyRestDays) || 0,
+    hire_date: item.hireDate || null,
+    job_title: item.jobTitle || "",
+    salary_history: item.salaryHistory || []
   };
 }
 
@@ -334,7 +337,10 @@ function fromEmployeeRow(row) {
     notes: row.notes || "",
     active: row.active,
     shiftAssignmentMode: row.shift_assignment_mode || "fixed",
-    flexibleWeeklyRestDays: row.flexible_weekly_rest_days || 0
+    flexibleWeeklyRestDays: row.flexible_weekly_rest_days || 0,
+    hireDate: row.hire_date || "",
+    jobTitle: row.job_title || "",
+    salaryHistory: row.salary_history || []
   };
 }
 

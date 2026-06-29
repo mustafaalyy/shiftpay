@@ -2613,7 +2613,10 @@ function EmployeesView({ employees, setEmployees, departments, shifts, shiftCopy
     bonuses: 0,
     notes: "",
     shiftAssignmentMode: "fixed",
-    flexibleWeeklyRestDays: 0
+    flexibleWeeklyRestDays: 0,
+    hireDate: "",
+    jobTitle: "",
+    salaryHistory: []
   };
   const [form, setForm] = useState(emptyEmployee);
   const [inlineEditingId, setInlineEditingId] = useState("");
@@ -2626,7 +2629,10 @@ function EmployeesView({ employees, setEmployees, departments, shifts, shiftCopy
     bonuses: 0,
     notes: "",
     shiftAssignmentMode: "fixed",
-    flexibleWeeklyRestDays: 0
+    flexibleWeeklyRestDays: 0,
+    hireDate: "",
+    jobTitle: "",
+    salaryHistory: []
   });
   const [filter, setFilter] = useState("active");
   const [employeeSearch, setEmployeeSearch] = useState("");
@@ -2648,7 +2654,10 @@ function EmployeesView({ employees, setEmployees, departments, shifts, shiftCopy
       extraDeductions: Number(form.extraDeductions) || 0,
       bonuses: Number(form.bonuses) || 0,
       shiftAssignmentMode: form.shiftAssignmentMode || "fixed",
-      flexibleWeeklyRestDays: Number(form.flexibleWeeklyRestDays) || 0
+      flexibleWeeklyRestDays: Number(form.flexibleWeeklyRestDays) || 0,
+      hireDate: form.hireDate || "",
+      jobTitle: form.jobTitle || "",
+      salaryHistory: form.salaryHistory || []
     };
 
     setEmployees([...employees, { id: makeId("emp"), ...payload, active: true }]);
@@ -2665,19 +2674,33 @@ function EmployeesView({ employees, setEmployees, departments, shifts, shiftCopy
       vacationBalance: employee.vacationBalance,
       extraDeductions: employee.extraDeductions,
       bonuses: employee.bonuses,
-      notes: employee.notes || ""
+      notes: employee.notes || "",
+      hireDate: employee.hireDate || "",
+      jobTitle: employee.jobTitle || "",
+      salaryHistory: employee.salaryHistory || []
     });
   };
 
   const saveInlineEmployee = (employeeId) => {
+    const currentEmployee = employees.find((e) => e.id === employeeId);
+    const newSalary = Number(inlineForm.salary) || 0;
+    const oldSalary = Number(currentEmployee?.salary) || 0;
+    const salaryHistory = currentEmployee?.salaryHistory || [];
+    const updatedSalaryHistory = newSalary !== oldSalary && oldSalary > 0
+      ? [...salaryHistory, { date: new Date().toISOString().slice(0, 10), from: oldSalary, to: newSalary }]
+      : salaryHistory;
+
     const payload = {
       departmentId: inlineForm.departmentId,
       shiftId: inlineForm.shiftId,
-      salary: Number(inlineForm.salary) || 0,
+      salary: newSalary,
       vacationBalance: Number(inlineForm.vacationBalance) || 0,
       extraDeductions: Number(inlineForm.extraDeductions) || 0,
       bonuses: Number(inlineForm.bonuses) || 0,
-      notes: inlineForm.notes || ""
+      notes: inlineForm.notes || "",
+      hireDate: inlineForm.hireDate || currentEmployee?.hireDate || "",
+      jobTitle: inlineForm.jobTitle || currentEmployee?.jobTitle || "",
+      salaryHistory: updatedSalaryHistory
     };
     setEmployees(employees.map((employee) => (employee.id === employeeId ? { ...employee, ...payload } : employee)));
     setInlineEditingId("");
@@ -2856,6 +2879,18 @@ function EmployeesView({ employees, setEmployees, departments, shifts, shiftCopy
             type="number"
             value={form.bonuses}
             onChange={(event) => setForm({ ...form, bonuses: event.target.value })}
+          />
+          <InputField
+            label="المسمى الوظيفي"
+            value={form.jobTitle}
+            onChange={(event) => setForm({ ...form, jobTitle: event.target.value })}
+            placeholder="مثال: مدير مبيعات، محاسب، مشرف إنتاج"
+          />
+          <InputField
+            label="تاريخ التعيين"
+            type="date"
+            value={form.hireDate}
+            onChange={(event) => setForm({ ...form, hireDate: event.target.value })}
           />
           <label className="md:col-span-2 xl:col-span-4">
             <span className="mb-2 block text-sm font-bold text-slate-700">ملاحظات</span>
@@ -4135,11 +4170,34 @@ function EmployeeCard({
           {employee.active ? "نشط" : "مؤرشف"}
         </span>
       </div>
+      {employee.jobTitle && (
+        <p className="mt-1 text-xs font-bold text-primary">{employee.jobTitle}</p>
+      )}
       <div className="mt-3 flex flex-wrap gap-2 text-xs font-bold text-slate-500">
         <span>{department}</span>
         <span>•</span>
         <span>{shiftCopy.definite}: {shift}</span>
+        {employee.hireDate && (
+          <>
+            <span>•</span>
+            <span>منذ {new Date(employee.hireDate).toLocaleDateString("ar-EG", { year: "numeric", month: "long" })}</span>
+          </>
+        )}
       </div>
+      {employee.salaryHistory?.length > 0 && !isEditing && (
+        <details className="mt-3">
+          <summary className="cursor-pointer text-xs font-bold text-slate-400 hover:text-primary">
+            سجل الراتب ({employee.salaryHistory.length} تغيير)
+          </summary>
+          <div className="mt-2 space-y-1">
+            {employee.salaryHistory.slice(-3).reverse().map((h, i) => (
+              <p key={i} className="text-xs text-slate-500">
+                {h.date}: من {h.from.toLocaleString()} إلى <span className="font-bold text-ink">{h.to.toLocaleString()}</span> ج
+              </p>
+            ))}
+          </div>
+        </details>
+      )}
       {isEditing ? (
         <form
           onSubmit={(event) => {
