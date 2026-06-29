@@ -1,6 +1,11 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Archive,
+  BarChart3,
+  TrendingUp,
+  TrendingDown,
+  Award,
+  AlertTriangle,
   ChevronLeft,
   ArrowLeft,
   BadgeCheck,
@@ -133,6 +138,7 @@ const NAV_ITEMS = [
   { id: "employees", label: "الموظفون", icon: Users },
   { id: "attendance", label: "رفع الحضور", icon: UploadCloud },
   { id: "reports", label: "تقرير الرواتب", icon: FileSpreadsheet },
+  { id: "insights", label: "تحليلات", icon: BarChart3 },
   { id: "settings", label: "الإعدادات", icon: Settings }
 ];
 
@@ -149,7 +155,7 @@ export default function App() {
   const [activeView, setActiveView] = useState(() => {
     if (window.location.hash === "#site-admin" || window.location.hash === "#admin") return "site-admin";
     const hash = window.location.hash.replace("#", "");
-    const appViews = ["dashboard","departments","shifts","employees","attendance","reports","archive","settings"];
+    const appViews = ["dashboard","departments","shifts","employees","attendance","reports","archive","insights","settings"];
     if (appViews.includes(hash)) return hash;
     return "landing";
   });
@@ -286,7 +292,7 @@ export default function App() {
     }
     const startCloud = async () => {
       try {
-        const appViews = ["dashboard","departments","shifts","employees","attendance","reports","archive","settings"];
+        const appViews = ["dashboard","departments","shifts","employees","attendance","reports","archive","insights","settings"];
         const savedHash = window.location.hash.replace("#", "");
         const oauthSession = await consumeOAuthSessionFromUrl();
         const session = oauthSession || cloud.session;
@@ -603,7 +609,7 @@ export default function App() {
 
   const navigate = (view) => {
     setActiveView(view);
-    const appViews = ["dashboard","departments","shifts","employees","attendance","reports","archive","settings"];
+    const appViews = ["dashboard","departments","shifts","employees","attendance","reports","archive","insights","settings"];
     if (view === "site-admin") {
       window.location.hash = "site-admin";
     } else if (appViews.includes(view)) {
@@ -744,6 +750,15 @@ export default function App() {
         setReportMonth={setReportMonth}
         setNotice={setNotice}
         onReport={() => navigate("reports")}
+      />
+    ),
+    insights: (
+      <InsightsView
+        payrollRows={payrollRows}
+        employees={employees}
+        departments={departments}
+        monthLabel={monthLabel}
+        settings={settings}
       />
     ),
     archive: (
@@ -1175,6 +1190,276 @@ function PublicHomePage({ siteContent, isAuthenticated, onSignup, onSignin, onLo
           </div>
         </div>
       </footer>
+    </div>
+  );
+}
+
+function InsightsView({ payrollRows, employees, departments, monthLabel, settings }) {
+  const [tab, setTab] = useState("overview");
+
+  if (!payrollRows?.length) {
+    return (
+      <div className="space-y-6">
+        <PageHeader eyebrow="التحليلات" title="تقارير متقدمة" description="ارفع ملف البصمة أولاً لعرض التحليلات." />
+        <div className="rounded-lg border border-line bg-white p-12 text-center text-slate-400">
+          لا توجد بيانات بعد
+        </div>
+      </div>
+    );
+  }
+
+  // KPIs
+  const totalSalary = payrollRows.reduce((s, r) => s + (r.salary || 0), 0);
+  const totalNet = payrollRows.reduce((s, r) => s + (r.netSalary || 0), 0);
+  const totalDeductions = payrollRows.reduce((s, r) => s + (r.deductions || 0), 0);
+  const totalOT = payrollRows.reduce((s, r) => s + (r.overtimeBonuses || 0), 0);
+  const totalLateMinutes = payrollRows.reduce((s, r) => s + (r.lateMinutes || 0), 0);
+  const totalAbsenceDays = payrollRows.reduce((s, r) => s + (r.absenceDays || 0), 0);
+
+  // Top late employees
+  const topLate = [...payrollRows]
+    .filter(r => r.lateMinutes > 0)
+    .sort((a, b) => b.lateMinutes - a.lateMinutes)
+    .slice(0, 5);
+
+  // Top overtime employees
+  const topOT = [...payrollRows]
+    .filter(r => r.overtimeMinutes > 0)
+    .sort((a, b) => b.overtimeMinutes - a.overtimeMinutes)
+    .slice(0, 5);
+
+  // Most committed (full attendance, no late)
+  const committed = [...payrollRows]
+    .filter(r => r.absenceDays === 0 && r.lateMinutes === 0)
+    .slice(0, 5);
+
+  // Need attention (high absence or high late)
+  const needAttention = [...payrollRows]
+    .filter(r => r.absenceDays >= 2 || r.lateMinutes >= 60)
+    .sort((a, b) => (b.absenceDays * 480 + b.lateMinutes) - (a.absenceDays * 480 + a.lateMinutes))
+    .slice(0, 5);
+
+  // Department breakdown
+  const deptMap = {};
+  payrollRows.forEach(r => {
+    const emp = employees.find(e => e.code === r.employeeCode);
+    const dept = departments.find(d => d.id === emp?.departmentId)?.name || "غير محدد";
+    if (!deptMap[dept]) deptMap[dept] = { count: 0, net: 0, late: 0, absence: 0, ot: 0 };
+    deptMap[dept].count++;
+    deptMap[dept].net += r.netSalary || 0;
+    deptMap[dept].late += r.lateMinutes || 0;
+    deptMap[dept].absence += r.absenceDays || 0;
+    deptMap[dept].ot += r.overtimeMinutes || 0;
+  });
+  const deptRows = Object.entries(deptMap).sort((a, b) => b[1].net - a[1].net);
+
+  const tabs = [
+    { id: "overview", label: "نظرة عامة" },
+    { id: "late", label: "التأخيرات" },
+    { id: "overtime", label: "الأوفر تايم" },
+    { id: "commitment", label: "الالتزام" },
+    { id: "departments", label: "الأقسام" },
+  ];
+
+  return (
+    <div className="space-y-6">
+      <PageHeader
+        eyebrow="التحليلات"
+        title={`تقارير متقدمة — ${monthLabel}`}
+        description="نظرة تفصيلية على أداء الموظفين والتكاليف."
+      />
+
+      {/* KPI Cards */}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="rounded-lg border border-line bg-white p-4 shadow-sm">
+          <p className="text-xs font-bold text-slate-400">إجمالي الرواتب</p>
+          <p className="mt-1 text-2xl font-extrabold text-ink">{totalNet.toLocaleString()} <span className="text-sm font-bold text-slate-400">{settings?.currency || "ج"}</span></p>
+          <p className="mt-1 text-xs text-slate-400">من أصل {totalSalary.toLocaleString()}</p>
+        </div>
+        <div className="rounded-lg border border-line bg-white p-4 shadow-sm">
+          <p className="text-xs font-bold text-slate-400">إجمالي الخصومات</p>
+          <p className="mt-1 text-2xl font-extrabold text-rose-600">{totalDeductions.toLocaleString()} <span className="text-sm font-bold text-slate-400">{settings?.currency || "ج"}</span></p>
+          <p className="mt-1 text-xs text-slate-400">{totalLateMinutes.toLocaleString()} دقيقة تأخير • {totalAbsenceDays} يوم غياب</p>
+        </div>
+        <div className="rounded-lg border border-line bg-white p-4 shadow-sm">
+          <p className="text-xs font-bold text-slate-400">مكافآت الأوفر تايم</p>
+          <p className="mt-1 text-2xl font-extrabold text-emerald-600">{totalOT.toLocaleString()} <span className="text-sm font-bold text-slate-400">{settings?.currency || "ج"}</span></p>
+          <p className="mt-1 text-xs text-slate-400">{topOT.length} موظف لديهم أوفر تايم</p>
+        </div>
+        <div className="rounded-lg border border-line bg-white p-4 shadow-sm">
+          <p className="text-xs font-bold text-slate-400">نسبة الالتزام</p>
+          <p className="mt-1 text-2xl font-extrabold text-primary">
+            {Math.round((committed.length / payrollRows.length) * 100)}%
+          </p>
+          <p className="mt-1 text-xs text-slate-400">{committed.length} من {payrollRows.length} موظف ملتزمين</p>
+        </div>
+      </div>
+
+      {/* Tabs */}
+      <div className="flex gap-2 overflow-x-auto border-b border-line pb-0">
+        {tabs.map(t => (
+          <button
+            key={t.id}
+            type="button"
+            onClick={() => setTab(t.id)}
+            className={`shrink-0 border-b-2 px-4 py-2 text-sm font-bold transition ${
+              tab === t.id ? "border-primary text-primary" : "border-transparent text-slate-500 hover:text-ink"
+            }`}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Tab Content */}
+      {tab === "overview" && (
+        <div className="grid gap-4 md:grid-cols-2">
+          <InsightsCard title="يحتاجون متابعة" icon={AlertTriangle} color="rose">
+            {needAttention.length === 0 ? <p className="text-sm text-slate-400">لا يوجد</p> : needAttention.map(r => (
+              <InsightsRow key={r.employeeCode} name={r.name} code={r.employeeCode}
+                badge={r.absenceDays > 0 ? `${r.absenceDays} أيام غياب` : `${r.lateMinutes} د تأخير`}
+                badgeColor="rose" />
+            ))}
+          </InsightsCard>
+          <InsightsCard title="الملتزمون" icon={Award} color="emerald">
+            {committed.length === 0 ? <p className="text-sm text-slate-400">لا يوجد</p> : committed.map(r => (
+              <InsightsRow key={r.employeeCode} name={r.name} code={r.employeeCode}
+                badge="ملتزم ✓" badgeColor="emerald" />
+            ))}
+          </InsightsCard>
+        </div>
+      )}
+
+      {tab === "late" && (
+        <InsightsCard title="الأكثر تأخيراً هذا الشهر" icon={TrendingDown} color="rose">
+          {topLate.length === 0 ? <p className="text-sm text-slate-400">لا توجد تأخيرات</p> : (
+            <div className="space-y-3">
+              {topLate.map((r, i) => (
+                <div key={r.employeeCode} className="flex items-center gap-3">
+                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-rose-50 text-xs font-extrabold text-rose-600">{i + 1}</span>
+                  <div className="flex-1">
+                    <p className="text-sm font-bold text-ink">{r.name}</p>
+                    <div className="mt-1 h-2 w-full rounded-full bg-slate-100">
+                      <div className="h-2 rounded-full bg-rose-400" style={{ width: `${Math.min(100, (r.lateMinutes / topLate[0].lateMinutes) * 100)}%` }} />
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm font-extrabold text-rose-600">{r.lateMinutes} د</p>
+                    <p className="text-xs text-slate-400">{r.lateCount} مرة</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </InsightsCard>
+      )}
+
+      {tab === "overtime" && (
+        <InsightsCard title="الأكثر أوفر تايم هذا الشهر" icon={TrendingUp} color="emerald">
+          {topOT.length === 0 ? <p className="text-sm text-slate-400">لا يوجد أوفر تايم</p> : (
+            <div className="space-y-3">
+              {topOT.map((r, i) => (
+                <div key={r.employeeCode} className="flex items-center gap-3">
+                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-emerald-50 text-xs font-extrabold text-emerald-600">{i + 1}</span>
+                  <div className="flex-1">
+                    <p className="text-sm font-bold text-ink">{r.name}</p>
+                    <div className="mt-1 h-2 w-full rounded-full bg-slate-100">
+                      <div className="h-2 rounded-full bg-emerald-400" style={{ width: `${Math.min(100, (r.overtimeMinutes / topOT[0].overtimeMinutes) * 100)}%` }} />
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm font-extrabold text-emerald-600">{Math.round(r.overtimeMinutes / 60 * 10) / 10} ساعة</p>
+                    <p className="text-xs text-slate-400">{r.overtimeBonuses.toLocaleString()} {settings?.currency || "ج"}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </InsightsCard>
+      )}
+
+      {tab === "commitment" && (
+        <div className="grid gap-4 md:grid-cols-2">
+          <InsightsCard title="الملتزمون — حضور كامل بدون تأخير" icon={Award} color="emerald">
+            {committed.length === 0 ? <p className="text-sm text-slate-400">لا يوجد</p> : committed.map(r => (
+              <InsightsRow key={r.employeeCode} name={r.name} code={r.employeeCode}
+                badge={`${r.presentDays} يوم حضور`} badgeColor="emerald" />
+            ))}
+          </InsightsCard>
+          <InsightsCard title="يحتاجون متابعة" icon={AlertTriangle} color="rose">
+            {needAttention.length === 0 ? <p className="text-sm text-slate-400">لا يوجد</p> : needAttention.map(r => (
+              <InsightsRow key={r.employeeCode} name={r.name} code={r.employeeCode}
+                badge={r.absenceDays >= 2 ? `${r.absenceDays} أيام غياب` : `${r.lateMinutes} د تأخير`}
+                badgeColor="rose" />
+            ))}
+          </InsightsCard>
+        </div>
+      )}
+
+      {tab === "departments" && (
+        <div className="overflow-hidden rounded-lg border border-line bg-white shadow-sm">
+          <table className="w-full text-sm">
+            <thead className="border-b border-line bg-slate-50 text-xs font-bold text-slate-500">
+              <tr>
+                <th className="px-4 py-3 text-right">القسم</th>
+                <th className="px-4 py-3 text-center">الموظفون</th>
+                <th className="px-4 py-3 text-center">إجمالي الرواتب</th>
+                <th className="px-4 py-3 text-center">دقائق التأخير</th>
+                <th className="px-4 py-3 text-center">أيام الغياب</th>
+                <th className="px-4 py-3 text-center">أوفر تايم</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-line">
+              {deptRows.map(([dept, data]) => (
+                <tr key={dept} className="hover:bg-slate-50">
+                  <td className="px-4 py-3 font-bold text-ink">{dept}</td>
+                  <td className="px-4 py-3 text-center">{data.count}</td>
+                  <td className="px-4 py-3 text-center font-bold">{data.net.toLocaleString()}</td>
+                  <td className="px-4 py-3 text-center text-rose-600">{data.late}</td>
+                  <td className="px-4 py-3 text-center text-rose-600">{data.absence}</td>
+                  <td className="px-4 py-3 text-center text-emerald-600">{Math.round(data.ot / 60 * 10) / 10} ساعة</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function InsightsCard({ title, icon: Icon, color, children }) {
+  const colors = {
+    rose: "text-rose-500",
+    emerald: "text-emerald-500",
+    blue: "text-primary",
+  };
+  return (
+    <div className="rounded-lg border border-line bg-white p-5 shadow-sm">
+      <div className="flex items-center gap-2 mb-4">
+        <Icon size={16} className={colors[color] || "text-primary"} />
+        <h3 className="font-extrabold text-ink">{title}</h3>
+      </div>
+      <div className="space-y-2">{children}</div>
+    </div>
+  );
+}
+
+function InsightsRow({ name, code, badge, badgeColor }) {
+  const colors = {
+    rose: "bg-rose-50 text-rose-700",
+    emerald: "bg-emerald-50 text-emerald-700",
+    blue: "bg-blue-50 text-blue-700",
+  };
+  return (
+    <div className="flex items-center justify-between">
+      <div>
+        <p className="text-sm font-bold text-ink">{name}</p>
+        <p className="text-xs text-slate-400">{code}</p>
+      </div>
+      <span className={`rounded-full px-3 py-1 text-xs font-bold ${colors[badgeColor] || "bg-slate-100 text-slate-600"}`}>
+        {badge}
+      </span>
     </div>
   );
 }
