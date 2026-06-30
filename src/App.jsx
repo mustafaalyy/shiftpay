@@ -1342,14 +1342,14 @@ function InsightsView({ payrollRows, employees, departments, monthLabel, setting
         <div className="grid gap-4 md:grid-cols-2">
           <InsightsCard title="يحتاجون متابعة" icon={AlertTriangle} color="rose">
             {needAttention.length === 0 ? <p className="text-sm text-slate-400">لا يوجد</p> : needAttention.map(r => (
-              <InsightsRow key={r.employeeCode} name={r.name} code={r.employeeCode}
+              <InsightsRow key={r.employeeCode} name={r.employeeName} code={r.employeeCode}
                 badge={r.absenceDays > 0 ? `${r.absenceDays} أيام غياب` : `${r.lateMinutes} د تأخير`}
                 badgeColor="rose" />
             ))}
           </InsightsCard>
           <InsightsCard title="الملتزمون" icon={Award} color="emerald">
             {committed.length === 0 ? <p className="text-sm text-slate-400">لا يوجد</p> : committed.map(r => (
-              <InsightsRow key={r.employeeCode} name={r.name} code={r.employeeCode}
+              <InsightsRow key={r.employeeCode} name={r.employeeName} code={r.employeeCode}
                 badge="ملتزم ✓" badgeColor="emerald" />
             ))}
           </InsightsCard>
@@ -1364,7 +1364,7 @@ function InsightsView({ payrollRows, employees, departments, monthLabel, setting
                 <div key={r.employeeCode} className="flex items-center gap-3">
                   <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-rose-50 text-xs font-extrabold text-rose-600">{i + 1}</span>
                   <div className="flex-1">
-                    <p className="text-sm font-bold text-ink">{r.name}</p>
+                    <p className="text-sm font-bold text-ink">{r.employeeName}</p>
                     <div className="mt-1 h-2 w-full rounded-full bg-slate-100">
                       <div className="h-2 rounded-full bg-rose-400" style={{ width: `${Math.min(100, (r.lateMinutes / topLate[0].lateMinutes) * 100)}%` }} />
                     </div>
@@ -1388,7 +1388,7 @@ function InsightsView({ payrollRows, employees, departments, monthLabel, setting
                 <div key={r.employeeCode} className="flex items-center gap-3">
                   <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-emerald-50 text-xs font-extrabold text-emerald-600">{i + 1}</span>
                   <div className="flex-1">
-                    <p className="text-sm font-bold text-ink">{r.name}</p>
+                    <p className="text-sm font-bold text-ink">{r.employeeName}</p>
                     <div className="mt-1 h-2 w-full rounded-full bg-slate-100">
                       <div className="h-2 rounded-full bg-emerald-400" style={{ width: `${Math.min(100, (r.overtimeMinutes / topOT[0].overtimeMinutes) * 100)}%` }} />
                     </div>
@@ -1408,13 +1408,13 @@ function InsightsView({ payrollRows, employees, departments, monthLabel, setting
         <div className="grid gap-4 md:grid-cols-2">
           <InsightsCard title="الملتزمون — حضور كامل بدون تأخير" icon={Award} color="emerald">
             {committed.length === 0 ? <p className="text-sm text-slate-400">لا يوجد</p> : committed.map(r => (
-              <InsightsRow key={r.employeeCode} name={r.name} code={r.employeeCode}
+              <InsightsRow key={r.employeeCode} name={r.employeeName} code={r.employeeCode}
                 badge={`${r.presentDays} يوم حضور`} badgeColor="emerald" />
             ))}
           </InsightsCard>
           <InsightsCard title="يحتاجون متابعة" icon={AlertTriangle} color="rose">
             {needAttention.length === 0 ? <p className="text-sm text-slate-400">لا يوجد</p> : needAttention.map(r => (
-              <InsightsRow key={r.employeeCode} name={r.name} code={r.employeeCode}
+              <InsightsRow key={r.employeeCode} name={r.employeeName} code={r.employeeCode}
                 badge={r.absenceDays >= 2 ? `${r.absenceDays} أيام غياب` : `${r.lateMinutes} د تأخير`}
                 badgeColor="rose" />
             ))}
