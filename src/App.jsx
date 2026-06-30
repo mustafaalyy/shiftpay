@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Archive,
+  BookOpen,
+  Landmark,
   BarChart3,
   TrendingUp,
   TrendingDown,
@@ -54,7 +56,7 @@ import {
   parseAttendanceFile,
   WEEK_DAYS
 } from "./lib/payroll";
-import { exportAttendanceTemplate, exportElementToPdf, exportEmployeeTemplate, exportPayrollToXlsx } from "./lib/exporters";
+import { exportAccountingJournal, exportAttendanceTemplate, exportBankTransferSheet, exportElementToPdf, exportEmployeeTemplate, exportPayrollToXlsx } from "./lib/exporters";
 import { makeId, useLocalStorage } from "./lib/storage";
 import {
   ensureCloudCompany,
@@ -637,6 +639,28 @@ export default function App() {
     setExporting("");
   };
 
+  const handleBankTransferExport = async (rows = payrollRows) => {
+    setExporting("bank");
+    await exportBankTransferSheet({
+      rows,
+      companyName: settings.companyName,
+      monthLabel,
+      currency: settings.currency
+    });
+    setExporting("");
+  };
+
+  const handleAccountingExport = async (rows = payrollRows) => {
+    setExporting("accounting");
+    await exportAccountingJournal({
+      rows,
+      companyName: settings.companyName,
+      monthLabel,
+      currency: settings.currency
+    });
+    setExporting("");
+  };
+
   const handleReportPdf = async (rows = payrollRows) => {
     setExporting("report");
     setReportExportRows(rows);
@@ -788,6 +812,8 @@ export default function App() {
         selectedSlip={selectedSlip}
         setSelectedSlipCode={setSelectedSlipCode}
         onExcel={handleExcelExport}
+        onBankTransfer={handleBankTransferExport}
+        onAccounting={handleAccountingExport}
         onPdf={handleReportPdf}
         onSlipPdf={handleSlipPdf}
         exporting={exporting}
@@ -3522,6 +3548,8 @@ function ReportsView({
   selectedSlip,
   setSelectedSlipCode,
   onExcel,
+  onBankTransfer,
+  onAccounting,
   onPdf,
   onSlipPdf,
   exporting,
@@ -3590,6 +3618,20 @@ function ReportsView({
               disabled={exporting === "excel" || filteredRows.length === 0}
             >
               {exporting === "excel" ? "جاري التصدير" : "Excel"}
+            </SecondaryButton>
+            <SecondaryButton
+              onClick={() => onBankTransfer(filteredRows)}
+              icon={Landmark}
+              disabled={exporting === "bank" || filteredRows.length === 0}
+            >
+              {exporting === "bank" ? "جاري التصدير" : "ملف البنك"}
+            </SecondaryButton>
+            <SecondaryButton
+              onClick={() => onAccounting(filteredRows)}
+              icon={BookOpen}
+              disabled={exporting === "accounting" || filteredRows.length === 0}
+            >
+              {exporting === "accounting" ? "جاري التصدير" : "قيد محاسبي"}
             </SecondaryButton>
             <PrimaryButton
               onClick={() => onPdf(filteredRows)}

@@ -78,6 +78,151 @@ export async function exportPayrollToXlsx({ rows, companyName, monthLabel, curre
   XLSX.writeFile(workbook, `ShiftPay-HR-${monthLabel}.xlsx`);
 }
 
+export async function exportBankTransferSheet({ rows, companyName, monthLabel, currency = "EGP" }) {
+  const XLSX = await import("xlsx");
+
+  // Standard bank transfer format: account-agnostic, works with most Egyptian/Arab banks
+  // bulk transfer upload templates (Employee ID, Name, Amount, Notes)
+  const headers = ["Employee Code", "Employee Name", "Net Amount", "Currency", "Reference"];
+
+  const body = rows
+    .filter((row) => row.netSalary > 0)
+    .map((row) => [
+      row.employeeCode,
+      row.employeeName,
+      round(row.netSalary),
+      currency,
+      `Salary ${monthLabel}`
+    ]);
+
+  const totalAmount = body.reduce((sum, r) => sum + r[2], 0);
+
+  const sheetData = [
+    [`Bank Transfer Sheet — ${companyName}`],
+    [`Period: ${monthLabel}`],
+    [`Total Employees: ${body.length}`],
+    [`Total Amount: ${round(totalAmount)} ${currency}`],
+    [],
+    headers,
+    ...body
+  ];
+
+  const worksheet = XLSX.utils.aoa_to_sheet(sheetData);
+  worksheet["!merges"] = [
+    { s: { r: 0, c: 0 }, e: { r: 0, c: headers.length - 1 } },
+    { s: { r: 1, c: 0 }, e: { r: 1, c: headers.length - 1 } },
+    { s: { r: 2, c: 0 }, e: { r: 2, c: headers.length - 1 } },
+    { s: { r: 3, c: 0 }, e: { r: 3, c: headers.length - 1 } }
+  ];
+  worksheet["!cols"] = [
+    { wch: 16 },
+    { wch: 26 },
+    { wch: 16 },
+    { wch: 10 },
+    { wch: 22 }
+  ];
+
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, "Bank Transfer");
+  XLSX.writeFile(workbook, `ShiftPay-BankTransfer-${monthLabel}.xlsx`);
+}
+
+export async function exportAccountingJournal({ rows, companyName, monthLabel, currency = "EGP" }) {
+  const XLSX = await import("xlsx");
+
+  // Double-entry style journal entries, compatible with most accounting software
+  // (QuickBooks, Zoho Books, Wave, generic GL imports)
+  const headers = [
+    "Date",
+    "Account",
+    "Description",
+    "Debit",
+    "Credit",
+    "Employee Code",
+    "Department"
+  ];
+
+  const today = new Date().toISOString().slice(0, 10);
+  const body = [];
+
+  rows.forEach((row) => {
+    if (row.salary > 0) {
+      body.push([
+        today,
+        "Salary Expense",
+        `${row.employeeName} - Base Salary`,
+        round(row.salary),
+        "",
+        row.employeeCode,
+        row.department
+      ]);
+    }
+    if (row.overtimeBonuses > 0) {
+      body.push([
+        today,
+        "Overtime Expense",
+        `${row.employeeName} - Overtime`,
+        round(row.overtimeBonuses),
+        "",
+        row.employeeCode,
+        row.department
+      ]);
+    }
+    if (row.deductions > 0) {
+      body.push([
+        today,
+        "Salary Deductions Payable",
+        `${row.employeeName} - Deductions`,
+        "",
+        round(row.deductions),
+        row.employeeCode,
+        row.department
+      ]);
+    }
+    body.push([
+      today,
+      "Salaries Payable",
+      `${row.employeeName} - Net Pay`,
+      "",
+      round(row.netSalary),
+      row.employeeCode,
+      row.department
+    ]);
+  });
+
+  const totalDebit = body.reduce((sum, r) => sum + (Number(r[3]) || 0), 0);
+  const totalCredit = body.reduce((sum, r) => sum + (Number(r[4]) || 0), 0);
+
+  const sheetData = [
+    [`Accounting Journal — ${companyName}`],
+    [`Period: ${monthLabel} | Currency: ${currency}`],
+    [`Total Debit: ${round(totalDebit)} | Total Credit: ${round(totalCredit)}`],
+    [],
+    headers,
+    ...body
+  ];
+
+  const worksheet = XLSX.utils.aoa_to_sheet(sheetData);
+  worksheet["!merges"] = [
+    { s: { r: 0, c: 0 }, e: { r: 0, c: headers.length - 1 } },
+    { s: { r: 1, c: 0 }, e: { r: 1, c: headers.length - 1 } },
+    { s: { r: 2, c: 0 }, e: { r: 2, c: headers.length - 1 } }
+  ];
+  worksheet["!cols"] = [
+    { wch: 12 },
+    { wch: 24 },
+    { wch: 30 },
+    { wch: 14 },
+    { wch: 14 },
+    { wch: 14 },
+    { wch: 18 }
+  ];
+
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, "Journal");
+  XLSX.writeFile(workbook, `ShiftPay-AccountingJournal-${monthLabel}.xlsx`);
+}
+
 export async function exportAttendanceTemplate() {
   const XLSX = await import("xlsx");
   const directRows = [
