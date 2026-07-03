@@ -44,6 +44,7 @@ import {
   COUNTRY_OPTIONS,
   DEFAULT_SETTINGS,
   DEPARTMENT_PRESETS,
+  detectIncompleteAttendanceDays,
   formatCurrency,
   formatNumber,
   getEffectiveHolidays,
@@ -102,6 +103,11 @@ function makeEmptyShift() {
       { id: makeId("ot"), afterMinutes: 30, overtimeMultiplier: 1.0 },
       { id: makeId("ot"), afterMinutes: 60, overtimeMultiplier: 1.5 },
       { id: makeId("ot"), afterMinutes: 120, overtimeMultiplier: 2.0 }
+    ],
+    incompletePunchRules: [
+      { id: makeId("ip"), occurrence: 1, deductionFraction: 0.25 },
+      { id: makeId("ip"), occurrence: 2, deductionFraction: 0.5 },
+      { id: makeId("ip"), occurrence: 3, deductionFraction: 1.0 }
     ],
     shiftKind: "standard",
     monthlyShiftTarget: "",
@@ -221,9 +227,10 @@ export default function App() {
         shifts,
         attendanceLogs: activeAttendanceLogs,
         settings,
-        reportMonth: activeReportMonth
+        reportMonth: activeReportMonth,
+        incompletePunchMode: selectedReport?.incompletePunchMode || "manual"
       }),
-    [employees, departments, shifts, activeAttendanceLogs, settings, activeReportMonth]
+    [employees, departments, shifts, activeAttendanceLogs, settings, activeReportMonth, selectedReport]
   );
   const selectedSlip = payrollRows.find((row) => row.employeeCode === selectedSlipCode) || payrollRows[0];
   const activeNavLabel = navItems.find((item) => item.id === activeView)?.label || monthLabel;
@@ -2492,6 +2499,14 @@ function ShiftsView({ shifts, setShifts, setNotice, shiftCopy }) {
         }))
         .filter((rule) => rule.afterMinutes > 0)
         .sort((a, b) => a.afterMinutes - b.afterMinutes),
+      incompletePunchRules: form.incompletePunchRules
+        .map((rule) => ({
+          id: rule.id || makeId("ip"),
+          occurrence: Number(rule.occurrence) || 0,
+          deductionFraction: Number(rule.deductionFraction) || 0
+        }))
+        .filter((rule) => rule.occurrence > 0)
+        .sort((a, b) => a.occurrence - b.occurrence),
       segments: form.segments
         .map((segment) => ({
           id: segment.id || makeId("seg"),
@@ -2542,6 +2557,13 @@ function ShiftsView({ shifts, setShifts, setNotice, shiftCopy }) {
       overtimeRules: shift.overtimeRules?.length
         ? shift.overtimeRules
         : [{ id: makeId("ot"), afterMinutes: 30, overtimeMultiplier: 1.0 }],
+      incompletePunchRules: shift.incompletePunchRules?.length
+        ? shift.incompletePunchRules
+        : [
+            { id: makeId("ip"), occurrence: 1, deductionFraction: 0.25 },
+            { id: makeId("ip"), occurrence: 2, deductionFraction: 0.5 },
+            { id: makeId("ip"), occurrence: 3, deductionFraction: 1.0 }
+          ],
       segments: shift.segments?.length
         ? shift.segments.map((segment, index) => ({ id: segment.id || `seg-${index}`, ...segment }))
         : [{ id: makeId("seg"), startTime: shift.startTime, endTime: shift.endTime }],
@@ -2584,6 +2606,33 @@ function ShiftsView({ shifts, setShifts, setNotice, shiftCopy }) {
 
   const removeOvertimeRule = (ruleId) => {
     setForm({ ...form, overtimeRules: form.overtimeRules.filter((rule) => rule.id !== ruleId) });
+  };
+
+  const updateIncompletePunchRule = (ruleId, patch) => {
+    setForm({
+      ...form,
+      incompletePunchRules: form.incompletePunchRules.map((rule) =>
+        rule.id === ruleId ? { ...rule, ...patch } : rule
+      )
+    });
+  };
+
+  const addIncompletePunchRule = () => {
+    const nextOccurrence = form.incompletePunchRules.length + 1;
+    setForm({
+      ...form,
+      incompletePunchRules: [
+        ...form.incompletePunchRules,
+        { id: makeId("ip"), occurrence: nextOccurrence, deductionFraction: 1.0 }
+      ]
+    });
+  };
+
+  const removeIncompletePunchRule = (ruleId) => {
+    setForm({
+      ...form,
+      incompletePunchRules: form.incompletePunchRules.filter((rule) => rule.id !== ruleId)
+    });
   };
 
   const updateSegment = (segmentId, patch) => {
@@ -2824,6 +2873,54 @@ function ShiftsView({ shifts, setShifts, setNotice, shiftCopy }) {
               ))}
             </div>
           </div>
+          <div className="mt-5 rounded-lg border border-line bg-amber-50 p-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h3 className="font-extrabold text-ink">شرائح خصم البصمة الناقصة الشهرية</h3>
+                <p className="mt-1 text-sm text-slate-500">
+                  يوم فيه دخول من غير خروج (أو العكس). الجدول تصاعدي حسب عدد المرات لكل موظف في الشهر.
+                </p>
+              </div>
+              <SecondaryButton type="button" onClick={addIncompletePunchRule} icon={Plus}>
+                إضافة شريحة
+              </SecondaryButton>
+            </div>
+            <div className="mt-4 grid gap-3">
+              {form.incompletePunchRules.map((rule) => (
+                <div key={rule.id} className="grid gap-3 rounded-lg bg-white p-3 sm:grid-cols-[1fr_1fr_auto]">
+                  <SelectField
+                    label="المرة رقم"
+                    value={rule.occurrence ?? 1}
+                    onChange={(event) => updateIncompletePunchRule(rule.id, { occurrence: Number(event.target.value) })}
+                  >
+                    <option value={1}>الأولى</option>
+                    <option value={2}>الثانية</option>
+                    <option value={3}>الثالثة</option>
+                    <option value={4}>الرابعة فأكثر</option>
+                  </SelectField>
+                  <SelectField
+                    label="الخصم"
+                    value={rule.deductionFraction ?? 0.25}
+                    onChange={(event) =>
+                      updateIncompletePunchRule(rule.id, { deductionFraction: Number(event.target.value) })
+                    }
+                  >
+                    <option value={0.25}>ربع يوم (25%)</option>
+                    <option value={0.5}>نص يوم (50%)</option>
+                    <option value={0.75}>ثلاثة أرباع يوم (75%)</option>
+                    <option value={1.0}>يوم كامل (100%)</option>
+                  </SelectField>
+                  <button
+                    type="button"
+                    onClick={() => removeIncompletePunchRule(rule.id)}
+                    className="self-end rounded-lg border border-line px-4 py-3 text-sm font-bold text-rose-600 hover:border-rose-200 hover:bg-rose-50"
+                  >
+                    حذف
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
           <div className="mt-5 flex flex-wrap gap-3">
             <PrimaryButton type="submit" icon={Save}>
               حفظ {shiftCopy.definite}
@@ -2900,6 +2997,16 @@ function ShiftsView({ shifts, setShifts, setNotice, shiftCopy }) {
                             .map((rule) => `${rule.afterMinutes}د = ${formatCurrency(rule.bonusAmount)}`)
                             .join("، ")
                         : `${shift.overtimeRatePerMinute || 0} / دقيقة`
+                    }
+                  />
+                  <MetricPill
+                    label="خصم البصمة الناقصة"
+                    value={
+                      shift.incompletePunchRules?.length
+                        ? shift.incompletePunchRules
+                            .map((rule) => `مرة ${rule.occurrence} = ${Math.round((rule.deductionFraction || 0) * 100)}%`)
+                            .join("، ")
+                        : "غير مُفعّل"
                     }
                   />
                 </div>
@@ -3319,6 +3426,8 @@ function AttendanceView({
   setNotice,
   onReport
 }) {
+  const [punchMode, setPunchMode] = useState("auto");
+
   const handleUpload = async (event) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -3326,8 +3435,10 @@ function AttendanceView({
     setUploadState({ loading: true, summary: null });
     const result = await parseAttendanceFile(file);
     const month = result.logs.length > 0 ? getReportMonth(result.logs) : "";
+    const incompleteDays = detectIncompleteAttendanceDays(result.logs);
 
-    setUploadState({ loading: false, summary: { ...result, fileName: file.name, month } });
+    setPunchMode("auto");
+    setUploadState({ loading: false, summary: { ...result, fileName: file.name, month, incompleteDays } });
     event.target.value = "";
   };
 
@@ -3340,6 +3451,7 @@ function AttendanceView({
     const isNewReport = !reports.some(
       (report) => report.month === summary.month && report.fileName === summary.fileName && report.rows === rowsCount
     );
+    const appliedPunchMode = summary.incompleteDays?.length ? punchMode : "auto";
     setAttendanceLogs(summary.logs);
     setReports((previous) => [
       {
@@ -3349,6 +3461,7 @@ function AttendanceView({
         rows: rowsCount,
         logs: summary.logs,
         status: "draft",
+        incompletePunchMode: appliedPunchMode,
         createdAt: new Date().toISOString()
       },
       ...previous
@@ -3362,7 +3475,8 @@ function AttendanceView({
         shifts,
         attendanceLogs: summary.logs,
         settings,
-        reportMonth: summary.month
+        reportMonth: summary.month,
+        incompletePunchMode: appliedPunchMode
       });
       const updatedEmployees = employees.map((employee) => {
         const row = nextPayrollRows.find((item) => item.employeeId === employee.id);
@@ -3473,6 +3587,55 @@ function AttendanceView({
                   كل الصفوف المقروءة سليمة.
                 </div>
               )}
+              {uploadState.summary.incompleteDays?.length ? (
+                <div className="rounded-lg border border-amber-300 bg-amber-50 p-4">
+                  <p className="mb-2 font-extrabold text-amber-900">
+                    فيه {uploadState.summary.incompleteDays.length} يوم ببصمة ناقصة (دخول من غير خروج، أو العكس)
+                  </p>
+                  <ul className="mb-4 max-h-40 space-y-1 overflow-y-auto text-sm leading-6 text-amber-800">
+                    {uploadState.summary.incompleteDays.slice(0, 8).map((entry) => (
+                      <li key={`${entry.employeeCode}-${entry.date}`}>
+                        {entry.name || entry.employeeCode} · {entry.date} ·{" "}
+                        {entry.missing === "checkOut" ? "بدون بصمة انصراف" : "بدون بصمة حضور"}
+                      </li>
+                    ))}
+                    {uploadState.summary.incompleteDays.length > 8 ? (
+                      <li>و {uploadState.summary.incompleteDays.length - 8} حالة أخرى...</li>
+                    ) : null}
+                  </ul>
+                  <p className="mb-2 text-sm font-bold text-amber-900">اختر طريقة التعامل مع هذه الأيام:</p>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <button
+                      type="button"
+                      onClick={() => setPunchMode("auto")}
+                      className={`rounded-lg border p-3 text-right text-sm transition ${
+                        punchMode === "auto"
+                          ? "border-primary bg-white ring-2 ring-primary/30"
+                          : "border-amber-200 bg-white/60 hover:border-primary"
+                      }`}
+                    >
+                      <span className="block font-extrabold text-ink">تطبيق سياسة الخصم التلقائي</span>
+                      <span className="mt-1 block text-xs text-slate-500">
+                        يطبق الجدول التصاعدي المحدد لكل شيفت حسب عدد المرات لكل موظف في الشهر.
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPunchMode("manual")}
+                      className={`rounded-lg border p-3 text-right text-sm transition ${
+                        punchMode === "manual"
+                          ? "border-primary bg-white ring-2 ring-primary/30"
+                          : "border-amber-200 bg-white/60 hover:border-primary"
+                      }`}
+                    >
+                      <span className="block font-extrabold text-ink">مراجعة يدوية</span>
+                      <span className="mt-1 block text-xs text-slate-500">
+                        بدون خصم تلقائي؛ الأيام دي هتتحسب "تحتاج مراجعة" وتسيبها لـ HR يدخلها بنفسه.
+                      </span>
+                    </button>
+                  </div>
+                </div>
+              ) : null}
               {uploadState.summary.logs.length ? (
                 <div className="space-y-4">
                   <div className="rounded-lg border border-line">
@@ -4249,13 +4412,28 @@ function PayrollTable({ rows, settings, shiftCopy, onSlip }) {
               </span>
             </td>
             <td className="px-4 py-4 text-sm">
-              {row.incompleteSplitDays > 0 ? (
-                <span className="rounded-full bg-amber-50 px-3 py-1 font-bold text-amber-700">
-                  شيفت مقسم غير مكتمل
-                </span>
-              ) : (
-                <span className="text-slate-400">-</span>
-              )}
+              <div className="flex flex-col gap-1">
+                {row.incompleteSplitDays > 0 ? (
+                  <span className="rounded-full bg-amber-50 px-3 py-1 font-bold text-amber-700">
+                    شيفت مقسم غير مكتمل
+                  </span>
+                ) : null}
+                {row.missingPunchDays > 0 ? (
+                  <span
+                    className={`rounded-full px-3 py-1 font-bold ${
+                      row.missingPunchNeedsReview > 0
+                        ? "bg-amber-50 text-amber-700"
+                        : "bg-rose-50 text-rose-700"
+                    }`}
+                  >
+                    بصمة ناقصة × {row.missingPunchDays}
+                    {row.missingPunchNeedsReview > 0 ? " (مراجعة)" : ""}
+                  </span>
+                ) : null}
+                {row.incompleteSplitDays === 0 && row.missingPunchDays === 0 ? (
+                  <span className="text-slate-400">-</span>
+                ) : null}
+              </div>
             </td>
             <td className="px-4 py-4 font-bold text-rose-600">{row.absenceDays}</td>
             <td className="px-4 py-4 font-bold text-emerald-600">{row.vacationUsage}</td>
@@ -4315,6 +4493,15 @@ function PayrollMobileCard({ row, settings, shiftCopy, onSlip }) {
           شيفت مقسم غير مكتمل يحتاج مراجعة
         </div>
       ) : null}
+      {row.missingPunchDays > 0 ? (
+        <div
+          className={`mt-3 rounded-lg px-4 py-3 text-sm font-bold ${
+            row.missingPunchNeedsReview > 0 ? "bg-amber-50 text-amber-700" : "bg-rose-50 text-rose-700"
+          }`}
+        >
+          بصمة ناقصة {row.missingPunchDays} يوم{row.missingPunchNeedsReview > 0 ? " — يحتاج مراجعة يدوية" : ""}
+        </div>
+      ) : null}
       <div className="mt-4 flex items-center justify-between rounded-lg bg-blue-50 px-4 py-3">
         <span className="font-bold text-blue-900">صافي الراتب</span>
         <span className="text-lg font-extrabold text-primary">
@@ -4372,6 +4559,13 @@ function SalarySlip({ row, settings, monthLabel, shiftCopy = getShiftCopy(settin
         <SlipLine label="إجازات مستخدمة" value={`${row.vacationUsage} يوم`} />
         <SlipLine label="خصم التأخير" value={formatCurrency(row.lateDeductions, settings.currency)} danger />
         <SlipLine label="خصم الغياب" value={formatCurrency(row.absenceDeductions, settings.currency)} danger />
+        {row.missingPunchDays > 0 ? (
+          <SlipLine
+            label={`خصم بصمة ناقصة (${row.missingPunchDays} يوم)`}
+            value={formatCurrency(row.missingPunchDeductions, settings.currency)}
+            danger
+          />
+        ) : null}
         <SlipLine label="خصومات إضافية" value={formatCurrency(row.extraDeductions, settings.currency)} danger />
         <SlipLine label="مكافآت يدوية" value={formatCurrency(row.manualBonuses, settings.currency)} success />
         <SlipLine label="مكافأة الوقت الإضافي" value={formatCurrency(row.overtimeBonuses, settings.currency)} success />
@@ -4451,7 +4645,14 @@ function ReportExportSurface({ refTarget, rows, settings, monthLabel, shiftCopy 
                 {row.lateCount} / {formatNumber(row.lateMinutes)} د
               </td>
               <td>{formatNumber(row.overtimeMinutes)} د</td>
-              <td>{row.incompleteSplitDays > 0 ? "شيفت مقسم غير مكتمل" : "-"}</td>
+              <td>
+                {[
+                  row.incompleteSplitDays > 0 ? "شيفت مقسم غير مكتمل" : "",
+                  row.missingPunchDays > 0 ? `بصمة ناقصة × ${row.missingPunchDays}` : ""
+                ]
+                  .filter(Boolean)
+                  .join(" / ") || "-"}
+              </td>
               <td>{row.absenceDays}</td>
               <td>{row.vacationUsage}</td>
               <td>{formatCurrency(row.deductions, settings.currency)}</td>

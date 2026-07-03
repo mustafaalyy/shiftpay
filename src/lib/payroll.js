@@ -262,6 +262,11 @@ export const DEFAULT_SHIFTS = [
       { id: "ot-m-60", afterMinutes: 60, overtimeMultiplier: 1.5 },
       { id: "ot-m-120", afterMinutes: 120, overtimeMultiplier: 2.0 }
     ],
+    incompletePunchRules: [
+      { id: "ip-m-1", occurrence: 1, deductionFraction: 0.25 },
+      { id: "ip-m-2", occurrence: 2, deductionFraction: 0.5 },
+      { id: "ip-m-3", occurrence: 3, deductionFraction: 1.0 }
+    ],
     shiftKind: "standard",
     monthlyShiftTarget: 0,
     segments: [{ startTime: "09:00", endTime: "17:00" }]
@@ -283,6 +288,11 @@ export const DEFAULT_SHIFTS = [
       { id: "ot-s-30", afterMinutes: 30, overtimeMultiplier: 1.0 },
       { id: "ot-s-60", afterMinutes: 60, overtimeMultiplier: 1.5 },
       { id: "ot-s-120", afterMinutes: 120, overtimeMultiplier: 2.0 }
+    ],
+    incompletePunchRules: [
+      { id: "ip-s-1", occurrence: 1, deductionFraction: 0.25 },
+      { id: "ip-s-2", occurrence: 2, deductionFraction: 0.5 },
+      { id: "ip-s-3", occurrence: 3, deductionFraction: 1.0 }
     ],
     shiftKind: "standard",
     monthlyShiftTarget: 0,
@@ -627,11 +637,25 @@ function allocateFlexibleRestDates(missingDates, allowedRestDays) {
   return missingDates.slice(0, allowedRestDays);
 }
 
-export function calculatePayroll({ employees, departments, shifts, attendanceLogs, settings, reportMonth }) {
+export function calculatePayroll({
+  employees,
+  departments,
+  shifts,
+  attendanceLogs,
+  settings,
+  reportMonth,
+  incompletePunchMode = "manual"
+}) {
   const activeEmployees = employees.filter((employee) => employee.active);
   const activeReportMonth = reportMonth || getReportMonth(attendanceLogs);
   const scheduledDates = listWorkingDatesInMonth(activeReportMonth, settings);
   const groupedLogs = groupAttendance(attendanceLogs);
+  const incompletePunchMap = new Map(
+    detectIncompleteAttendanceDays(attendanceLogs).map((entry) => [
+      `${String(entry.employeeCode).trim()}__${entry.date}`,
+      entry.missing
+    ])
+  );
   const departmentMap = mapById(departments);
   const shiftMap = mapById(shifts);
   const availableShifts = shifts.length ? shifts : DEFAULT_SHIFTS;
@@ -662,7 +686,7 @@ export function calculatePayroll({ employees, departments, shifts, attendanceLog
     })();
     const hourlySalary = dailySalary / shiftHours;
     const evaluationDates = shiftCountMode
-      ? getEmployeeLogDates(groupedLogs, employee.code, activeReportMonth)
+      ? getEmployeeLogDates(groupedLogs, employee.code, activeReportMonth).sort()
       : scheduledDates;
 
     let presentDays = 0;
@@ -674,11 +698,39 @@ export function calculatePayroll({ employees, departments, shifts, attendanceLog
     let overtimeBonuses = 0;
     let incompleteSplitDays = 0;
     let autoShiftDays = 0;
+    let missingPunchDays = 0;
+    let missingPunchDeductions = 0;
+    let missingPunchNeedsReview = 0;
     const presentDates = new Set();
     const detectedShiftCounts = new Map();
     const splitWarnings = [];
+    const missingPunchWarnings = [];
 
     evaluationDates.forEach((date) => {
+      const missingPunchType = incompletePunchMap.get(`${String(employee.code).trim()}__${date}`);
+      if (missingPunchType) {
+        presentDays += 1;
+        presentDates.add(date);
+        missingPunchDays += 1;
+        const missingLabel = missingPunchType === "checkOut" ? "بدون بصمة انصراف" : "بدون بصمة حضور";
+        const fraction = getIncompletePunchDeductionFraction(missingPunchDays, shift);
+        if (incompletePunchMode === "auto") {
+          const amount = Math.round(fraction * dailySalary);
+          missingPunchDeductions += amount;
+          missingPunchWarnings.push({
+            date,
+            label: `بصمة ناقصة (${missingLabel}) — تم خصم ${Math.round(fraction * 100)}% من يوم`
+          });
+        } else {
+          missingPunchNeedsReview += 1;
+          missingPunchWarnings.push({
+            date,
+            label: `بصمة ناقصة (${missingLabel}) — تحتاج مراجعة يدوية، من غير خصم تلقائي`
+          });
+        }
+        return;
+      }
+
       const detected = usesAutoShift
         ? detectShiftForDate({
             groupedLogs,
@@ -748,9 +800,9 @@ export function calculatePayroll({ employees, departments, shifts, attendanceLog
     const extraDeductions = Number(employee.extraDeductions) || 0;
     const manualBonuses = Number(employee.bonuses) || 0;
     const bonuses = manualBonuses + overtimeBonuses;
-    const totalDeductions = lateDeductions + absenceDeductions + extraDeductions;
+    const totalDeductions = lateDeductions + absenceDeductions + extraDeductions + missingPunchDeductions;
     const netSalary = Number(employee.salary || 0) - totalDeductions + bonuses;
-    const status = getAttendanceStatus({ absenceDays, lateCount, incompleteSplitDays });
+    const status = getAttendanceStatus({ absenceDays, lateCount, incompleteSplitDays, missingPunchNeedsReview });
     const detectedShiftSummary = [...detectedShiftCounts.entries()]
       .map(([name, count]) => `${name} (${count})`)
       .join("، ");
@@ -758,7 +810,10 @@ export function calculatePayroll({ employees, departments, shifts, attendanceLog
       shiftCountMode ? `حساب بعدد الشيفتات: ${presentDays}/${scheduledUnits}` : "",
       usesAutoShift && detectedShiftSummary ? `اكتشاف تلقائي: ${detectedShiftSummary}` : "",
       flexibleRestUsage > 0 ? `راحة مرنة: ${flexibleRestUsage} يوم` : "",
-      incompleteSplitDays > 0 ? "يوجد شيفت غير مكتمل" : ""
+      incompleteSplitDays > 0 ? "يوجد شيفت غير مكتمل" : "",
+      missingPunchDays > 0
+        ? `بصمة ناقصة: ${missingPunchDays} يوم${missingPunchNeedsReview > 0 ? " (يحتاج مراجعة)" : ""}`
+        : ""
     ].filter(Boolean);
 
     return {
@@ -780,6 +835,10 @@ export function calculatePayroll({ employees, departments, shifts, attendanceLog
       lateMinutes,
       incompleteSplitDays,
       splitWarnings,
+      missingPunchDays,
+      missingPunchDeductions,
+      missingPunchNeedsReview,
+      missingPunchWarnings,
       absenceDays,
       flexibleRestUsage,
       flexibleRestDates,
@@ -999,6 +1058,22 @@ export async function parseAttendanceFile(file) {
   };
 }
 
+// Detects days where an employee has exactly one side of the punch recorded
+// (checkIn without checkOut, or checkOut without checkIn). Used both to warn
+// the user right after uploading a file, and internally by calculatePayroll
+// to apply the progressive monthly deduction (or flag for manual review).
+export function detectIncompleteAttendanceDays(logs) {
+  return (logs || [])
+    .filter((log) => Boolean(log.checkIn) !== Boolean(log.checkOut))
+    .map((log) => ({
+      employeeCode: log.employeeCode,
+      name: log.name,
+      date: log.date,
+      missing: log.checkIn ? "checkOut" : "checkIn"
+    }))
+    .sort((a, b) => `${a.date}-${a.employeeCode}`.localeCompare(`${b.date}-${b.employeeCode}`));
+}
+
 function detectAttendanceColumnMap(firstRow) {
   const availableColumns = Object.keys(firstRow);
   const normalizedColumns = new Map(
@@ -1186,8 +1261,8 @@ function compactAttendanceLogs(logs) {
     .sort((a, b) => `${a.date}-${a.employeeCode}`.localeCompare(`${b.date}-${b.employeeCode}`));
 }
 
-function getAttendanceStatus({ absenceDays, lateCount, incompleteSplitDays = 0 }) {
-  if (incompleteSplitDays > 0) {
+function getAttendanceStatus({ absenceDays, lateCount, incompleteSplitDays = 0, missingPunchNeedsReview = 0 }) {
+  if (incompleteSplitDays > 0 || missingPunchNeedsReview > 0) {
     return { label: "مراجعة", tone: "yellow" };
   }
   if (absenceDays === 0 && lateCount <= 1) {
@@ -1419,6 +1494,30 @@ function getLateDeduction(minutes, shift, dailySalary) {
     if (activeRule.deductionAmount !== null) return activeRule.deductionAmount;
   }
   return minutes * (Number(shift.lateDeductionPerMinute) || 0);
+}
+
+// Progressive monthly tiers: the Nth incomplete-punch day for this employee
+// on this shift looks up the highest tier whose "occurrence" is <= N.
+// e.g. occurrence 1 -> 0.25, occurrence 2 -> 0.5, occurrence 3 -> 1.0,
+// and any occurrence beyond the last configured tier keeps using that tier.
+function getIncompletePunchDeductionFraction(occurrenceIndex, shift) {
+  const rules = Array.isArray(shift.incompletePunchRules)
+    ? shift.incompletePunchRules
+        .map((rule) => ({
+          occurrence: Number(rule.occurrence) || 0,
+          deductionFraction: rule.deductionFraction !== undefined ? Number(rule.deductionFraction) : 0
+        }))
+        .filter((rule) => rule.occurrence > 0)
+        .sort((a, b) => a.occurrence - b.occurrence)
+    : [];
+
+  const activeRule = rules.filter((rule) => occurrenceIndex >= rule.occurrence).pop();
+  if (activeRule) return activeRule.deductionFraction;
+
+  // Fallback progressive default if the shift has no configured tiers yet.
+  if (occurrenceIndex === 1) return 0.25;
+  if (occurrenceIndex === 2) return 0.5;
+  return 1.0;
 }
 
 function getOvertimeBonus(minutes, shift, hourlySalary) {
