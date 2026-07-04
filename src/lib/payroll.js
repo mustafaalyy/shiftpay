@@ -1230,8 +1230,22 @@ function compactAttendanceLogs(logs) {
     }
     if (!current.name && log.name) current.name = log.name;
     current.punches = [...new Set([...current.punches, ...punches])].sort((a, b) => a - b);
-    if (current.checkIn === null && current.punches.length) current.checkIn = current.punches[0];
-    if (current.checkOut === null && current.punches.length > 1) current.checkOut = current.punches.at(-1);
+
+    // Fill in a missing side ONLY from punches that are genuinely distinct
+    // from the side we already know. Without this guard, a day with only a
+    // checkOut recorded (punches = [checkOut]) would wrongly get its
+    // checkIn filled in with that same checkOut value.
+    const distinctPunches = [...new Set(current.punches)].sort((a, b) => a - b);
+    if (current.checkIn === null) {
+      const candidate = distinctPunches.find((time) => time !== current.checkOut);
+      if (candidate !== undefined) current.checkIn = candidate;
+    }
+    if (current.checkOut === null) {
+      const candidates = distinctPunches.filter((time) => time !== current.checkIn);
+      if (candidates.length > 0 && distinctPunches.length > 1) {
+        current.checkOut = candidates.at(-1);
+      }
+    }
 
     grouped.set(key, current);
   });
@@ -1292,23 +1306,31 @@ function groupAttendance(attendanceLogs) {
     const current = grouped.get(key) || { checkIn: null, checkOut: null, punches: [] };
     const punches = [...new Set([...current.punches, ...rawPunches])].sort((a, b) => a - b);
 
-    // Use explicit checkIn/checkOut from the file, not sort-based detection
-    const mergedCheckIn = checkIn === null
-      ? current.checkIn ?? punches[0] ?? null
-      : current.checkIn === null
-        ? checkIn
-        : Math.min(current.checkIn, checkIn);
-    let rawCheckOut = checkOut === null
-      ? current.checkOut ?? (punches.length > 1 ? punches.at(-1) : null)
-      : current.checkOut === null
-        ? checkOut
-        : Math.max(current.checkOut, checkOut);
+    let mergedCheckIn =
+      checkIn === null ? current.checkIn : current.checkIn === null ? checkIn : Math.min(current.checkIn, checkIn);
+    let mergedCheckOut =
+      checkOut === null ? current.checkOut : current.checkOut === null ? checkOut : Math.max(current.checkOut, checkOut);
+
+    // Only fall back to inferring a side from raw punches when neither this
+    // row nor any prior row for the day ever recorded that side explicitly —
+    // and never reuse the value already known for the OTHER side. Without
+    // this guard, a day with only a checkOut would get its checkIn wrongly
+    // filled in with that same checkOut time (and vice versa).
+    if (mergedCheckIn === null) {
+      const candidate = punches.find((time) => time !== mergedCheckOut);
+      if (candidate !== undefined) mergedCheckIn = candidate;
+    }
+    if (mergedCheckOut === null) {
+      const candidates = punches.filter((time) => time !== mergedCheckIn);
+      if (candidates.length > 0 && punches.length > 1) {
+        mergedCheckOut = candidates.at(-1);
+      }
+    }
     // Normalize overnight: if checkOut < checkIn, it crossed midnight → add 1440
     // Use threshold of 360 min (6 hours) to detect genuine overnight vs data issue
-    if (rawCheckOut !== null && mergedCheckIn !== null && rawCheckOut < mergedCheckIn) {
-      rawCheckOut = rawCheckOut + 1440;
+    if (mergedCheckOut !== null && mergedCheckIn !== null && mergedCheckOut < mergedCheckIn) {
+      mergedCheckOut = mergedCheckOut + 1440;
     }
-    const mergedCheckOut = rawCheckOut;
 
     grouped.set(key, {
       checkIn: mergedCheckIn,
