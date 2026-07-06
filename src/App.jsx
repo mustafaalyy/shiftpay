@@ -34,6 +34,9 @@ import {
   Save,
   Search,
   Settings,
+  ShieldCheck,
+  Menu,
+  X,
   Sparkles,
   UploadCloud,
   Users,
@@ -117,17 +120,114 @@ function makeEmptyShift() {
 
 const DEFAULT_SITE_CONTENT = {
   logo: "",
-  heroBadge: "عربي أولا، جاهز للشركات الصغيرة والمتوسطة",
-  heroTitle: "ShiftPay HR",
+  heroBadge: "نظام SaaS لحساب الرواتب",
+  heroTitle: "حوّل ملف البصمة إلى تقرير رواتب جاهز تلقائياً",
+  heroHighlight: "تقرير رواتب جاهز",
   heroText:
-    "منصة SaaS تحسب رواتب الموظفين تلقائيا من ملفات ماكينة البصمة، مع إدارة الأقسام والشيفتات والموظفين وتقارير احترافية قابلة للتصدير.",
-  primaryCta: "إنشاء حساب الآن",
-  secondaryCta: "تسجيل دخول",
+    "ارفع ملف الحضور من جهاز البصمة، وخلّي ShiftPay يحسب التأخير والأوفر تايم والغياب والإجازات — بدقة كاملة وبدون أخطاء يدوية.",
+  primaryCta: "ابدأ تجربة مجانية",
+  secondaryCta: "اعرف أكثر",
   footerText: "نظام عربي للشركات الصغيرة والمتوسطة يربط الحضور بالإجازات والسياسات المحلية.",
   supportPhone: "+20 100 000 0000",
   supportEmail: "support@shiftpayhr.com",
-  supportText: "دعم فني طوال أيام العمل"
+  supportText: "دعم فني طوال أيام العمل",
+  landing: {
+    navLinks: [
+      { label: "المميزات", target: "features" },
+      { label: "لماذا ShiftPay؟", target: "comparison" },
+      { label: "الأسعار", target: "pricing" },
+      { label: "تواصل معنا", target: "support" }
+    ],
+    loginCta: "تسجيل الدخول",
+    heroTrust: [
+      "بياناتك محمية بالكامل",
+      "إعداد في أقل من 10 دقائق",
+      "دعم عطلات 7 دول عربية"
+    ],
+    comparisonBadge: "الفرق واضح",
+    comparisonTitle: "الطريقة القديمة مقابل ShiftPay",
+    comparisonDesc: "بدل ما تقضي أيام في الحسابات اليدوية، خلّي النظام يعمل كل حاجة في دقائق.",
+    comparisonOldLabel: "الطريقة القديمة",
+    comparisonNewLabel: "مع ShiftPay",
+    comparisonOld: [
+      { title: "ملفات Excel يدوية", desc: "تنقل بيانات البصمة يدوياً وتحسب كل موظف لوحده — عرضة للأخطاء البشرية" },
+      { title: "وقت ضائع", desc: "أيام كاملة كل شهر لمراجعة الحضور والانصراف وحساب الخصومات والإضافات" },
+      { title: "أخطاء متكررة", desc: "خطأ واحد في صف Excel ممكن يأثر على راتب موظف ويسبب مشاكل" }
+    ],
+    comparisonNew: [
+      { title: "رفع ملف واحد", desc: "ارفع ملف البصمة من أي جهاز حضور — والنظام يتعامل معاه تلقائياً" },
+      { title: "نتائج فورية", desc: "تقرير رواتب كامل في دقائق — مع تفاصيل التأخير والأوفر تايم لكل موظف" },
+      { title: "دقة بدون أخطاء", desc: "حسابات آلية دقيقة — لا أخطاء بشرية ولا سطور مفقودة من الـ Excel" }
+    ],
+    featuresBadge: "المميزات",
+    featuresTitle: "كل اللي تحتاجه لإدارة رواتب موظفيك",
+    featuresDesc: "أدوات جاهزة تغطي الحضور والرواتب والإجازات من أول يوم.",
+    features: [
+      { title: "أنواع شيفتات متعددة", desc: "صباحي، مسائي، منقسم، و24 ساعة — حدد نوع الشيفت لكل موظف والنظام يحسب تلقائياً بناءً عليه." },
+      { title: "حساب التأخير تلقائياً", desc: "النظام بيحسب التأخير بالدقيقة ويطبق قواعد الخصم اللي انت حاددها — بدون تدخل يدوي." },
+      { title: "الأوفر تايم", desc: "حساب ساعات العمل الإضافية تلقائياً مع إمكانية تحديد نسبة الأوفر تايم حسب سياسة شركتك." },
+      { title: "إدارة الإجازات", desc: "سجّل إجازات الموظفين (سنوية، مرضية، عارضة) والنظام بيحسب الرصيد تلقائياً ويخصم من الراتب لو لازم." },
+      { title: "عطلات 7 دول عربية", desc: "النظام بيتعرف على العطلات الرسمية لمصر والسعودية والإمارات والأردن والعراق والكويت والبحرين." },
+      { title: "أرشفة وتقارير", desc: "أرشف تقارير الرواتب شهرياً وصدّرها Excel أو PDF — ارجعلها في أي وقت للمراجعة أو للمحاسب." }
+    ],
+    pricingBadge: "الأسعار",
+    pricingTitle: "باقات واضحة بدون رسوم مخفية",
+    pricingDesc: "اختار الباقة المناسبة لحجم شركتك — جميع الباقات تشمل كل المميزات.",
+    pricingBasic: {
+      name: "الأساسية",
+      desc: "للشركات الصغيرة — حتى 30 موظف",
+      amount: "2,000",
+      period: "سنوياً",
+      cta: "ابدأ الآن",
+      features: ["حتى 30 موظف", "جميع أنواع الشيفتات", "حساب التأخير والأوفر تايم", "تقارير شهرية", "دعم فني عبر الإيميل"]
+    },
+    pricingPro: {
+      badge: "الأكثر طلباً",
+      name: "الاحترافية",
+      desc: "للشركات المتوسطة — حتى 75 موظف",
+      amount: "3,500",
+      period: "سنوياً",
+      cta: "ابدأ الآن",
+      features: [
+        "حتى 75 موظف",
+        "جميع أنواع الشيفتات",
+        "حساب التأخير والأوفر تايم",
+        "إدارة الإجازات كاملة",
+        "أرشفة وتصدير التقارير",
+        "دعم فني أولوية عبر واتساب"
+      ]
+    },
+    pricingBusiness: {
+      name: "الأعمال",
+      desc: "للشركات الكبيرة — حتى 200 موظف",
+      amount: "7,500",
+      period: "سنوياً",
+      cta: "ابدأ الآن",
+      features: [
+        "حتى 200 موظف",
+        "جميع أنواع الشيفتات",
+        "حساب التأخير والأوفر تايم",
+        "إدارة الإجازات كاملة",
+        "أرشفة وتصدير التقارير",
+        "عطلات 7 دول عربية",
+        "دعم فني مخصص"
+      ]
+    },
+    pricingEnterpriseTitle: "مؤسسات — أكثر من 200 موظف",
+    pricingEnterpriseDesc: "لو شركتك فيها أكثر من 200 موظف، تواصل معنا وهنعملك عرض سعر مخصص يناسب احتياجاتك.",
+    pricingEnterpriseCta: "تواصل معنا",
+    ctaTitle: "جاهز تودّع الـ Excel وحسابات آخر الشهر؟",
+    ctaDesc: "ابدأ تجربة مجانية النهاردة — مش هتحتاج بطاقة ائتمان، ومش هتحتاج تدريب. ارفع ملف البصمة وشوف النتيجة بنفسك.",
+    ctaButton: "ابدأ تجربة مجانية",
+    footerBrandDesc: "نظام SaaS عربي لحساب رواتب الموظفين — يحوّل ملفات بصمة الحضور إلى تقارير رواتب دقيقة تلقائياً.",
+    footerCopyright: "© 2026 ShiftPay HR — جميع الحقوق محفوظة",
+    footerTagline: "صُنع بـ ❤️ للشركات العربية"
+  }
 };
+
+function mergeSiteContent(base, override) {
+  return { ...base, ...override, landing: { ...base.landing, ...(override?.landing || {}) } };
+}
 
 const PHONE_COUNTRIES = [
   { code: "EG", name: "مصر", dialCode: "+20" },
@@ -286,7 +386,7 @@ export default function App() {
     let mounted = true;
     loadPublicSiteContent()
       .then((content) => {
-        if (mounted && content) setSiteContent({ ...DEFAULT_SITE_CONTENT, ...content });
+        if (mounted && content) setSiteContent(mergeSiteContent(DEFAULT_SITE_CONTENT, content));
       })
       .catch(() => {});
     return () => {
@@ -562,7 +662,7 @@ export default function App() {
     setCloud((previous) => ({ ...previous, loading: true, error: "" }));
     try {
       const saved = await savePublicSiteContent(session.localAdmin ? null : session, siteContent);
-      setSiteContent({ ...DEFAULT_SITE_CONTENT, ...saved });
+      setSiteContent(mergeSiteContent(DEFAULT_SITE_CONTENT, saved));
       setCloud((previous) => ({ ...previous, loading: false }));
       setNotice("تم حفظ محتوى الصفحة الرئيسية وبيانات الدعم على اللايف.");
     } catch (error) {
@@ -722,7 +822,7 @@ export default function App() {
         if (Array.isArray(backup.attendanceLogs)) setAttendanceLogs(backup.attendanceLogs);
         if (Array.isArray(backup.reports)) setReports(backup.reports);
         if (backup.reportMonth) setReportMonth(backup.reportMonth);
-        if (backup.siteContent) setSiteContent({ ...DEFAULT_SITE_CONTENT, ...backup.siteContent });
+        if (backup.siteContent) setSiteContent(mergeSiteContent(DEFAULT_SITE_CONTENT, backup.siteContent));
         setNotice("تم استرجاع النسخة الاحتياطية بنجاح.");
       } catch {
         setNotice("ملف النسخة الاحتياطية غير صالح.");
@@ -1035,191 +1135,1823 @@ export default function App() {
   );
 }
 
+const LANDING_CSS = `
+/* ===========================
+   ShiftPay HR — Design System
+   =========================== */
+
+/* ---------- Fonts ---------- */
+@import url('https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;500;600;700;800;900&display=swap');
+
+/* ---------- CSS Variables ---------- */
+:root {
+  /* Colors */
+  --color-primary: #1F4E79;
+  --color-primary-light: #2A6BAA;
+  --color-primary-dark: #163A5C;
+  --color-primary-50: #EBF3FA;
+  --color-primary-100: #D1E4F3;
+  --color-primary-200: #A3C9E7;
+
+  --color-bg: #F8FAFC;
+  --color-bg-white: #FFFFFF;
+  --color-bg-subtle: #F1F5F9;
+  --color-bg-muted: #E2E8F0;
+
+  --color-text: #0F172A;
+  --color-text-secondary: #475569;
+  --color-text-muted: #94A3B8;
+  --color-text-on-primary: #FFFFFF;
+
+  --color-success: #059669;
+  --color-success-bg: #ECFDF5;
+  --color-danger: #DC2626;
+  --color-danger-bg: #FEF2F2;
+
+  --color-border: #E2E8F0;
+  --color-border-light: #F1F5F9;
+
+  /* Typography */
+  --font-family: 'Cairo', sans-serif;
+  --font-size-xs: 0.75rem;
+  --font-size-sm: 0.875rem;
+  --font-size-base: 1rem;
+  --font-size-lg: 1.125rem;
+  --font-size-xl: 1.25rem;
+  --font-size-2xl: 1.5rem;
+  --font-size-3xl: 1.875rem;
+  --font-size-4xl: 2.25rem;
+  --font-size-5xl: 3rem;
+  --font-size-6xl: 3.75rem;
+
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+  --font-weight-extrabold: 800;
+
+  --line-height-tight: 1.3;
+  --line-height-normal: 1.7;
+  --line-height-relaxed: 1.9;
+
+  /* Spacing */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  --space-10: 2.5rem;
+  --space-12: 3rem;
+  --space-16: 4rem;
+  --space-20: 5rem;
+  --space-24: 6rem;
+
+  /* Borders */
+  --radius-sm: 0.375rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.75rem;
+  --radius-xl: 1rem;
+  --radius-2xl: 1.25rem;
+  --radius-full: 9999px;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.07), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -4px rgba(0, 0, 0, 0.04);
+  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.08), 0 8px 10px -6px rgba(0, 0, 0, 0.04);
+  --shadow-2xl: 0 25px 50px -12px rgba(0, 0, 0, 0.15);
+  --shadow-card-hover: 0 20px 40px -8px rgba(31, 78, 121, 0.12);
+
+  /* Transitions */
+  --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-base: 250ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-slow: 400ms cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* Layout */
+  --container-max: 1200px;
+  --nav-height: 72px;
+}
+
+/* ---------- Reset & Base ---------- */
+*,
+*::before,
+*::after {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  font-family: var(--font-family);
+  font-size: var(--font-size-base);
+  line-height: var(--line-height-normal);
+  color: var(--color-text);
+  background-color: var(--color-bg);
+  direction: rtl;
+  text-align: right;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+}
+
+img {
+  max-width: 100%;
+  display: block;
+}
+
+a {
+  text-decoration: none;
+  color: inherit;
+  transition: color var(--transition-fast);
+}
+
+button {
+  font-family: inherit;
+  cursor: pointer;
+  border: none;
+  background: none;
+}
+
+ul, ol {
+  list-style: none;
+}
+
+/* ---------- Utilities ---------- */
+.container {
+  width: 100%;
+  max-width: var(--container-max);
+  margin: 0 auto;
+  padding: 0 var(--space-6);
+}
+
+.section {
+  padding: var(--space-24) 0;
+}
+
+.section-label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+  background: var(--color-primary-50);
+  color: var(--color-primary);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  border-radius: var(--radius-full);
+  margin-bottom: var(--space-6);
+  border: 1px solid var(--color-primary-100);
+}
+
+.section-title {
+  font-size: var(--font-size-4xl);
+  font-weight: var(--font-weight-extrabold);
+  line-height: var(--line-height-tight);
+  color: var(--color-text);
+  margin-bottom: var(--space-4);
+}
+
+.section-desc {
+  font-size: var(--font-size-lg);
+  color: var(--color-text-secondary);
+  line-height: var(--line-height-relaxed);
+  max-width: 600px;
+}
+
+.text-center {
+  text-align: center;
+}
+
+.text-center .section-desc {
+  margin: 0 auto;
+}
+
+/* ---------- Scroll Animations ---------- */
+.fade-up {
+  opacity: 0;
+  transform: translateY(32px);
+  transition: opacity 0.7s cubic-bezier(0.16, 1, 0.3, 1),
+              transform 0.7s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.fade-up.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.fade-up-delay-1 { transition-delay: 80ms; }
+.fade-up-delay-2 { transition-delay: 160ms; }
+.fade-up-delay-3 { transition-delay: 240ms; }
+.fade-up-delay-4 { transition-delay: 320ms; }
+.fade-up-delay-5 { transition-delay: 400ms; }
+
+/* ===========================
+   Navigation
+   =========================== */
+.navbar {
+  position: fixed;
+  top: 0;
+  right: 0;
+  left: 0;
+  height: var(--nav-height);
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-bottom: 1px solid var(--color-border-light);
+  z-index: 1000;
+  transition: box-shadow var(--transition-base);
+}
+
+.navbar.scrolled {
+  box-shadow: var(--shadow-sm);
+  border-bottom-color: var(--color-border);
+}
+
+.navbar .container {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 100%;
+}
+
+.nav-brand {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.nav-logo {
+  width: 36px;
+  height: 36px;
+  background: var(--color-primary);
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-weight: var(--font-weight-bold);
+  font-size: var(--font-size-lg);
+}
+
+.nav-brand-text {
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-primary);
+  letter-spacing: -0.01em;
+}
+
+.nav-brand-text span {
+  font-weight: var(--font-weight-normal);
+  color: var(--color-text-secondary);
+}
+
+.nav-links {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+}
+
+.nav-link {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-secondary);
+  transition: color var(--transition-fast);
+  position: relative;
+}
+
+.nav-link::after {
+  content: '';
+  position: absolute;
+  bottom: -4px;
+  right: 0;
+  width: 0;
+  height: 2px;
+  background: var(--color-primary);
+  border-radius: var(--radius-full);
+  transition: width var(--transition-base);
+}
+
+.nav-link:hover {
+  color: var(--color-primary);
+}
+
+.nav-link:hover::after {
+  width: 100%;
+}
+
+.nav-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-6);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  border-radius: var(--radius-lg);
+  transition: all var(--transition-base);
+  white-space: nowrap;
+}
+
+.btn-primary {
+  background: var(--color-primary);
+  color: var(--color-text-on-primary);
+  box-shadow: 0 1px 3px rgba(31, 78, 121, 0.3);
+}
+
+.btn-primary:hover {
+  background: var(--color-primary-light);
+  box-shadow: 0 4px 12px rgba(31, 78, 121, 0.35);
+  transform: translateY(-1px);
+}
+
+.btn-secondary {
+  background: transparent;
+  color: var(--color-primary);
+  border: 1.5px solid var(--color-border);
+}
+
+.btn-secondary:hover {
+  border-color: var(--color-primary);
+  background: var(--color-primary-50);
+}
+
+.btn-large {
+  padding: var(--space-4) var(--space-8);
+  font-size: var(--font-size-base);
+  border-radius: var(--radius-xl);
+}
+
+.btn-white {
+  background: white;
+  color: var(--color-primary);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.btn-white:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
+}
+
+/* Mobile menu */
+.nav-mobile-toggle {
+  display: none;
+  flex-direction: column;
+  gap: 5px;
+  padding: var(--space-2);
+  cursor: pointer;
+}
+
+.nav-mobile-toggle span {
+  display: block;
+  width: 22px;
+  height: 2px;
+  background: var(--color-text);
+  border-radius: var(--radius-full);
+  transition: all var(--transition-base);
+}
+
+.nav-mobile-toggle.active span:nth-child(1) {
+  transform: rotate(45deg) translate(4px, 6px);
+}
+.nav-mobile-toggle.active span:nth-child(2) {
+  opacity: 0;
+}
+.nav-mobile-toggle.active span:nth-child(3) {
+  transform: rotate(-45deg) translate(4px, -6px);
+}
+
+/* ===========================
+   Hero Section
+   =========================== */
+.hero {
+  padding-top: calc(var(--nav-height) + var(--space-20));
+  padding-bottom: var(--space-20);
+  background: linear-gradient(175deg, #FFFFFF 0%, #F0F6FC 50%, var(--color-bg) 100%);
+  position: relative;
+  overflow: hidden;
+}
+
+.hero::before {
+  content: '';
+  position: absolute;
+  top: -40%;
+  left: -20%;
+  width: 600px;
+  height: 600px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(31, 78, 121, 0.04) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+.hero .container {
+  display: grid;
+  grid-template-columns: 1fr 1.1fr;
+  gap: var(--space-16);
+  align-items: center;
+}
+
+.hero-content {
+  position: relative;
+  z-index: 1;
+}
+
+.hero-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+  background: var(--color-primary-50);
+  border: 1px solid var(--color-primary-100);
+  border-radius: var(--radius-full);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-primary);
+  margin-bottom: var(--space-8);
+}
+
+.hero-badge svg {
+  width: 16px;
+  height: 16px;
+}
+
+.hero-title {
+  font-size: var(--font-size-5xl);
+  font-weight: var(--font-weight-extrabold);
+  line-height: var(--line-height-tight);
+  color: var(--color-text);
+  margin-bottom: var(--space-6);
+  letter-spacing: -0.01em;
+}
+
+.hero-title .highlight {
+  color: var(--color-primary);
+  position: relative;
+}
+
+.hero-desc {
+  font-size: var(--font-size-lg);
+  color: var(--color-text-secondary);
+  line-height: var(--line-height-relaxed);
+  margin-bottom: var(--space-10);
+  max-width: 520px;
+}
+
+.hero-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  margin-bottom: var(--space-10);
+}
+
+.hero-trust {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.hero-trust svg {
+  width: 18px;
+  height: 18px;
+  color: var(--color-success);
+}
+
+.hero-trust-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.hero-trust-divider {
+  width: 1px;
+  height: 16px;
+  background: var(--color-border);
+}
+
+/* Dashboard Preview */
+.hero-visual {
+  position: relative;
+  z-index: 1;
+}
+
+.dashboard-preview {
+  background: var(--color-bg-white);
+  border-radius: var(--radius-2xl);
+  box-shadow: var(--shadow-2xl);
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+}
+
+.dashboard-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-4) var(--space-5);
+  border-bottom: 1px solid var(--color-border-light);
+  background: var(--color-bg);
+}
+
+.dashboard-topbar-right {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.dashboard-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.dashboard-dot.green { background: var(--color-success); }
+.dashboard-dot.yellow { background: #F59E0B; }
+.dashboard-dot.red { background: var(--color-danger); }
+
+.dashboard-topbar-title {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-secondary);
+}
+
+.dashboard-topbar-date {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+}
+
+.dashboard-body {
+  padding: var(--space-5);
+}
+
+/* Dashboard KPI Row */
+.dashboard-kpis {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+
+.kpi-card {
+  background: var(--color-bg);
+  border-radius: var(--radius-lg);
+  padding: var(--space-4);
+  border: 1px solid var(--color-border-light);
+}
+
+.kpi-label {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+  margin-bottom: var(--space-1);
+}
+
+.kpi-value {
+  font-size: var(--font-size-2xl);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text);
+}
+
+.kpi-value.success { color: var(--color-success); }
+.kpi-value.danger { color: var(--color-danger); }
+
+.kpi-sub {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+  margin-top: var(--space-1);
+}
+
+/* Dashboard Table */
+.dashboard-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.dashboard-table th {
+  text-align: right;
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-muted);
+  padding: var(--space-3) var(--space-3);
+  border-bottom: 1px solid var(--color-border-light);
+  background: var(--color-bg);
+}
+
+.dashboard-table td {
+  font-size: var(--font-size-sm);
+  padding: var(--space-3) var(--space-3);
+  border-bottom: 1px solid var(--color-border-light);
+  color: var(--color-text);
+}
+
+.dashboard-table tr:last-child td {
+  border-bottom: none;
+}
+
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 2px var(--space-2);
+  border-radius: var(--radius-full);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+}
+
+.status-badge.on-time {
+  background: var(--color-success-bg);
+  color: var(--color-success);
+}
+
+.status-badge.late {
+  background: var(--color-danger-bg);
+  color: var(--color-danger);
+}
+
+.status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+/* ===========================
+   Before / After Section
+   =========================== */
+.comparison {
+  background: var(--color-bg-white);
+}
+
+.comparison-grid {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  gap: var(--space-8);
+  align-items: stretch;
+}
+
+.comparison-column {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.comparison-column-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding-bottom: var(--space-5);
+  border-bottom: 2px solid var(--color-border-light);
+}
+
+.comparison-column-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-lg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.comparison-column.old .comparison-column-icon {
+  background: var(--color-danger-bg);
+  color: var(--color-danger);
+}
+
+.comparison-column.new .comparison-column-icon {
+  background: var(--color-success-bg);
+  color: var(--color-success);
+}
+
+.comparison-column-title {
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-bold);
+}
+
+.comparison-card {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-4);
+  padding: var(--space-5);
+  border-radius: var(--radius-xl);
+  border: 1px solid var(--color-border-light);
+  background: var(--color-bg);
+  transition: all var(--transition-base);
+}
+
+.comparison-card:hover {
+  box-shadow: var(--shadow-md);
+  transform: translateY(-2px);
+}
+
+.comparison-card-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.old .comparison-card-icon {
+  background: var(--color-danger-bg);
+  color: var(--color-danger);
+}
+
+.new .comparison-card-icon {
+  background: var(--color-success-bg);
+  color: var(--color-success);
+}
+
+.comparison-card-title {
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-bold);
+  margin-bottom: var(--space-1);
+}
+
+.comparison-card-desc {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  line-height: var(--line-height-relaxed);
+}
+
+.comparison-divider {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.comparison-arrow {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: var(--color-primary);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 12px rgba(31, 78, 121, 0.3);
+}
+
+/* ===========================
+   Features Section
+   =========================== */
+.features-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-6);
+  margin-top: var(--space-12);
+}
+
+.feature-card {
+  padding: var(--space-8);
+  border-radius: var(--radius-xl);
+  border: 1px solid var(--color-border-light);
+  background: var(--color-bg-white);
+  transition: all var(--transition-base);
+  position: relative;
+  overflow: hidden;
+}
+
+.feature-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  height: 3px;
+  background: var(--color-primary);
+  opacity: 0;
+  transition: opacity var(--transition-base);
+}
+
+.feature-card:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-card-hover);
+  border-color: var(--color-primary-200);
+}
+
+.feature-card:hover::before {
+  opacity: 1;
+}
+
+.feature-icon {
+  width: 52px;
+  height: 52px;
+  border-radius: var(--radius-lg);
+  background: var(--color-primary-50);
+  color: var(--color-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: var(--space-5);
+  transition: all var(--transition-base);
+}
+
+.feature-card:hover .feature-icon {
+  background: var(--color-primary);
+  color: white;
+}
+
+.feature-title {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-bold);
+  margin-bottom: var(--space-3);
+  color: var(--color-text);
+}
+
+.feature-desc {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  line-height: var(--line-height-relaxed);
+}
+
+/* ===========================
+   Pricing Section
+   =========================== */
+.pricing {
+  background: var(--color-bg-white);
+}
+
+.pricing-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-6);
+  margin-top: var(--space-12);
+}
+
+.pricing-card {
+  padding: var(--space-8);
+  border-radius: var(--radius-2xl);
+  border: 1.5px solid var(--color-border);
+  background: var(--color-bg-white);
+  transition: all var(--transition-base);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+.pricing-card:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-xl);
+}
+
+.pricing-card.popular {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 1px var(--color-primary), var(--shadow-xl);
+}
+
+.pricing-card.popular:hover {
+  box-shadow: 0 0 0 1px var(--color-primary), var(--shadow-2xl);
+}
+
+.pricing-popular-badge {
+  position: absolute;
+  top: -14px;
+  right: 50%;
+  transform: translateX(50%);
+  background: var(--color-primary);
+  color: white;
+  padding: var(--space-1) var(--space-5);
+  border-radius: var(--radius-full);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-bold);
+  white-space: nowrap;
+}
+
+.pricing-name {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text);
+  margin-bottom: var(--space-2);
+}
+
+.pricing-desc {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+  margin-bottom: var(--space-6);
+}
+
+.pricing-price {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
+}
+
+.pricing-amount {
+  font-size: var(--font-size-4xl);
+  font-weight: var(--font-weight-extrabold);
+  color: var(--color-primary);
+  line-height: 1;
+}
+
+.pricing-currency {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-secondary);
+}
+
+.pricing-period {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+  margin-bottom: var(--space-8);
+}
+
+.pricing-features {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin-bottom: var(--space-8);
+}
+
+.pricing-feature {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+}
+
+.pricing-feature svg {
+  width: 18px;
+  height: 18px;
+  color: var(--color-success);
+  flex-shrink: 0;
+}
+
+.pricing-card .btn {
+  width: 100%;
+}
+
+/* Enterprise Card */
+.pricing-enterprise {
+  margin-top: var(--space-6);
+  padding: var(--space-8);
+  border-radius: var(--radius-2xl);
+  border: 1.5px solid var(--color-border);
+  background: var(--color-bg);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-8);
+}
+
+.pricing-enterprise-info {
+  flex: 1;
+}
+
+.pricing-enterprise-title {
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text);
+  margin-bottom: var(--space-2);
+}
+
+.pricing-enterprise-desc {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  line-height: var(--line-height-relaxed);
+}
+
+/* ===========================
+   Final CTA Section
+   =========================== */
+.cta-section {
+  background: var(--color-primary);
+  padding: var(--space-20) 0;
+  position: relative;
+  overflow: hidden;
+}
+
+.cta-section::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -25%;
+  width: 500px;
+  height: 500px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.03);
+  pointer-events: none;
+}
+
+.cta-section::after {
+  content: '';
+  position: absolute;
+  bottom: -30%;
+  right: -15%;
+  width: 400px;
+  height: 400px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.04);
+  pointer-events: none;
+}
+
+.cta-content {
+  text-align: center;
+  position: relative;
+  z-index: 1;
+}
+
+.cta-title {
+  font-size: var(--font-size-4xl);
+  font-weight: var(--font-weight-extrabold);
+  color: white;
+  margin-bottom: var(--space-5);
+  line-height: var(--line-height-tight);
+}
+
+.cta-desc {
+  font-size: var(--font-size-lg);
+  color: rgba(255, 255, 255, 0.8);
+  margin-bottom: var(--space-10);
+  max-width: 560px;
+  margin-left: auto;
+  margin-right: auto;
+  line-height: var(--line-height-relaxed);
+}
+
+/* ===========================
+   Footer
+   =========================== */
+.footer {
+  background: var(--color-text);
+  color: rgba(255, 255, 255, 0.7);
+  padding: var(--space-16) 0 var(--space-8);
+}
+
+.footer-grid {
+  display: grid;
+  grid-template-columns: 1.5fr 1fr 1fr 1fr;
+  gap: var(--space-12);
+  margin-bottom: var(--space-12);
+}
+
+.footer-brand-desc {
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-relaxed);
+  margin-top: var(--space-4);
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.footer-col-title {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-bold);
+  color: white;
+  margin-bottom: var(--space-5);
+}
+
+.footer-links {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.footer-link {
+  font-size: var(--font-size-sm);
+  color: rgba(255, 255, 255, 0.5);
+  transition: color var(--transition-fast);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.footer-link:hover {
+  color: white;
+}
+
+.footer-link svg {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+
+.footer-contact-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  font-size: var(--font-size-sm);
+  color: rgba(255, 255, 255, 0.5);
+  margin-bottom: var(--space-3);
+  transition: color var(--transition-fast);
+}
+
+.footer-contact-item:hover {
+  color: white;
+}
+
+.footer-contact-item svg {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+}
+
+.footer-contact-item.whatsapp svg {
+  color: #25D366;
+}
+
+.footer-divider {
+  border: none;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  margin-bottom: var(--space-8);
+}
+
+.footer-bottom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: var(--font-size-xs);
+  color: rgba(255, 255, 255, 0.35);
+}
+
+/* ===========================
+   Responsive Design
+   =========================== */
+@media (max-width: 1024px) {
+  .hero .container {
+    grid-template-columns: 1fr;
+    gap: var(--space-12);
+  }
+
+  .hero-title {
+    font-size: var(--font-size-4xl);
+  }
+
+  .features-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .pricing-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .pricing-grid .pricing-card:last-child {
+    grid-column: 1 / -1;
+    max-width: 400px;
+    margin: 0 auto;
+    width: 100%;
+  }
+
+  .comparison-grid {
+    grid-template-columns: 1fr;
+    gap: var(--space-6);
+  }
+
+  .comparison-divider {
+    display: none;
+  }
+
+  .footer-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 768px) {
+  :root {
+    --nav-height: 64px;
+  }
+
+  .nav-links {
+    display: none;
+    position: absolute;
+    top: var(--nav-height);
+    right: 0;
+    left: 0;
+    flex-direction: column;
+    background: white;
+    padding: var(--space-6);
+    gap: var(--space-4);
+    border-bottom: 1px solid var(--color-border);
+    box-shadow: var(--shadow-lg);
+  }
+
+  .nav-links.active {
+    display: flex;
+  }
+
+  .nav-mobile-toggle {
+    display: flex;
+  }
+
+  .hero {
+    padding-top: calc(var(--nav-height) + var(--space-10));
+    padding-bottom: var(--space-12);
+  }
+
+  .hero-title {
+    font-size: var(--font-size-3xl);
+  }
+
+  .hero-desc {
+    font-size: var(--font-size-base);
+  }
+
+  .hero-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .hero-trust {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-2);
+  }
+
+  .hero-trust-divider {
+    display: none;
+  }
+
+  .section {
+    padding: var(--space-16) 0;
+  }
+
+  .section-title {
+    font-size: var(--font-size-2xl);
+  }
+
+  .features-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .pricing-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .pricing-grid .pricing-card:last-child {
+    max-width: none;
+  }
+
+  .pricing-enterprise {
+    flex-direction: column;
+    text-align: center;
+  }
+
+  .cta-title {
+    font-size: var(--font-size-2xl);
+  }
+
+  .footer-grid {
+    grid-template-columns: 1fr;
+    gap: var(--space-8);
+  }
+
+  .footer-bottom {
+    flex-direction: column;
+    gap: var(--space-3);
+    text-align: center;
+  }
+
+  .dashboard-kpis {
+    grid-template-columns: 1fr;
+  }
+
+  .dashboard-table-wrap {
+    overflow-x: auto;
+  }
+}
+
+@media (max-width: 480px) {
+  .hero-title {
+    font-size: var(--font-size-2xl);
+  }
+
+  .container {
+    padding: 0 var(--space-4);
+  }
+
+  .feature-card {
+    padding: var(--space-6);
+  }
+
+  .pricing-card {
+    padding: var(--space-6);
+  }
+}
+
+`;
+
 function PublicHomePage({ siteContent, isAuthenticated, onSignup, onSignin, onLogout, onEnter }) {
+  const landing = siteContent.landing || DEFAULT_SITE_CONTENT.landing;
+  const rootRef = useRef(null);
+  const [navScrolled, setNavScrolled] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
+
   const primaryAction = isAuthenticated ? onEnter : onSignup;
   const secondaryAction = isAuthenticated ? onEnter : onSignin;
-  const quickLinks = [
-    { label: "إنشاء حساب", action: onSignup },
-    { label: "تسجيل دخول", action: onSignin },
-    { label: "المزايا", action: () => document.getElementById("features")?.scrollIntoView({ behavior: "smooth" }) },
-    { label: "الدعم", action: () => document.getElementById("support")?.scrollIntoView({ behavior: "smooth" }) }
-  ];
-  const features = [
-    {
-      icon: UploadCloud,
-      title: "رفع ملفات البصمة",
-      text: "يدعم Excel وCSV ويجمع سجلات كل موظف حسب اليوم تلقائيا."
-    },
-    {
-      icon: CalendarDays,
-      title: "إجازات حسب الدولة",
-      text: "الإجازات الرسمية مرتبطة بمصر والخليج مع إمكانية التعديل والترحيل."
-    },
-    {
-      icon: CircleDollarSign,
-      title: "رواتب وخصومات",
-      text: "تأخير، غياب، وقت إضافي، مكافآت، وإجازات تتحول إلى صافي راتب واضح."
+
+  useEffect(() => {
+    const root = rootRef.current;
+    if (!root) return undefined;
+
+    const onScroll = () => setNavScrolled(window.scrollY > 10);
+    window.addEventListener("scroll", onScroll, { passive: true });
+
+    const fadeEls = root.querySelectorAll(".fade-up");
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add("visible");
+            observer.unobserve(entry.target);
+          }
+        });
+      },
+      { root: null, rootMargin: "0px 0px -60px 0px", threshold: 0.1 }
+    );
+    fadeEls.forEach((el) => observer.observe(el));
+
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      observer.disconnect();
+    };
+  }, []);
+
+  const scrollToId = (id) => (event) => {
+    if (event?.preventDefault) event.preventDefault();
+    setMobileOpen(false);
+    const el = document.getElementById(id);
+    if (el) {
+      const navHeight = 72;
+      const top = el.getBoundingClientRect().top + window.scrollY - navHeight - 20;
+      window.scrollTo({ top, behavior: "smooth" });
     }
-  ];
+  };
+
+  const whatsappHref = `https://wa.me/${(siteContent.supportPhone || "").replace(/[^0-9]/g, "")}`;
+
+  const renderHeroTitle = () => {
+    const title = siteContent.heroTitle || "";
+    const highlight = siteContent.heroHighlight;
+    if (highlight && title.includes(highlight)) {
+      const idx = title.indexOf(highlight);
+      return (
+        <>
+          {title.slice(0, idx)}
+          <span className="highlight">{highlight}</span>
+          {title.slice(idx + highlight.length)}
+        </>
+      );
+    }
+    return title;
+  };
+
+  const pricingTiers = [landing.pricingBasic, landing.pricingPro, landing.pricingBusiness];
+  const featureIcons = [Clock, AlertTriangle, TrendingUp, CalendarDays, CalendarDays, Archive];
+  const navLinks = landing.navLinks || DEFAULT_SITE_CONTENT.landing.navLinks;
 
   return (
-    <div className="min-h-screen bg-cloud text-ink">
-      <header className="sticky top-0 z-30 border-b border-white/10 bg-ink/95 px-4 py-4 text-white backdrop-blur">
-        <div className="mx-auto flex max-w-7xl items-center justify-between gap-3">
-          <BrandBlock siteContent={siteContent} light />
-          <div className="flex items-center gap-2">
+    <div className="spl" ref={rootRef}>
+      <style>{LANDING_CSS}</style>
+
+      <nav className={`navbar${navScrolled ? " scrolled" : ""}`}>
+        <div className="container">
+          <a href="#hero" className="nav-brand" onClick={scrollToId("hero")}>
+            <div className="nav-logo">
+              {siteContent.logo ? (
+                <img
+                  src={siteContent.logo}
+                  alt="ShiftPay HR"
+                  style={{ width: "100%", height: "100%", borderRadius: "inherit", objectFit: "contain" }}
+                />
+              ) : (
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 2v10l4.5 4.5" />
+                  <circle cx="12" cy="12" r="10" />
+                </svg>
+              )}
+            </div>
+            <div className="nav-brand-text">
+              ShiftPay <span>HR</span>
+            </div>
+          </a>
+
+          <div className={`nav-links${mobileOpen ? " active" : ""}`}>
+            {navLinks.map((link) => (
+              <a key={link.target} href={`#${link.target}`} className="nav-link" onClick={scrollToId(link.target)}>
+                {link.label}
+              </a>
+            ))}
+          </div>
+
+          <div className="nav-actions">
             {isAuthenticated ? (
-              <button
-                type="button"
-                onClick={onLogout}
-                className="rounded-lg border border-white/20 px-4 py-2 text-sm font-extrabold text-white transition hover:bg-white/10"
-              >
+              <button type="button" className="btn btn-secondary" onClick={onLogout}>
                 تسجيل خروج
               </button>
             ) : (
-              <button
-                type="button"
-                onClick={onSignin}
-                className="rounded-lg border border-white/20 px-4 py-2 text-sm font-extrabold text-white transition hover:bg-white/10"
-              >
-                تسجيل دخول
+              <button type="button" className="btn btn-secondary" onClick={onSignin}>
+                {landing.loginCta}
               </button>
             )}
-            <button
-              type="button"
-              onClick={primaryAction}
-              className="rounded-lg bg-white px-4 py-2 text-sm font-extrabold text-ink transition hover:bg-blue-50"
-            >
-              {isAuthenticated ? "فتح النظام" : "إنشاء حساب"}
+            <button type="button" className="btn btn-primary" onClick={primaryAction}>
+              {isAuthenticated ? "فتح النظام" : siteContent.primaryCta}
             </button>
           </div>
-        </div>
-      </header>
 
-      <section className="relative overflow-hidden bg-ink text-white">
-        <HeroScene />
-        <div className="relative z-10 mx-auto grid min-h-[680px] max-w-7xl items-center gap-10 px-4 py-16 sm:px-6 lg:grid-cols-[1fr_0.9fr] lg:px-8">
-          <div className="max-w-3xl">
-            <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-4 py-2 text-sm font-bold text-blue-100 backdrop-blur">
+          <button
+            type="button"
+            className={`nav-mobile-toggle${mobileOpen ? " active" : ""}`}
+            aria-label="فتح القائمة"
+            onClick={() => setMobileOpen((value) => !value)}
+          >
+            <span></span>
+            <span></span>
+            <span></span>
+          </button>
+        </div>
+      </nav>
+
+      <section className="hero" id="hero">
+        <div className="container">
+          <div className="hero-content">
+            <div className="hero-badge fade-up">
               <Sparkles size={16} />
               {siteContent.heroBadge}
             </div>
-            <h1 className="text-5xl font-extrabold leading-tight sm:text-6xl lg:text-7xl">
-              {siteContent.heroTitle}
-            </h1>
-            <p className="mt-6 max-w-2xl text-xl leading-9 text-slate-200">{siteContent.heroText}</p>
-            <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-              <button
-                type="button"
-                onClick={primaryAction}
-                className="inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-6 py-3 text-base font-extrabold text-white shadow-lg shadow-blue-900/30 transition hover:bg-blue-700"
-              >
-                {isAuthenticated ? "فتح النظام" : siteContent.primaryCta}
+
+            <h1 className="hero-title fade-up fade-up-delay-1">{renderHeroTitle()}</h1>
+
+            <p className="hero-desc fade-up fade-up-delay-2">{siteContent.heroText}</p>
+
+            <div className="hero-actions fade-up fade-up-delay-3">
+              <button type="button" className="btn btn-primary btn-large" onClick={primaryAction}>
                 <ArrowLeft size={18} />
+                {isAuthenticated ? "فتح النظام" : siteContent.primaryCta}
               </button>
               {!isAuthenticated ? (
-                <button
-                  type="button"
-                  onClick={secondaryAction}
-                  className="inline-flex items-center justify-center gap-2 rounded-lg border border-white/20 bg-white/10 px-6 py-3 text-base font-extrabold text-white backdrop-blur transition hover:bg-white/15"
-                >
+                <button type="button" className="btn btn-secondary btn-large" onClick={scrollToId("features")}>
                   {siteContent.secondaryCta}
-                  <Users size={18} />
                 </button>
               ) : null}
             </div>
-            <div className="mt-8 grid max-w-xl grid-cols-3 gap-3">
-              {[
-                ["7", "دول مدعومة"],
-                ["2026", "إجازات محدثة"],
-                ["PDF", "تقارير جاهزة"]
-              ].map(([value, label]) => (
-                <div key={label} className="rounded-lg border border-white/15 bg-white/10 px-4 py-3 backdrop-blur">
-                  <p className="text-2xl font-extrabold">{value}</p>
-                  <p className="mt-1 text-xs font-bold text-blue-100">{label}</p>
+
+            <div className="hero-trust fade-up fade-up-delay-4">
+              {(landing.heroTrust || []).map((text, index) => {
+                const TrustIcon = index === 0 ? ShieldCheck : index === 1 ? Clock : CalendarDays;
+                return (
+                  <React.Fragment key={text}>
+                    {index > 0 ? <div className="hero-trust-divider"></div> : null}
+                    <div className="hero-trust-item">
+                      <TrustIcon size={18} />
+                      {text}
+                    </div>
+                  </React.Fragment>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="hero-visual fade-up fade-up-delay-2">
+            <div className="dashboard-preview">
+              <div className="dashboard-topbar">
+                <div className="dashboard-topbar-right">
+                  <div className="dashboard-dot green"></div>
+                  <div className="dashboard-dot yellow"></div>
+                  <div className="dashboard-dot red"></div>
+                  <span className="dashboard-topbar-title">لوحة تقارير الرواتب</span>
+                </div>
+                <span className="dashboard-topbar-date">يوليو 2026</span>
+              </div>
+              <div className="dashboard-body">
+                <div className="dashboard-kpis">
+                  <div className="kpi-card">
+                    <div className="kpi-label">إجمالي الموظفين</div>
+                    <div className="kpi-value">48</div>
+                    <div className="kpi-sub">هذا الشهر</div>
+                  </div>
+                  <div className="kpi-card">
+                    <div className="kpi-label">نسبة الالتزام</div>
+                    <div className="kpi-value success">92%</div>
+                    <div className="kpi-sub">حضور منتظم</div>
+                  </div>
+                  <div className="kpi-card">
+                    <div className="kpi-label">حالات تأخير</div>
+                    <div className="kpi-value danger">7</div>
+                    <div className="kpi-sub">هذا الأسبوع</div>
+                  </div>
+                </div>
+
+                <div className="dashboard-table-wrap">
+                  <table className="dashboard-table">
+                    <thead>
+                      <tr>
+                        <th>الموظف</th>
+                        <th>الشيفت</th>
+                        <th>الحضور</th>
+                        <th>الانصراف</th>
+                        <th>الحالة</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td>أحمد محمد علي</td>
+                        <td>صباحي</td>
+                        <td>08:02</td>
+                        <td>16:05</td>
+                        <td>
+                          <span className="status-badge on-time">
+                            <span className="status-dot"></span> ملتزم
+                          </span>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td>سارة عبدالرحمن</td>
+                        <td>مسائي</td>
+                        <td>16:15</td>
+                        <td>00:10</td>
+                        <td>
+                          <span className="status-badge late">
+                            <span className="status-dot"></span> متأخر 15 د
+                          </span>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td>محمود حسن</td>
+                        <td>صباحي</td>
+                        <td>07:55</td>
+                        <td>17:30</td>
+                        <td>
+                          <span className="status-badge on-time">
+                            <span className="status-dot"></span> أوفر تايم 1.5 س
+                          </span>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td>نورا السيد</td>
+                        <td>منقسم</td>
+                        <td>09:00</td>
+                        <td>18:00</td>
+                        <td>
+                          <span className="status-badge on-time">
+                            <span className="status-dot"></span> ملتزم
+                          </span>
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="section comparison" id="comparison">
+        <div className="container">
+          <div className="text-center fade-up">
+            <div className="section-label">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="23 6 13.5 15.5 8.5 10.5 1 18" />
+                <polyline points="17 6 23 6 23 12" />
+              </svg>
+              {landing.comparisonBadge}
+            </div>
+            <h2 className="section-title">{landing.comparisonTitle}</h2>
+            <p className="section-desc">{landing.comparisonDesc}</p>
+          </div>
+
+          <div className="comparison-grid" style={{ marginTop: "var(--space-12)" }}>
+            <div className="comparison-column old fade-up fade-up-delay-1">
+              <div className="comparison-column-header">
+                <div className="comparison-column-icon">
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="12" cy="12" r="10" />
+                    <line x1="15" y1="9" x2="9" y2="15" />
+                    <line x1="9" y1="9" x2="15" y2="15" />
+                  </svg>
+                </div>
+                <span className="comparison-column-title">{landing.comparisonOldLabel}</span>
+              </div>
+              {(landing.comparisonOld || []).map((item) => (
+                <div className="comparison-card" key={item.title}>
+                  <div className="comparison-card-icon">
+                    <AlertTriangle size={20} />
+                  </div>
+                  <div>
+                    <div className="comparison-card-title">{item.title}</div>
+                    <div className="comparison-card-desc">{item.desc}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="comparison-divider fade-up">
+              <div className="comparison-arrow">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="19" y1="12" x2="5" y2="12" />
+                  <polyline points="12 19 5 12 12 5" />
+                </svg>
+              </div>
+            </div>
+
+            <div className="comparison-column new fade-up fade-up-delay-2">
+              <div className="comparison-column-header">
+                <div className="comparison-column-icon">
+                  <CheckCircle2 size={24} />
+                </div>
+                <span className="comparison-column-title">{landing.comparisonNewLabel}</span>
+              </div>
+              {(landing.comparisonNew || []).map((item) => (
+                <div className="comparison-card" key={item.title}>
+                  <div className="comparison-card-icon">
+                    <CheckCircle2 size={20} />
+                  </div>
+                  <div>
+                    <div className="comparison-card-title">{item.title}</div>
+                    <div className="comparison-card-desc">{item.desc}</div>
+                  </div>
                 </div>
               ))}
             </div>
           </div>
+        </div>
+      </section>
 
-          <div className="hidden lg:block">
-            <div className="rounded-lg border border-white/15 bg-white/95 p-5 text-ink shadow-2xl">
-              <div className="mb-5 flex items-center justify-between border-b border-line pb-4">
-                <span className="text-sm font-bold text-blue-100">تقرير رواتب جاهز</span>
-                <span className="hidden">
-                  قابل للتصدير
-                </span>
-              </div>
-              <div className="mt-4 grid grid-cols-2 gap-3">
-                {[
-                  ["الموظفون", "42"],
-                  ["الأقسام", "8"],
-                  ["التأخير", "126"],
-                  ["الصافي", "480K"]
-                ].map(([label, value]) => (
-                  <div key={label} className="rounded-lg bg-slate-50 p-4 text-ink">
-                    <p className="text-xs font-bold text-slate-500">{label}</p>
-                    <p className="mt-2 text-2xl font-extrabold">{value}</p>
-                  </div>
-                ))}
-              </div>
+      <section className="section" id="features">
+        <div className="container">
+          <div className="text-center fade-up">
+            <div className="section-label">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="3" width="7" height="7" />
+                <rect x="14" y="3" width="7" height="7" />
+                <rect x="14" y="14" width="7" height="7" />
+                <rect x="3" y="14" width="7" height="7" />
+              </svg>
+              {landing.featuresBadge}
             </div>
+            <h2 className="section-title">{landing.featuresTitle}</h2>
+            <p className="section-desc">{landing.featuresDesc}</p>
+          </div>
+
+          <div className="features-grid">
+            {(landing.features || []).map((feature, index) => {
+              const FeatureIcon = featureIcons[index % featureIcons.length];
+              return (
+                <div className="feature-card fade-up" key={feature.title}>
+                  <div className="feature-icon">
+                    <FeatureIcon size={24} />
+                  </div>
+                  <div className="feature-title">{feature.title}</div>
+                  <div className="feature-desc">{feature.desc}</div>
+                </div>
+              );
+            })}
           </div>
         </div>
       </section>
 
-      <section id="features" className="mx-auto grid max-w-7xl gap-4 px-4 py-10 sm:px-6 md:grid-cols-3 lg:px-8">
-        {features.map((feature) => (
-          <article key={feature.title} className="rounded-lg border border-line bg-white p-6 shadow-sm">
-            <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-lg bg-blue-50 text-primary">
-              <feature.icon size={24} />
+      <section className="section pricing" id="pricing">
+        <div className="container">
+          <div className="text-center fade-up">
+            <div className="section-label">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="12" y1="1" x2="12" y2="23" />
+                <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+              </svg>
+              {landing.pricingBadge}
             </div>
-            <h2 className="text-xl font-extrabold text-ink">{feature.title}</h2>
-            <p className="mt-3 leading-7 text-slate-600">{feature.text}</p>
-          </article>
-        ))}
+            <h2 className="section-title">{landing.pricingTitle}</h2>
+            <p className="section-desc">{landing.pricingDesc}</p>
+          </div>
+
+          <div className="pricing-grid">
+            {pricingTiers.map((tier, index) => (
+              <div className={`pricing-card${tier?.badge ? " popular" : ""} fade-up`} key={tier?.name || index}>
+                {tier?.badge ? <div className="pricing-popular-badge">{tier.badge}</div> : null}
+                <div className="pricing-name">{tier?.name}</div>
+                <div className="pricing-desc">{tier?.desc}</div>
+                <div className="pricing-price">
+                  <span className="pricing-amount">{tier?.amount}</span>
+                  <span className="pricing-currency">ج.م</span>
+                </div>
+                <div className="pricing-period">{tier?.period}</div>
+                <div className="pricing-features">
+                  {(tier?.features || []).map((line) => (
+                    <div className="pricing-feature" key={line}>
+                      <CheckCircle2 size={18} />
+                      {line}
+                    </div>
+                  ))}
+                </div>
+                <button type="button" className={`btn ${tier?.badge ? "btn-primary" : "btn-secondary"}`} onClick={primaryAction}>
+                  {tier?.cta || "ابدأ الآن"}
+                </button>
+              </div>
+            ))}
+          </div>
+
+          <div className="pricing-enterprise fade-up">
+            <div className="pricing-enterprise-info">
+              <div className="pricing-enterprise-title">{landing.pricingEnterpriseTitle}</div>
+              <div className="pricing-enterprise-desc">{landing.pricingEnterpriseDesc}</div>
+            </div>
+            <a href={whatsappHref} target="_blank" rel="noopener noreferrer" className="btn btn-primary btn-large">
+              <MessageCircle size={18} />
+              {landing.pricingEnterpriseCta}
+            </a>
+          </div>
+        </div>
       </section>
 
-      <footer id="support" className="border-t border-line bg-white px-4 py-8">
-        <div className="mx-auto grid max-w-7xl gap-6 md:grid-cols-[1.2fr_0.8fr_1fr]">
-          <div>
-            <BrandBlock siteContent={siteContent} />
-            <p className="mt-4 max-w-md leading-7 text-slate-600">{siteContent.footerText}</p>
+      <section className="cta-section" id="cta">
+        <div className="container">
+          <div className="cta-content fade-up">
+            <h2 className="cta-title">{landing.ctaTitle}</h2>
+            <p className="cta-desc">{landing.ctaDesc}</p>
+            <button type="button" className="btn btn-white btn-large" onClick={primaryAction}>
+              <ArrowLeft size={18} />
+              {landing.ctaButton}
+            </button>
           </div>
-          <div>
-            <p className="mb-3 font-extrabold text-ink">روابط سريعة</p>
-            <div className="grid gap-2 text-sm font-bold text-slate-600">
-              {quickLinks.map((link) => (
-                <button key={link.label} type="button" onClick={link.action} className="text-right hover:text-primary">
-                  {link.label}
-                </button>
-              ))}
-            </div>
-          </div>
-          <div>
-            <p className="mb-3 font-extrabold text-ink">التواصل والدعم</p>
-            <div className="space-y-3 text-sm font-bold text-slate-600">
-              <a
-                href={`https://wa.me/${(siteContent.supportPhone || "").replace(/[^0-9]/g, "")}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-2 hover:text-primary transition-colors"
-              >
-                <MessageCircle size={17} className="text-green-500" />
-                {siteContent.supportPhone}
+        </div>
+      </section>
+
+      <footer className="footer" id="support">
+        <div className="container">
+          <div className="footer-grid">
+            <div>
+              <a href="#hero" className="nav-brand" style={{ color: "white" }} onClick={scrollToId("hero")}>
+                <div className="nav-logo">
+                  {siteContent.logo ? (
+                    <img
+                      src={siteContent.logo}
+                      alt="ShiftPay HR"
+                      style={{ width: "100%", height: "100%", borderRadius: "inherit", objectFit: "contain" }}
+                    />
+                  ) : (
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M12 2v10l4.5 4.5" />
+                      <circle cx="12" cy="12" r="10" />
+                    </svg>
+                  )}
+                </div>
+                <div className="nav-brand-text" style={{ color: "white" }}>
+                  ShiftPay <span style={{ color: "rgba(255,255,255,0.5)" }}>HR</span>
+                </div>
               </a>
-              <a
-                href={`mailto:${siteContent.supportEmail}`}
-                className="flex items-center gap-2 hover:text-primary transition-colors"
-              >
-                <Mail size={17} className="text-primary" />
+              <p className="footer-brand-desc">{landing.footerBrandDesc}</p>
+            </div>
+
+            <div>
+              <div className="footer-col-title">روابط سريعة</div>
+              <div className="footer-links">
+                {navLinks.map((link) => (
+                  <a key={link.target} href={`#${link.target}`} className="footer-link" onClick={scrollToId(link.target)}>
+                    {link.label}
+                  </a>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <div className="footer-col-title">المنتج</div>
+              <div className="footer-links">
+                <button type="button" className="footer-link" onClick={primaryAction}>
+                  {siteContent.primaryCta}
+                </button>
+                <button type="button" className="footer-link" onClick={secondaryAction}>
+                  {landing.loginCta}
+                </button>
+                <a href="#pricing" className="footer-link" onClick={scrollToId("pricing")}>
+                  الباقات والأسعار
+                </a>
+              </div>
+            </div>
+
+            <div>
+              <div className="footer-col-title">تواصل معنا</div>
+              <a href={whatsappHref} target="_blank" rel="noopener noreferrer" className="footer-contact-item whatsapp">
+                <MessageCircle size={20} />
+                واتساب
+              </a>
+              <a href={`mailto:${siteContent.supportEmail}`} className="footer-contact-item">
+                <Mail size={20} />
                 {siteContent.supportEmail}
               </a>
-              <p className="flex items-center gap-2">
-                <Headphones size={17} className="text-primary" />
-                {siteContent.supportText}
-              </p>
+              <a href="https://shiftpay.online" target="_blank" rel="noopener noreferrer" className="footer-contact-item">
+                <Headphones size={20} />
+                shiftpay.online
+              </a>
             </div>
+          </div>
+
+          <hr className="footer-divider" />
+
+          <div className="footer-bottom">
+            <span>{landing.footerCopyright}</span>
+            <span>{landing.footerTagline}</span>
           </div>
         </div>
       </footer>
@@ -5013,7 +6745,31 @@ function CloudTopBar({ cloud, onSync, onLogout, onNavigate }) {
 }
 
 function SiteContentPanel({ siteContent, setSiteContent, onSave, loading, setNotice }) {
+  const landing = siteContent.landing || DEFAULT_SITE_CONTENT.landing;
   const update = (patch) => setSiteContent({ ...siteContent, ...patch });
+  const updateLanding = (patch) => setSiteContent({ ...siteContent, landing: { ...landing, ...patch } });
+
+  const updateHeroTrust = (index, value) => {
+    const next = [...(landing.heroTrust || DEFAULT_SITE_CONTENT.landing.heroTrust)];
+    next[index] = value;
+    updateLanding({ heroTrust: next });
+  };
+
+  const updateCardItem = (key, index, field, value) => {
+    const list = [...(landing[key] || DEFAULT_SITE_CONTENT.landing[key] || [])];
+    list[index] = { ...list[index], [field]: value };
+    updateLanding({ [key]: list });
+  };
+
+  const updatePricingTier = (tierKey, field, value) => {
+    const tier = { ...(landing[tierKey] || DEFAULT_SITE_CONTENT.landing[tierKey] || {}) };
+    if (field === "features") {
+      tier.features = value.split("\n").map((line) => line.trim()).filter(Boolean);
+    } else {
+      tier[field] = value;
+    }
+    updateLanding({ [tierKey]: tier });
+  };
 
   const handleSiteLogo = (event) => {
     const file = event.target.files?.[0];
@@ -5133,6 +6889,274 @@ function SiteContentPanel({ siteContent, setSiteContent, onSave, loading, setNot
               إزالة شعار الموقع
             </button>
           ) : null}
+        </div>
+      </div>
+
+      {/* Hero highlight + trust badges */}
+      <div className="mt-8 border-t border-line pt-6">
+        <h3 className="text-lg font-extrabold text-ink">تفاصيل إضافية للعنوان الرئيسي</h3>
+        <div className="mt-4 grid gap-4 md:grid-cols-2">
+          <InputField
+            label="الكلمة/الجملة المميزة داخل العنوان (تُلوّن تلقائياً)"
+            value={siteContent.heroHighlight || ""}
+            onChange={(event) => update({ heroHighlight: event.target.value })}
+          />
+          {(landing.heroTrust || DEFAULT_SITE_CONTENT.landing.heroTrust).map((text, index) => (
+            <InputField
+              key={index}
+              label={`عنصر الثقة رقم ${index + 1}`}
+              value={text}
+              onChange={(event) => updateHeroTrust(index, event.target.value)}
+            />
+          ))}
+        </div>
+      </div>
+
+      {/* Before / After comparison section */}
+      <div className="mt-8 border-t border-line pt-6">
+        <h3 className="text-lg font-extrabold text-ink">قسم "الطريقة القديمة مقابل ShiftPay"</h3>
+        <div className="mt-4 grid gap-4 md:grid-cols-3">
+          <InputField
+            label="شارة القسم"
+            value={landing.comparisonBadge}
+            onChange={(event) => updateLanding({ comparisonBadge: event.target.value })}
+          />
+          <InputField
+            label="عنوان القسم"
+            value={landing.comparisonTitle}
+            onChange={(event) => updateLanding({ comparisonTitle: event.target.value })}
+          />
+          <InputField
+            label="وصف القسم"
+            value={landing.comparisonDesc}
+            onChange={(event) => updateLanding({ comparisonDesc: event.target.value })}
+          />
+        </div>
+        <div className="mt-4 grid gap-4 md:grid-cols-2">
+          <div className="rounded-lg border border-line p-4">
+            <InputField
+              label="عنوان العمود القديم"
+              value={landing.comparisonOldLabel}
+              onChange={(event) => updateLanding({ comparisonOldLabel: event.target.value })}
+            />
+            <div className="mt-3 space-y-3">
+              {(landing.comparisonOld || DEFAULT_SITE_CONTENT.landing.comparisonOld).map((item, index) => (
+                <div key={index} className="grid gap-2 rounded-lg bg-slate-50 p-3">
+                  <InputField
+                    label={`عنوان بطاقة ${index + 1}`}
+                    value={item.title}
+                    onChange={(event) => updateCardItem("comparisonOld", index, "title", event.target.value)}
+                  />
+                  <TextareaField
+                    label="الوصف"
+                    rows={2}
+                    value={item.desc}
+                    onChange={(event) => updateCardItem("comparisonOld", index, "desc", event.target.value)}
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="rounded-lg border border-line p-4">
+            <InputField
+              label="عنوان العمود الجديد"
+              value={landing.comparisonNewLabel}
+              onChange={(event) => updateLanding({ comparisonNewLabel: event.target.value })}
+            />
+            <div className="mt-3 space-y-3">
+              {(landing.comparisonNew || DEFAULT_SITE_CONTENT.landing.comparisonNew).map((item, index) => (
+                <div key={index} className="grid gap-2 rounded-lg bg-slate-50 p-3">
+                  <InputField
+                    label={`عنوان بطاقة ${index + 1}`}
+                    value={item.title}
+                    onChange={(event) => updateCardItem("comparisonNew", index, "title", event.target.value)}
+                  />
+                  <TextareaField
+                    label="الوصف"
+                    rows={2}
+                    value={item.desc}
+                    onChange={(event) => updateCardItem("comparisonNew", index, "desc", event.target.value)}
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Features section */}
+      <div className="mt-8 border-t border-line pt-6">
+        <h3 className="text-lg font-extrabold text-ink">قسم المميزات</h3>
+        <div className="mt-4 grid gap-4 md:grid-cols-3">
+          <InputField
+            label="شارة القسم"
+            value={landing.featuresBadge}
+            onChange={(event) => updateLanding({ featuresBadge: event.target.value })}
+          />
+          <InputField
+            label="عنوان القسم"
+            value={landing.featuresTitle}
+            onChange={(event) => updateLanding({ featuresTitle: event.target.value })}
+          />
+          <InputField
+            label="وصف القسم"
+            value={landing.featuresDesc}
+            onChange={(event) => updateLanding({ featuresDesc: event.target.value })}
+          />
+        </div>
+        <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+          {(landing.features || DEFAULT_SITE_CONTENT.landing.features).map((item, index) => (
+            <div key={index} className="grid gap-2 rounded-lg bg-slate-50 p-3">
+              <InputField
+                label={`عنوان الميزة ${index + 1}`}
+                value={item.title}
+                onChange={(event) => updateCardItem("features", index, "title", event.target.value)}
+              />
+              <TextareaField
+                label="الوصف"
+                rows={2}
+                value={item.desc}
+                onChange={(event) => updateCardItem("features", index, "desc", event.target.value)}
+              />
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Pricing section */}
+      <div className="mt-8 border-t border-line pt-6">
+        <h3 className="text-lg font-extrabold text-ink">قسم الأسعار</h3>
+        <div className="mt-4 grid gap-4 md:grid-cols-3">
+          <InputField
+            label="شارة القسم"
+            value={landing.pricingBadge}
+            onChange={(event) => updateLanding({ pricingBadge: event.target.value })}
+          />
+          <InputField
+            label="عنوان القسم"
+            value={landing.pricingTitle}
+            onChange={(event) => updateLanding({ pricingTitle: event.target.value })}
+          />
+          <InputField
+            label="وصف القسم"
+            value={landing.pricingDesc}
+            onChange={(event) => updateLanding({ pricingDesc: event.target.value })}
+          />
+        </div>
+        <div className="mt-4 grid gap-4 xl:grid-cols-3">
+          {[
+            { key: "pricingBasic", label: "الباقة الأساسية" },
+            { key: "pricingPro", label: "الباقة الاحترافية" },
+            { key: "pricingBusiness", label: "باقة الأعمال" }
+          ].map(({ key, label }) => {
+            const tier = landing[key] || DEFAULT_SITE_CONTENT.landing[key] || {};
+            return (
+              <div key={key} className="grid gap-2 rounded-lg border border-line p-4">
+                <p className="text-sm font-extrabold text-primary">{label}</p>
+                <InputField
+                  label="اسم الباقة"
+                  value={tier.name}
+                  onChange={(event) => updatePricingTier(key, "name", event.target.value)}
+                />
+                <InputField
+                  label="وصف الباقة"
+                  value={tier.desc}
+                  onChange={(event) => updatePricingTier(key, "desc", event.target.value)}
+                />
+                <div className="grid grid-cols-2 gap-2">
+                  <InputField
+                    label="السعر"
+                    value={tier.amount}
+                    onChange={(event) => updatePricingTier(key, "amount", event.target.value)}
+                  />
+                  <InputField
+                    label="الفترة"
+                    value={tier.period}
+                    onChange={(event) => updatePricingTier(key, "period", event.target.value)}
+                  />
+                </div>
+                {key === "pricingPro" ? (
+                  <InputField
+                    label="شارة (مثال: الأكثر طلباً)"
+                    value={tier.badge || ""}
+                    onChange={(event) => updatePricingTier(key, "badge", event.target.value)}
+                  />
+                ) : null}
+                <InputField
+                  label="نص الزر"
+                  value={tier.cta}
+                  onChange={(event) => updatePricingTier(key, "cta", event.target.value)}
+                />
+                <TextareaField
+                  label="المزايا (سطر لكل ميزة)"
+                  rows={5}
+                  value={(tier.features || []).join("\n")}
+                  onChange={(event) => updatePricingTier(key, "features", event.target.value)}
+                />
+              </div>
+            );
+          })}
+        </div>
+        <div className="mt-4 grid gap-3 rounded-lg border border-line p-4 md:grid-cols-3">
+          <InputField
+            label="عنوان باقة المؤسسات"
+            value={landing.pricingEnterpriseTitle}
+            onChange={(event) => updateLanding({ pricingEnterpriseTitle: event.target.value })}
+          />
+          <TextareaField
+            label="وصف باقة المؤسسات"
+            rows={2}
+            value={landing.pricingEnterpriseDesc}
+            onChange={(event) => updateLanding({ pricingEnterpriseDesc: event.target.value })}
+          />
+          <InputField
+            label="نص زر التواصل"
+            value={landing.pricingEnterpriseCta}
+            onChange={(event) => updateLanding({ pricingEnterpriseCta: event.target.value })}
+          />
+        </div>
+      </div>
+
+      {/* Final CTA + Footer */}
+      <div className="mt-8 border-t border-line pt-6">
+        <h3 className="text-lg font-extrabold text-ink">قسم الدعوة النهائية والفوتر</h3>
+        <div className="mt-4 grid gap-4 md:grid-cols-2">
+          <InputField
+            label="عنوان الدعوة النهائية"
+            value={landing.ctaTitle}
+            onChange={(event) => updateLanding({ ctaTitle: event.target.value })}
+          />
+          <InputField
+            label="نص زر الدعوة النهائية"
+            value={landing.ctaButton}
+            onChange={(event) => updateLanding({ ctaButton: event.target.value })}
+          />
+          <div className="md:col-span-2">
+            <TextareaField
+              label="وصف الدعوة النهائية"
+              rows={2}
+              value={landing.ctaDesc}
+              onChange={(event) => updateLanding({ ctaDesc: event.target.value })}
+            />
+          </div>
+          <div className="md:col-span-2">
+            <TextareaField
+              label="وصف الفوتر (تحت الشعار)"
+              rows={2}
+              value={landing.footerBrandDesc}
+              onChange={(event) => updateLanding({ footerBrandDesc: event.target.value })}
+            />
+          </div>
+          <InputField
+            label="نص حقوق الملكية"
+            value={landing.footerCopyright}
+            onChange={(event) => updateLanding({ footerCopyright: event.target.value })}
+          />
+          <InputField
+            label="شعار الفوتر الجانبي"
+            value={landing.footerTagline}
+            onChange={(event) => updateLanding({ footerTagline: event.target.value })}
+          />
         </div>
       </div>
     </section>
