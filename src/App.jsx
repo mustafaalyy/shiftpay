@@ -49,6 +49,7 @@ import {
   DEPARTMENT_PRESETS,
   detectIncompleteAttendanceDays,
   formatCurrency,
+  formatMinutesAsHours,
   formatNumber,
   getEffectiveHolidays,
   getCountryProfile,
@@ -6005,6 +6006,43 @@ function SettingsView({
       </section>
 
       <section className="rounded-lg border border-line bg-white p-5 shadow-sm">
+        <h2 className="text-xl font-extrabold text-ink">سياسة الأذونات (المغادرة المبكرة)</h2>
+        <p className="mt-2 max-w-3xl leading-7 text-slate-500">
+          الإذن هنا معناه إن الموظف بصم حضور وانصراف فعلاً لكن مشى قبل معاد نهاية الشيفت — ده مختلف تماماً عن نظام
+          خصم البصمة الناقصة (لما تكون مفيش بصمة خالص). النظام بيكتشف الفرق بين معاد نهاية الشيفت ووقت الانصراف
+          الفعلي تلقائياً من نفس ملف البصمة، من غير أي إدخال يدوي.
+        </p>
+        <div className="mt-5 grid gap-4 lg:grid-cols-2">
+          <SelectField
+            label="طريقة حساب الأذونات"
+            value={settings.permissionPolicy || "monthly_balance"}
+            onChange={(event) => update({ permissionPolicy: event.target.value })}
+          >
+            <option value="annual_leave">خصم من رصيد الإجازات السنوية</option>
+            <option value="monthly_balance">رصيد أذونات شهري منفصل (يتجدد كل شهر)</option>
+            <option value="direct_hourly">بدون رصيد — خصم مباشر على قد الساعات الفعلية</option>
+          </SelectField>
+          {settings.permissionPolicy !== "annual_leave" && settings.permissionPolicy !== "direct_hourly" ? (
+            <InputField
+              label="رصيد الأذونات الشهري (بالساعات لكل موظف)"
+              type="number"
+              min="0"
+              step="0.5"
+              value={settings.monthlyPermissionHours ?? 4}
+              onChange={(event) => update({ monthlyPermissionHours: Number(event.target.value) || 0 })}
+            />
+          ) : null}
+        </div>
+        <div className="mt-4 rounded-lg bg-blue-50 p-4 text-sm font-bold leading-7 text-blue-900">
+          {settings.permissionPolicy === "annual_leave"
+            ? "ساعات الإذن هتتخصم من رصيد إجازات الموظف السنوية (محوّلة تلقائياً لساعات حسب مدة شيفته)، ولو الرصيد خلص هيتخصم الباقي من المرتب."
+            : settings.permissionPolicy === "direct_hourly"
+            ? "مفيش رصيد إذونات خالص — أي ساعة مغادرة مبكرة هتتخصم فوراً من المرتب على حساب سعر الساعة الفعلي للموظف."
+            : `كل موظف له ${settings.monthlyPermissionHours ?? 4} ساعة إذن شهرياً بدون خصم ومن غير أي علاقة برصيد الإجازات السنوية، ولو زادت هيتخصم الفرق من المرتب.`}
+        </div>
+      </section>
+
+      <section className="rounded-lg border border-line bg-white p-5 shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h2 className="text-xl font-extrabold text-ink">الإجازات الرسمية السنوية</h2>
@@ -6100,6 +6138,7 @@ function PayrollTable({ rows, settings, shiftCopy, onSlip }) {
     "الحضور",
     "التأخير",
     "الإضافي",
+    "الأذونات",
     "ملاحظات",
     "الغياب",
     "الإجازات",
@@ -6142,6 +6181,24 @@ function PayrollTable({ rows, settings, shiftCopy, onSlip }) {
               <span className="block text-xs text-emerald-500">
                 {formatCurrency(row.overtimeBonuses, settings.currency)}
               </span>
+            </td>
+            <td className="px-4 py-4 text-sm">
+              {row.permissionCount > 0 ? (
+                <>
+                  <span className="font-bold text-amber-700">
+                    {row.permissionCount} × {formatMinutesAsHours(row.permissionMinutes)}
+                  </span>
+                  {row.permissionDeductions > 0 ? (
+                    <span className="block text-xs text-rose-500">
+                      خصم {formatCurrency(row.permissionDeductions, settings.currency)}
+                    </span>
+                  ) : (
+                    <span className="block text-xs text-emerald-500">بدون خصم</span>
+                  )}
+                </>
+              ) : (
+                <span className="text-slate-400">-</span>
+              )}
             </td>
             <td className="px-4 py-4 text-sm">
               <div className="flex flex-col gap-1">
@@ -6219,6 +6276,9 @@ function PayrollMobileCard({ row, settings, shiftCopy, onSlip }) {
         <MetricPill label="الإضافي" value={`${formatNumber(row.overtimeMinutes)} د`} />
         <MetricPill label="الغياب" value={`${row.absenceDays} يوم`} />
         <MetricPill label="الإجازات" value={`${row.vacationUsage} يوم`} />
+        {row.permissionCount > 0 ? (
+          <MetricPill label="الأذونات" value={`${row.permissionCount} × ${formatMinutesAsHours(row.permissionMinutes)}`} />
+        ) : null}
       </div>
       {row.incompleteSplitDays > 0 ? (
         <div className="mt-3 rounded-lg bg-amber-50 px-4 py-3 text-sm font-bold text-amber-700">
@@ -6298,6 +6358,13 @@ function SalarySlip({ row, settings, monthLabel, shiftCopy = getShiftCopy(settin
             danger
           />
         ) : null}
+        {row.permissionCount > 0 ? (
+          <SlipLine
+            label={`خصم أذونات (${row.permissionCount} يوم — ${formatMinutesAsHours(row.permissionMinutes)})`}
+            value={formatCurrency(row.permissionDeductions, settings.currency)}
+            danger
+          />
+        ) : null}
         <SlipLine label="خصومات إضافية" value={formatCurrency(row.extraDeductions, settings.currency)} danger />
         <SlipLine label="مكافآت يدوية" value={formatCurrency(row.manualBonuses, settings.currency)} success />
         <SlipLine label="مكافأة الوقت الإضافي" value={formatCurrency(row.overtimeBonuses, settings.currency)} success />
@@ -6353,6 +6420,7 @@ function ReportExportSurface({ refTarget, rows, settings, monthLabel, shiftCopy 
               "الحضور",
               "التأخير",
               "الإضافي",
+              "الأذونات",
               "ملاحظات",
               "الغياب",
               "الإجازات",
@@ -6377,6 +6445,15 @@ function ReportExportSurface({ refTarget, rows, settings, monthLabel, shiftCopy 
                 {row.lateCount} / {formatNumber(row.lateMinutes)} د
               </td>
               <td>{formatNumber(row.overtimeMinutes)} د</td>
+              <td>
+                {row.permissionCount > 0
+                  ? `${row.permissionCount} × ${formatMinutesAsHours(row.permissionMinutes)}${
+                      row.permissionDeductions > 0
+                        ? ` (خصم ${formatCurrency(row.permissionDeductions, settings.currency)})`
+                        : ""
+                    }`
+                  : "-"}
+              </td>
               <td>
                 {[
                   row.incompleteSplitDays > 0 ? "شيفت مقسم غير مكتمل" : "",

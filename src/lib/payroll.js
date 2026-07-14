@@ -232,7 +232,15 @@ export const DEFAULT_SETTINGS = {
   weekends: ["fri", "sat"],
   holidayOverrides: [],
   absencePolicy: "خصم يوم كامل من الراتب الأساسي",
-  payrollSettings: "يتم تطبيق رصيد الإجازات تلقائيا قبل خصم الغياب."
+  payrollSettings: "يتم تطبيق رصيد الإجازات تلقائيا قبل خصم الغياب.",
+  // "annual_leave" -> permission hours are deducted from the employee's annual
+  // vacation balance (converted to hour-equivalents based on their shift length).
+  // "monthly_balance" -> each employee gets a monthly permission-hours allowance
+  // that resets every month; only hours beyond it are deducted from salary.
+  // "direct_hourly" -> no allowance at all; every early-leave hour is deducted
+  // directly from salary based on the employee's hourly rate.
+  permissionPolicy: "monthly_balance",
+  monthlyPermissionHours: 4
 };
 
 export const DEFAULT_DEPARTMENTS = [
@@ -394,6 +402,17 @@ export function formatNumber(value) {
   return new Intl.NumberFormat("ar-EG", {
     maximumFractionDigits: 1
   }).format(Number(value) || 0);
+}
+
+// Renders a minutes duration as a human-friendly Arabic hours/minutes label,
+// used in permission (early-leave) warnings, e.g. 90 -> "1 س 30 د".
+export function formatMinutesAsHours(minutes) {
+  const total = Math.round(Number(minutes) || 0);
+  const hours = Math.floor(total / 60);
+  const mins = total % 60;
+  if (hours > 0 && mins > 0) return `${hours} س ${mins} د`;
+  if (hours > 0) return `${hours} س`;
+  return `${mins} د`;
 }
 
 export function parseTimeToMinutes(value) {
@@ -701,10 +720,18 @@ export function calculatePayroll({
     let missingPunchDays = 0;
     let missingPunchDeductions = 0;
     let missingPunchNeedsReview = 0;
+    let permissionCount = 0;
+    let permissionMinutes = 0;
+    let permissionDeductions = 0;
+    let permissionMinutesFromBalance = 0;
+    let permissionVacationDaysUsed = 0;
     const presentDates = new Set();
     const detectedShiftCounts = new Map();
     const splitWarnings = [];
     const missingPunchWarnings = [];
+    const permissionWarnings = [];
+    const permissionPolicy = settings.permissionPolicy || "monthly_balance";
+    const monthlyPermissionMinutes = (Number(settings.monthlyPermissionHours) || 0) * 60;
 
     evaluationDates.forEach((date) => {
       const missingPunchType = incompletePunchMap.get(`${String(employee.code).trim()}__${date}`);
@@ -761,8 +788,70 @@ export function calculatePayroll({
       overtimeCount += dayResult.overtimeCount;
       overtimeMinutes += dayResult.overtimeMinutes;
       overtimeBonuses += dayResult.overtimeBonuses;
-      if (dayResult.overtimeMinutes > 0) {
 
+      if (dayResult.earlyLeaveMinutes > 0) {
+        permissionCount += 1;
+        permissionMinutes += dayResult.earlyLeaveMinutes;
+
+        if (permissionPolicy === "direct_hourly") {
+          // No allowance at all — every early-leave minute is deducted directly
+          // based on the employee's hourly rate (which already reflects their
+          // own shift length, e.g. an 8h shift vs a 24h shift).
+          const amount = Math.round((dayResult.earlyLeaveMinutes / 60) * hourlySalary);
+          permissionDeductions += amount;
+          permissionWarnings.push({
+            date,
+            label: `إذن ${formatMinutesAsHours(dayResult.earlyLeaveMinutes)} — خصم مباشر ${formatCurrency(amount, settings.currency)}`
+          });
+        } else if (permissionPolicy === "annual_leave") {
+          // Convert the missing minutes into a day-fraction of this employee's
+          // own shift length, and draw it from their annual leave balance first.
+          const availableDays = Math.max(0, (Number(employee.vacationBalance) || 0) - permissionVacationDaysUsed);
+          const availableMinutes = availableDays * shiftHours * 60;
+          const coveredMinutes = Math.min(availableMinutes, dayResult.earlyLeaveMinutes);
+          const excessMinutes = dayResult.earlyLeaveMinutes - coveredMinutes;
+          const coveredDays = shiftHours > 0 ? coveredMinutes / (shiftHours * 60) : 0;
+          permissionVacationDaysUsed += coveredDays;
+          if (excessMinutes > 0) {
+            const amount = Math.round((excessMinutes / 60) * hourlySalary);
+            permissionDeductions += amount;
+            permissionWarnings.push({
+              date,
+              label:
+                coveredMinutes > 0
+                  ? `إذن ${formatMinutesAsHours(dayResult.earlyLeaveMinutes)} — ${formatMinutesAsHours(coveredMinutes)} من رصيد الإجازات و${formatMinutesAsHours(excessMinutes)} خصم ${formatCurrency(amount, settings.currency)}`
+                  : `إذن ${formatMinutesAsHours(dayResult.earlyLeaveMinutes)} — رصيد الإجازات لا يكفي، خصم ${formatCurrency(amount, settings.currency)}`
+            });
+          } else {
+            permissionWarnings.push({
+              date,
+              label: `إذن ${formatMinutesAsHours(dayResult.earlyLeaveMinutes)} — من رصيد الإجازات السنوية، بدون خصم`
+            });
+          }
+        } else {
+          // monthly_balance (default): a monthly allowance that resets every
+          // month and has no relation to the annual leave balance at all.
+          const remaining = Math.max(0, monthlyPermissionMinutes - permissionMinutesFromBalance);
+          const coveredMinutes = Math.min(remaining, dayResult.earlyLeaveMinutes);
+          const excessMinutes = dayResult.earlyLeaveMinutes - coveredMinutes;
+          permissionMinutesFromBalance += coveredMinutes;
+          if (excessMinutes > 0) {
+            const amount = Math.round((excessMinutes / 60) * hourlySalary);
+            permissionDeductions += amount;
+            permissionWarnings.push({
+              date,
+              label:
+                coveredMinutes > 0
+                  ? `إذن ${formatMinutesAsHours(dayResult.earlyLeaveMinutes)} — ${formatMinutesAsHours(coveredMinutes)} من الرصيد الشهري و${formatMinutesAsHours(excessMinutes)} خصم ${formatCurrency(amount, settings.currency)}`
+                  : `إذن ${formatMinutesAsHours(dayResult.earlyLeaveMinutes)} — الرصيد الشهري انتهى، خصم ${formatCurrency(amount, settings.currency)}`
+            });
+          } else {
+            permissionWarnings.push({
+              date,
+              label: `إذن ${formatMinutesAsHours(dayResult.earlyLeaveMinutes)} — من الرصيد الشهري، بدون خصم`
+            });
+          }
+        }
       }
 
       if (usesAutoShift) {
@@ -794,13 +883,15 @@ export function calculatePayroll({
     const absenceDays = shiftCountMode
       ? Math.max(0, scheduledUnits - presentDays)
       : Math.max(0, missingDates.length - flexibleRestUsage);
-    const vacationUsage = shiftCountMode ? 0 : Math.min(absenceDays, Number(employee.vacationBalance) || 0);
+    const remainingVacationForAbsence = Math.max(0, (Number(employee.vacationBalance) || 0) - permissionVacationDaysUsed);
+    const vacationUsage = shiftCountMode ? 0 : Math.min(absenceDays, remainingVacationForAbsence);
     const unpaidAbsenceDays = Math.max(0, absenceDays - vacationUsage);
     const absenceDeductions = unpaidAbsenceDays * dailySalary;
     const extraDeductions = Number(employee.extraDeductions) || 0;
     const manualBonuses = Number(employee.bonuses) || 0;
     const bonuses = manualBonuses + overtimeBonuses;
-    const totalDeductions = lateDeductions + absenceDeductions + extraDeductions + missingPunchDeductions;
+    const totalDeductions =
+      lateDeductions + absenceDeductions + extraDeductions + missingPunchDeductions + permissionDeductions;
     const netSalary = Number(employee.salary || 0) - totalDeductions + bonuses;
     const status = getAttendanceStatus({ absenceDays, lateCount, incompleteSplitDays, missingPunchNeedsReview });
     const detectedShiftSummary = [...detectedShiftCounts.entries()]
@@ -813,7 +904,8 @@ export function calculatePayroll({
       incompleteSplitDays > 0 ? "يوجد شيفت غير مكتمل" : "",
       missingPunchDays > 0
         ? `بصمة ناقصة: ${missingPunchDays} يوم${missingPunchNeedsReview > 0 ? " (يحتاج مراجعة)" : ""}`
-        : ""
+        : "",
+      permissionCount > 0 ? `أذونات: ${permissionCount} يوم (${formatMinutesAsHours(permissionMinutes)})` : ""
     ].filter(Boolean);
 
     return {
@@ -839,6 +931,14 @@ export function calculatePayroll({
       missingPunchDeductions,
       missingPunchNeedsReview,
       missingPunchWarnings,
+      permissionPolicy,
+      permissionCount,
+      permissionMinutes,
+      permissionDeductions,
+      permissionMinutesFromBalance,
+      permissionMonthlyBalanceMinutes: monthlyPermissionMinutes,
+      permissionVacationDaysUsed,
+      permissionWarnings,
       absenceDays,
       flexibleRestUsage,
       flexibleRestDates,
@@ -1366,7 +1466,9 @@ function evaluateShiftDay({ log, shift, segments, dailySalary, hourlySalary }) {
     lateDeductions: 0,
     overtimeCount: 0,
     overtimeMinutes: 0,
-    overtimeBonuses: 0
+    overtimeBonuses: 0,
+    earlyLeaveCount: 0,
+    earlyLeaveMinutes: 0
   };
 
   segments.forEach((segment, index) => {
@@ -1435,6 +1537,16 @@ function evaluateShiftDay({ log, shift, segments, dailySalary, hourlySalary }) {
       result.overtimeCount += 1;
       result.overtimeMinutes += minutes;
       result.overtimeBonuses += getOvertimeBonus(minutes, shift, hourlySalary);
+    }
+
+    // Early leave / permission: both check-in and check-out are recorded (this is
+    // NOT a missing-punch day), but the employee left before the segment/shift
+    // ended. This is independent from the late-arrival calculation above — an
+    // employee can be both late AND leave early, and each is evaluated on its own.
+    if (checkIn !== null && checkOut !== null && checkOut < adjustedEnd) {
+      const minutes = adjustedEnd - checkOut;
+      result.earlyLeaveCount += 1;
+      result.earlyLeaveMinutes += minutes;
     }
   });
 
