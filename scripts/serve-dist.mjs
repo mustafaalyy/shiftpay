@@ -25,6 +25,13 @@ const server = createServer(async (request, response) => {
   const requestedPath = normalize(decodeURIComponent(url.pathname)).replace(/^(\.\.[/\\])+/, "");
   let filePath = join(root, requestedPath === "/" ? "index.html" : requestedPath);
 
+  // Security check: prevent directory traversal
+  if (!filePath.startsWith(root)) {
+    response.writeHead(403, { "content-type": "text/plain; charset=utf-8" });
+    response.end("Forbidden");
+    return;
+  }
+
   try {
     const info = await stat(filePath);
     if (info.isDirectory()) filePath = join(filePath, "index.html");
@@ -32,7 +39,7 @@ const server = createServer(async (request, response) => {
     filePath = join(root, "index.html");
   }
 
-  if (!existsSync(filePath)) {
+  if (!filePath.startsWith(root) || !existsSync(filePath)) {
     response.writeHead(404, { "content-type": "text/plain; charset=utf-8" });
     response.end("Not found");
     return;

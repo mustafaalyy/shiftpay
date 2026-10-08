@@ -1,0 +1,318 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+  <head>
+    <meta charset="UTF-8" />
+    <title>ShiftPay HR - PRD</title>
+    <style>
+      @page {
+        size: A4;
+        margin: 16mm;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        background: #f8fafc;
+        color: #0f172a;
+        font-family: "Tahoma", "Arial", sans-serif;
+        line-height: 1.8;
+      }
+
+      .page {
+        background: #ffffff;
+        padding: 28px;
+      }
+
+      .cover {
+        border-bottom: 3px solid #2563eb;
+        margin-bottom: 24px;
+        padding-bottom: 22px;
+      }
+
+      .eyebrow {
+        color: #2563eb;
+        font-size: 14px;
+        font-weight: 700;
+        margin: 0 0 8px;
+      }
+
+      h1 {
+        font-size: 34px;
+        line-height: 1.25;
+        margin: 0;
+      }
+
+      .subtitle {
+        color: #475569;
+        font-size: 16px;
+        margin: 12px 0 0;
+      }
+
+      h2 {
+        border-right: 4px solid #2563eb;
+        color: #0f172a;
+        font-size: 21px;
+        margin: 26px 0 10px;
+        padding-right: 10px;
+      }
+
+      h3 {
+        color: #1e3a8a;
+        font-size: 17px;
+        margin: 18px 0 8px;
+      }
+
+      p {
+        margin: 0 0 10px;
+      }
+
+      ul {
+        margin: 6px 0 12px;
+        padding: 0 24px 0 0;
+      }
+
+      li {
+        margin-bottom: 5px;
+      }
+
+      .grid {
+        display: grid;
+        gap: 12px;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .card {
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        padding: 14px;
+        break-inside: avoid;
+      }
+
+      .formula {
+        background: #eff6ff;
+        border: 1px solid #bfdbfe;
+        border-radius: 8px;
+        color: #172554;
+        font-weight: 700;
+        margin: 12px 0;
+        padding: 14px;
+        white-space: pre-line;
+      }
+
+      .tag {
+        background: #e0f2fe;
+        border-radius: 999px;
+        color: #075985;
+        display: inline-block;
+        font-size: 12px;
+        font-weight: 700;
+        margin: 0 0 8px 6px;
+        padding: 4px 10px;
+      }
+
+      .footer {
+        border-top: 1px solid #e2e8f0;
+        color: #64748b;
+        font-size: 12px;
+        margin-top: 28px;
+        padding-top: 12px;
+        text-align: center;
+      }
+
+      .break {
+        break-before: page;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="page">
+      <section class="cover">
+        <p class="eyebrow">PRD / Product Description</p>
+        <h1>ShiftPay HR</h1>
+        <p class="subtitle">
+          نظام SaaS عربي لإدارة الحضور والرواتب للشركات الصغيرة والمتوسطة، يحول ملفات البصمة إلى تقارير رواتب دقيقة وقابلة للتصدير.
+        </p>
+      </section>
+
+      <h2>ملخص المنتج</h2>
+      <p>
+        ShiftPay HR هو نظام SaaS عربي لإدارة الحضور والرواتب للشركات الصغيرة والمتوسطة. يساعد الشركات على حساب رواتب الموظفين تلقائيًا من ملفات البصمة Excel/CSV، مع دعم الشيفتات، الإجازات الرسمية، التأخير، الغياب، الخصومات، المكافآت، الوقت الإضافي، وتصدير التقارير.
+      </p>
+
+      <h2>المشكلة</h2>
+      <ul>
+        <li>أخطاء متكررة في حساب التأخير والغياب.</li>
+        <li>خصومات غير صحيحة في أيام الإجازات الرسمية.</li>
+        <li>وقت طويل في تجهيز كشوف الرواتب يدويًا.</li>
+        <li>صعوبة في تتبع الموظفين والشيفتات والتقارير.</li>
+        <li>عدم وجود نظام عربي بسيط مناسب للسوق المحلي.</li>
+      </ul>
+
+      <h2>المستخدمون المستهدفون</h2>
+      <div class="grid">
+        <div class="card">أصحاب الشركات الصغيرة والمتوسطة.</div>
+        <div class="card">موظفو الموارد البشرية HR.</div>
+        <div class="card">المحاسبون ومسؤولو الرواتب.</div>
+        <div class="card">المطاعم، الكافيهات، المخازن، الأمن، المصانع، والشركات التي تعتمد على أجهزة بصمة.</div>
+      </div>
+
+      <h2>الهدف الرئيسي</h2>
+      <p>
+        تحويل ملف الحضور الخارج من ماكينة البصمة إلى تقرير رواتب كامل ودقيق خلال دقائق، بدون حسابات يدوية.
+      </p>
+
+      <h2 class="break">المزايا الأساسية</h2>
+
+      <h3>1. إنشاء حساب وتسجيل دخول</h3>
+      <ul>
+        <li>تسجيل بالبريد وكلمة المرور.</li>
+        <li>تسجيل دخول بحساب Google.</li>
+        <li>فصل بيانات كل شركة عن الأخرى.</li>
+        <li>كل مستخدم جديد يبدأ بنظام فارغ خاص به.</li>
+      </ul>
+
+      <h3>2. إعدادات الشركة</h3>
+      <ul>
+        <li>اسم الشركة والشعار والدولة والعملة.</li>
+        <li>أيام العمل ونهاية الأسبوع.</li>
+        <li>أيام الشهر الافتراضية لحساب الراتب.</li>
+        <li>سياسات الغياب والخصم.</li>
+      </ul>
+
+      <h3>3. إدارة الأقسام</h3>
+      <ul>
+        <li>إضافة أقسام جاهزة أو قسم مخصص.</li>
+        <li>ربط الموظفين بالأقسام.</li>
+      </ul>
+
+      <h3>4. إدارة الشيفتات</h3>
+      <ul>
+        <li>إنشاء شيفت صباحي أو مسائي.</li>
+        <li>تحديد بداية ونهاية الشيفت وفترة السماح.</li>
+        <li>قواعد متعددة للتأخير والوقت الإضافي.</li>
+        <li>دعم الشيفت المقسم Split Shift.</li>
+      </ul>
+
+      <h3>5. إدارة الموظفين</h3>
+      <ul>
+        <li>كود الموظف، الاسم، القسم، الشيفت، الراتب، رصيد الإجازات، الخصومات، المكافآت، والملاحظات.</li>
+        <li>أرشفة واستعادة الموظفين.</li>
+        <li>استيراد الموظفين Bulk من Excel.</li>
+      </ul>
+
+      <h3>6. رفع ملفات الحضور</h3>
+      <ul>
+        <li>دعم Excel و CSV.</li>
+        <li>دعم أكثر من فورمات لماكينات البصمة.</li>
+        <li>قراءة الأعمدة العربية والإنجليزية.</li>
+        <li>تجميع البصمات حسب الموظف والتاريخ.</li>
+        <li>استخدام أول حضور وآخر انصراف.</li>
+        <li>كشف الصفوف الخاطئة قبل اعتماد الملف.</li>
+      </ul>
+
+      <h2 class="break">حساب الرواتب</h2>
+      <p>النظام يحسب تلقائيًا:</p>
+      <ul>
+        <li>أيام الحضور والغياب.</li>
+        <li>مرات ودقائق التأخير.</li>
+        <li>خصومات التأخير والغياب.</li>
+        <li>استخدام رصيد الإجازات.</li>
+        <li>الوقت الإضافي والمكافآت.</li>
+        <li>صافي الراتب.</li>
+      </ul>
+      <div class="formula">Net Salary =
+Basic Salary
+- Late Deductions
+- Absence Deductions
+- Extra Deductions
++ Bonuses
++ Overtime Bonuses</div>
+
+      <h2>الإجازات الرسمية</h2>
+      <ul>
+        <li>دعم مصر ودول الخليج.</li>
+        <li>ربط الإجازات بالدولة المختارة.</li>
+        <li>عدم خصم الغياب في أيام الإجازات الرسمية.</li>
+        <li>إمكانية تعديل تاريخ الإجازة أو إضافة إجازة مخصصة.</li>
+        <li>تنبيه في لوحة التحكم عند وجود إجازات في الشهر الحالي.</li>
+      </ul>
+
+      <h2>تقارير الرواتب</h2>
+      <ul>
+        <li>جدول احترافي قابل للتمرير.</li>
+        <li>فلترة حسب القسم والحالة.</li>
+        <li>بحث باسم الموظف أو الكود.</li>
+        <li>حالات الموظفين: ملتزم، مراجعة، متكرر.</li>
+        <li>اعتماد التقرير كمسودة أو معتمد.</li>
+        <li>واجهة Mobile Cards بدل الجداول المكسورة.</li>
+      </ul>
+
+      <h2>التصدير وتفاصيل المرتب</h2>
+      <ul>
+        <li>تصدير Excel منسق.</li>
+        <li>تصدير PDF Landscape لتقرير الرواتب.</li>
+        <li>تصدير تفاصيل المرتب PDF على A4.</li>
+        <li>تفاصيل المرتب تشمل بيانات الموظف، الحضور، الغياب، الخصومات، المكافآت، الوقت الإضافي، وصافي المرتب.</li>
+      </ul>
+
+      <h2 class="break">لوحة إدارة الموقع</h2>
+      <ul>
+        <li>خاصة بصاحب المنصة فقط.</li>
+        <li>تعديل نصوص الصفحة الرئيسية.</li>
+        <li>تعديل أرقام التواصل وروابط الدعم.</li>
+        <li>رفع لوجو الموقع.</li>
+        <li>التحكم في محتوى الواجهة بدون تعديل الكود.</li>
+      </ul>
+
+      <h2>Technical Stack</h2>
+      <p>
+        <span class="tag">React</span>
+        <span class="tag">Vite</span>
+        <span class="tag">TailwindCSS</span>
+        <span class="tag">Supabase Auth</span>
+        <span class="tag">Supabase Database</span>
+        <span class="tag">LocalStorage fallback</span>
+        <span class="tag">SheetJS / xlsx</span>
+        <span class="tag">jsPDF</span>
+        <span class="tag">Vercel Hosting</span>
+        <span class="tag">GitHub Repository</span>
+      </p>
+
+      <h2>المتطلبات غير الوظيفية</h2>
+      <ul>
+        <li>واجهة RTL عربية.</li>
+        <li>Responsive على الموبايل والديسكتوب.</li>
+        <li>عدم كسر الجداول على الشاشات الصغيرة.</li>
+        <li>حماية بيانات كل شركة.</li>
+        <li>سرعة في رفع وتحليل ملفات الحضور.</li>
+        <li>قابلية التوسع لاحقًا لاشتراكات وخطط مدفوعة.</li>
+      </ul>
+
+      <h2>معايير نجاح MVP</h2>
+      <ul>
+        <li>المستخدم يقدر يعمل حساب.</li>
+        <li>يضيف موظفين أو يستوردهم من Excel.</li>
+        <li>ينشئ شيفتات ويرفع ملف حضور.</li>
+        <li>يحصل على تقرير راتب صحيح.</li>
+        <li>يصدر Excel/PDF.</li>
+        <li>بياناته تفضل محفوظة بعد تسجيل الدخول والخروج.</li>
+      </ul>
+
+      <h2>Future Roadmap</h2>
+      <ul>
+        <li>خطط اشتراك شهرية.</li>
+        <li>صلاحيات متعددة داخل الشركة.</li>
+        <li>ربط WhatsApp أو Email لإرسال تفاصيل المرتب.</li>
+        <li>API لماكينات البصمة الحديثة.</li>
+        <li>تطبيق موبايل.</li>
+        <li>Dashboard مالي متقدم.</li>
+        <li>موافقات متعددة قبل اعتماد الرواتب.</li>
+      </ul>
+
+      <div class="footer">ShiftPay HR - Product Requirements Document</div>
+    </main>
+  </body>
+</html>

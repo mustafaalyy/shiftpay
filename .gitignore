@@ -7,3 +7,5 @@ dist
 *.zip
 .DS_Store
 *.local
+
+.vercel

@@ -22,8 +22,13 @@ export function useLocalStorage(key, initialValue) {
   useEffect(() => {
     try {
       window.localStorage.setItem(key, JSON.stringify(value));
-    } catch {
-      // LocalStorage can fail in private mode or when the quota is exceeded.
+    } catch (err) {
+      console.warn(`[ShiftPay Storage] Failed to persist key "${key}":`, err?.message || err);
+      if (err?.name === "QuotaExceededError" && typeof window !== "undefined") {
+        window.dispatchEvent(
+          new CustomEvent("shiftpay:storage-quota-exceeded", { detail: { key } })
+        );
+      }
     }
   }, [key, value]);
 

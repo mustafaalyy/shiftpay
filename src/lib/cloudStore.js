@@ -40,14 +40,16 @@ export async function loadPublicSiteContent() {
 }
 
 export async function savePublicSiteContent(session, content) {
-  if (!session || session.localAdmin) return savePublicSiteContentAnon(content);
+  if (!session?.access_token) {
+    throw new Error("يجب تسجيل الدخول كأدمن معتمد لحفظ محتوى الموقع السحابي.");
+  }
 
   const rows = await dbUpsert(
     "site_settings",
     {
       id: "public",
       content,
-      updated_by: session.user.id,
+      updated_by: session.user?.id || null,
       updated_at: new Date().toISOString()
     },
     session
