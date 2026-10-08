@@ -117,6 +117,55 @@ export default function PublicHomePage({ siteContent, isAuthenticated, onSignup,
                 {link.label}
               </a>
             ))}
+            <div className="nav-mobile-actions" style={{ display: "flex", flexDirection: "column", gap: "10px", marginTop: "12px", paddingTop: "12px", borderTop: "1px solid var(--color-border)" }}>
+              {isAuthenticated ? (
+                <>
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    onClick={() => {
+                      setMobileOpen(false);
+                      primaryAction();
+                    }}
+                  >
+                    فتح النظام
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    onClick={() => {
+                      setMobileOpen(false);
+                      onLogout();
+                    }}
+                  >
+                    تسجيل خروج
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    onClick={() => {
+                      setMobileOpen(false);
+                      onSignin();
+                    }}
+                  >
+                    {landing.loginCta || "تسجيل الدخول"}
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    onClick={() => {
+                      setMobileOpen(false);
+                      primaryAction();
+                    }}
+                  >
+                    {siteContent.primaryCta || "ابدأ الآن"}
+                  </button>
+                </>
+              )}
+            </div>
           </div>
 
           <div className="nav-actions">
@@ -126,7 +175,7 @@ export default function PublicHomePage({ siteContent, isAuthenticated, onSignup,
               </button>
             ) : (
               <button type="button" className="btn btn-secondary" onClick={onSignin}>
-                {landing.loginCta}
+                {landing.loginCta || "تسجيل الدخول"}
               </button>
             )}
             <button type="button" className="btn btn-primary" onClick={primaryAction}>
@@ -165,8 +214,12 @@ export default function PublicHomePage({ siteContent, isAuthenticated, onSignup,
                 {isAuthenticated ? "فتح النظام" : siteContent.primaryCta}
               </button>
               {!isAuthenticated ? (
-                <button type="button" className="btn btn-secondary btn-large" onClick={scrollToId("features")}>
-                  {siteContent.secondaryCta}
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-large"
+                  onClick={secondaryAction}
+                >
+                  {siteContent.secondaryCta || landing.loginCta || "تسجيل الدخول"}
                 </button>
               ) : null}
             </div>

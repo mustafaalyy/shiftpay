@@ -9,6 +9,7 @@ import {
   Award,
   AlertTriangle,
   ChevronLeft,
+  ChevronRight,
   ArrowLeft,
   BadgeCheck,
   Building2,
@@ -57,6 +58,7 @@ import {
   getCountryProfile,
   getHolidayKey,
   getMonthlyHolidayAlerts,
+  getNextUpcomingHoliday,
   getOfficialHolidays,
   getMonthLabel,
   getReportMonth,
@@ -551,8 +553,10 @@ export default function App() {
         weekends: seedCountryProfile.weekends
       };
       const company = await ensureCloudCompany(sessionWithUser, companySeedSettings);
-      const companies = await listCloudCompanies(sessionWithUser);
-      const workspace = await loadWorkspaceFromCloud(sessionWithUser, company.id);
+      const [companies, workspace] = await Promise.all([
+        listCloudCompanies(sessionWithUser),
+        loadWorkspaceFromCloud(sessionWithUser, company.id)
+      ]);
       applyWorkspace(workspace, company);
       setCloud((previous) => ({
         ...previous,
@@ -783,7 +787,7 @@ export default function App() {
     } else {
       window.history.replaceState({}, document.title, `${window.location.origin}${window.location.pathname}`);
     }
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    window.scrollTo(0, 0);
   };
 
   const openAuth = (mode = "signup") => {
@@ -890,125 +894,138 @@ export default function App() {
     reader.readAsText(file);
   };
 
-  const view = {
-    dashboard: (
-      <DashboardView
-        metrics={metrics}
-        departments={departments}
-        shifts={shifts}
-        shiftCopy={shiftCopy}
-        reports={reports}
-        payrollRows={payrollRows}
-        monthLabel={monthLabel}
-        reportMonth={activeReportMonth}
-        settings={settings}
-        onNavigate={navigate}
-      />
-    ),
-    departments: (
-      <DepartmentsView
-        departments={departments}
-        setDepartments={setDepartments}
-        setNotice={setNotice}
-      />
-    ),
-    shifts: <ShiftsView shifts={shifts} setShifts={setShifts} setNotice={setNotice} shiftCopy={shiftCopy} />,
-    employees: (
-      <EmployeesView
-        employees={employees}
-        setEmployees={setEmployees}
-        departments={departments}
-        shifts={shifts}
-        shiftCopy={shiftCopy}
-        setNotice={setNotice}
-        advances={advances}
-        onSaveAdvance={handleSaveAdvance}
-        onUpdateAdvance={handleUpdateAdvance}
-        settings={settings}
-        reportMonth={activeReportMonth}
-      />
-    ),
-    attendance: (
-      <AttendanceView
-        uploadState={uploadState}
-        setUploadState={setUploadState}
-        employees={employees}
-        setEmployees={setEmployees}
-        departments={departments}
-        shifts={shifts}
-        settings={settings}
-        reports={reports}
-        setAttendanceLogs={setAttendanceLogs}
-        setReports={setReports}
-        setSelectedReportId={setSelectedReportId}
-        setReportMonth={setReportMonth}
-        setNotice={setNotice}
-        onReport={() => navigate("reports")}
-      />
-    ),
-    insights: (
-      <InsightsView
-        payrollRows={payrollRows}
-        employees={employees}
-        departments={departments}
-        monthLabel={monthLabel}
-        settings={settings}
-        advances={advances}
-      />
-    ),
-    archive: (
-      <ArchiveView
-        reports={reports}
-        onNavigate={navigate}
-        onSelectReport={(report) => {
-          setSelectedReportId(report.id);
-          if (report.month) setReportMonth(report.month);
-          navigate("reports");
-        }}
-        getMonthLabel={getMonthLabel}
-      />
-    ),
-    reports: (
-      <ReportsView
-        payrollRows={payrollRows}
-        reports={reports}
-        setReports={setReports}
-        departments={departments}
-        selectedReportId={selectedReport?.id || ""}
-        setSelectedReportId={setSelectedReportId}
-        reportMonth={activeReportMonth}
-        setReportMonth={setReportMonth}
-        monthLabel={monthLabel}
-        settings={settings}
-        selectedSlip={selectedSlip}
-        setSelectedSlipCode={setSelectedSlipCode}
-        onExcel={handleExcelExport}
-        onBankTransfer={handleBankTransferExport}
-        onAccounting={handleAccountingExport}
-        onPdf={handleReportPdf}
-        onSlipPdf={handleSlipPdf}
-        exporting={exporting}
-        shiftCopy={shiftCopy}
-        setNotice={setNotice}
-        onNavigate={navigate}
-      />
-    ),
-    settings: (
-      <SettingsView
-        settings={settings}
-        setSettings={setSettings}
-        setNotice={setNotice}
-        cloud={cloud}
-        onCloudLogin={handleCloudLogin}
-        onGoogleLogin={handleGoogleLogin}
-        onCloudLogout={handleCloudLogout}
-        onCloudSync={handleCloudSync}
-        onCloudLoad={handleCloudLoad}
-        onBackupExport={handleBackupExport}
-        onBackupImport={handleBackupImport}
-      />
-    )
-  }[activeView];
+  const renderActiveView = () => {
+    switch (activeView) {
+      case "dashboard":
+        return (
+          <DashboardView
+            metrics={metrics}
+            departments={departments}
+            shifts={shifts}
+            shiftCopy={shiftCopy}
+            reports={reports}
+            payrollRows={payrollRows}
+            monthLabel={monthLabel}
+            reportMonth={activeReportMonth}
+            settings={settings}
+            onNavigate={navigate}
+          />
+        );
+      case "departments":
+        return (
+          <DepartmentsView
+            departments={departments}
+            setDepartments={setDepartments}
+            setNotice={setNotice}
+          />
+        );
+      case "shifts":
+        return <ShiftsView shifts={shifts} setShifts={setShifts} setNotice={setNotice} shiftCopy={shiftCopy} />;
+      case "employees":
+        return (
+          <EmployeesView
+            employees={employees}
+            setEmployees={setEmployees}
+            departments={departments}
+            shifts={shifts}
+            shiftCopy={shiftCopy}
+            setNotice={setNotice}
+            advances={advances}
+            onSaveAdvance={handleSaveAdvance}
+            onUpdateAdvance={handleUpdateAdvance}
+            settings={settings}
+            reportMonth={activeReportMonth}
+          />
+        );
+      case "attendance":
+        return (
+          <AttendanceView
+            uploadState={uploadState}
+            setUploadState={setUploadState}
+            employees={employees}
+            setEmployees={setEmployees}
+            departments={departments}
+            shifts={shifts}
+            settings={settings}
+            reports={reports}
+            setAttendanceLogs={setAttendanceLogs}
+            setReports={setReports}
+            setSelectedReportId={setSelectedReportId}
+            setReportMonth={setReportMonth}
+            setNotice={setNotice}
+            onReport={() => navigate("reports")}
+          />
+        );
+      case "insights":
+        return (
+          <InsightsView
+            payrollRows={payrollRows}
+            employees={employees}
+            departments={departments}
+            monthLabel={monthLabel}
+            settings={settings}
+            advances={advances}
+          />
+        );
+      case "archive":
+        return (
+          <ArchiveView
+            reports={reports}
+            onNavigate={navigate}
+            onSelectReport={(report) => {
+              setSelectedReportId(report.id);
+              if (report.month) setReportMonth(report.month);
+              navigate("reports");
+            }}
+            getMonthLabel={getMonthLabel}
+          />
+        );
+      case "reports":
+        return (
+          <ReportsView
+            payrollRows={payrollRows}
+            reports={reports}
+            setReports={setReports}
+            departments={departments}
+            selectedReportId={selectedReport?.id || ""}
+            setSelectedReportId={setSelectedReportId}
+            reportMonth={activeReportMonth}
+            setReportMonth={setReportMonth}
+            monthLabel={monthLabel}
+            settings={settings}
+            selectedSlip={selectedSlip}
+            setSelectedSlipCode={setSelectedSlipCode}
+            onExcel={handleExcelExport}
+            onBankTransfer={handleBankTransferExport}
+            onAccounting={handleAccountingExport}
+            onPdf={handleReportPdf}
+            onSlipPdf={handleSlipPdf}
+            exporting={exporting}
+            shiftCopy={shiftCopy}
+            setNotice={setNotice}
+            onNavigate={navigate}
+          />
+        );
+      case "settings":
+        return (
+          <SettingsView
+            settings={settings}
+            setSettings={setSettings}
+            setNotice={setNotice}
+            cloud={cloud}
+            onCloudLogin={handleCloudLogin}
+            onGoogleLogin={handleGoogleLogin}
+            onCloudLogout={handleCloudLogout}
+            onCloudSync={handleCloudSync}
+            onCloudLoad={handleCloudLoad}
+            onBackupExport={handleBackupExport}
+            onBackupImport={handleBackupImport}
+          />
+        );
+      default:
+        return null;
+    }
+  };
 
   // Show loading screen while checking stored session to prevent flash
   if (isBooting) {
@@ -1187,7 +1204,7 @@ export default function App() {
               </button>
             </div>
           ) : null}
-          {view}
+          {renderActiveView()}
         </div>
       </main>
 
@@ -2168,7 +2185,45 @@ function DashboardView({
   settings,
   onNavigate
 }) {
-  const holidayAlerts = getMonthlyHolidayAlerts(settings, reportMonth);
+  const currentCalendarMonth = useMemo(() => new Date().toISOString().slice(0, 7), []);
+  const [selectedHolidayMonth, setSelectedHolidayMonth] = useState(
+    reportMonth || currentCalendarMonth
+  );
+
+  useEffect(() => {
+    if (reportMonth && !selectedHolidayMonth) {
+      setSelectedHolidayMonth(reportMonth);
+    }
+  }, [reportMonth]);
+
+  const activeHolidayMonth = selectedHolidayMonth || currentCalendarMonth;
+  const activeHolidayMonthLabel = getMonthLabel(activeHolidayMonth);
+  const holidayAlerts = useMemo(
+    () => getMonthlyHolidayAlerts(settings, activeHolidayMonth),
+    [settings, activeHolidayMonth]
+  );
+  const nextHoliday = useMemo(
+    () => getNextUpcomingHoliday(settings),
+    [settings]
+  );
+
+  const shiftHolidayMonth = (delta) => {
+    const [y, m] = activeHolidayMonth.split("-").map(Number);
+    const date = new Date(y, m - 1 + delta, 1);
+    const nextY = date.getFullYear();
+    const nextM = String(date.getMonth() + 1).padStart(2, "0");
+    setSelectedHolidayMonth(`${nextY}-${nextM}`);
+  };
+
+  const yearMonths = useMemo(() => {
+    const year = Number(activeHolidayMonth.slice(0, 4));
+    return Array.from({ length: 12 }, (_, i) => {
+      const m = String(i + 1).padStart(2, "0");
+      const key = `${year}-${m}`;
+      return { key, label: getMonthLabel(key) };
+    });
+  }, [activeHolidayMonth]);
+
   const insights = [
     {
       label: "أيام الغياب",
@@ -2216,29 +2271,133 @@ function DashboardView({
         <StatCard label="تقارير الرواتب" value={reports.length} icon={FileSpreadsheet} tone="rose" />
       </div>
 
-      {holidayAlerts.length ? (
-        <section className="rounded-lg border border-blue-200 bg-blue-50 p-5 shadow-sm">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <p className="text-sm font-extrabold text-primary">تنبيه إجازات هذا الشهر</p>
-              <h2 className="mt-2 text-xl font-extrabold text-blue-950">
-                يوجد {formatNumber(holidayAlerts.length)} يوم إجازة رسمية في {monthLabel}
-              </h2>
+      <section className="rounded-xl border border-blue-200 bg-gradient-to-br from-blue-50/90 via-sky-50/50 to-white p-5 shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-bold text-primary">
+                <CalendarDays size={13} />
+                تنبيه الإجازات الرسمية
+              </span>
+              {activeHolidayMonth === currentCalendarMonth ? (
+                <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-bold text-emerald-800">
+                  الشهر الحالي
+                </span>
+              ) : null}
             </div>
-            <SecondaryButton type="button" onClick={() => onNavigate("settings")} icon={CalendarDays}>
-              تعديل الإجازات
+            <h2 className="text-xl font-black text-blue-950">
+              {holidayAlerts.length > 0 ? (
+                <>
+                  يوجد <span className="text-primary font-black">{formatNumber(holidayAlerts.length)}</span> {holidayAlerts.length === 1 ? "يوم إجازة رسمية" : holidayAlerts.length === 2 ? "يومان إجازة رسمية" : holidayAlerts.length <= 10 ? "أيام إجازات رسمية" : "يوم إجازة رسمية"} في {activeHolidayMonthLabel}
+                </>
+              ) : (
+                <>لا توجد إجازات رسمية مسجلة في {activeHolidayMonthLabel}</>
+              )}
+            </h2>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex items-center rounded-lg border border-blue-200 bg-white shadow-xs">
+              <button
+                type="button"
+                onClick={() => shiftHolidayMonth(1)}
+                className="p-2 text-slate-600 hover:bg-blue-50 hover:text-primary transition rounded-r-lg"
+                title="الشهر القادم"
+              >
+                <ChevronRight size={16} />
+              </button>
+              <select
+                value={activeHolidayMonth}
+                onChange={(e) => setSelectedHolidayMonth(e.target.value)}
+                className="border-x border-blue-200 bg-transparent px-3 py-1.5 text-xs font-bold text-ink outline-none cursor-pointer"
+              >
+                {yearMonths.map((ym) => (
+                  <option key={ym.key} value={ym.key}>
+                    {ym.label}
+                  </option>
+                ))}
+              </select>
+              <button
+                type="button"
+                onClick={() => shiftHolidayMonth(-1)}
+                className="p-2 text-slate-600 hover:bg-blue-50 hover:text-primary transition rounded-l-lg"
+                title="الشهر السابق"
+              >
+                <ChevronLeft size={16} />
+              </button>
+            </div>
+
+            {activeHolidayMonth !== currentCalendarMonth ? (
+              <button
+                type="button"
+                onClick={() => setSelectedHolidayMonth(currentCalendarMonth)}
+                className="rounded-lg border border-blue-200 bg-white px-3 py-2 text-xs font-bold text-primary hover:bg-blue-50 transition shadow-xs"
+              >
+                العودة للشهر الحالي
+              </button>
+            ) : null}
+
+            <SecondaryButton type="button" onClick={() => onNavigate("settings")} icon={Settings}>
+              إدارة الإجازات
             </SecondaryButton>
           </div>
-          <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-            {holidayAlerts.slice(0, 6).map((holiday) => (
-              <div key={`${holiday.date}-${holiday.name}`} className="rounded-lg bg-white px-4 py-3">
-                <p className="font-extrabold text-ink">{holiday.name}</p>
-                <p className="mt-1 text-sm font-bold text-primary">{holiday.date}</p>
-              </div>
-            ))}
+        </div>
+
+        {holidayAlerts.length > 0 ? (
+          <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {holidayAlerts.map((holiday) => {
+              const holidayDate = new Date(holiday.date);
+              const dayName = holidayDate.toLocaleDateString("ar-EG", { weekday: "long" });
+              const todayStr = new Date().toISOString().slice(0, 10);
+              const isPast = holiday.date < todayStr;
+              const isToday = holiday.date === todayStr;
+              return (
+                <div
+                  key={`${holiday.date}-${holiday.name}`}
+                  className="group relative rounded-xl border border-blue-100 bg-white p-3.5 shadow-xs transition hover:border-primary/40 hover:shadow-sm"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="font-extrabold text-ink leading-snug">{holiday.name}</p>
+                    {isToday ? (
+                      <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-black text-emerald-800 shrink-0">
+                        اليوم
+                      </span>
+                    ) : isPast ? (
+                      <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-500 shrink-0">
+                        مضت
+                      </span>
+                    ) : (
+                      <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-bold text-primary shrink-0">
+                        قادمة
+                      </span>
+                    )}
+                  </div>
+                  <div className="mt-2.5 flex items-center justify-between text-xs font-bold text-slate-500">
+                    <span className="text-primary font-black flex items-center gap-1">
+                      <Clock size={12} />
+                      {holiday.date}
+                    </span>
+                    <span className="text-slate-600">{dayName}</span>
+                  </div>
+                </div>
+              );
+            })}
           </div>
-        </section>
-      ) : null}
+        ) : (
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-dashed border-blue-200 bg-white/70 p-4">
+            <p className="text-sm font-bold text-slate-500">
+              لا توجد عطلات رسمية مسجلة في هذا الشهر لـ {settings.country}. يمكنك التنقل بين الشهور عبر الأسهم أو إضافة عطلة مخصصة.
+            </p>
+            {nextHoliday ? (
+              <div className="flex items-center gap-2 rounded-lg bg-blue-50 px-3 py-1.5 text-xs font-bold text-primary">
+                <span>أقرب إجازة قادمة:</span>
+                <span className="font-extrabold text-blue-950">{nextHoliday.name}</span>
+                <span className="text-slate-500">({nextHoliday.date})</span>
+              </div>
+            ) : null}
+          </div>
+        )}
+      </section>
 
       <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
         <section className="rounded-lg border border-line bg-white p-5 shadow-sm">
