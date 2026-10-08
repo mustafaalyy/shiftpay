@@ -1157,7 +1157,7 @@ export default function App() {
     );
   }
 
-  if (!cloud.session) {
+  if (activeView === "auth" || !cloud.session) {
     return (
       <AuthPage
         mode={authMode}
@@ -1167,6 +1167,7 @@ export default function App() {
         onLogin={handleCloudLogin}
         onGoogleLogin={handleGoogleLogin}
         onLanding={() => navigate("landing")}
+        onEnter={() => navigate("dashboard")}
       />
     );
   }
@@ -1831,7 +1832,7 @@ function SiteAdminPage({
   );
 }
 
-function AuthPage({ mode, setMode, siteContent, cloud, onLogin, onGoogleLogin, onLanding }) {
+function AuthPage({ mode, setMode, siteContent, cloud, onLogin, onGoogleLogin, onLanding, onEnter }) {
   const [form, setForm] = useState({
     email: "",
     password: "",
@@ -1896,6 +1897,21 @@ function AuthPage({ mode, setMode, siteContent, cloud, onLogin, onGoogleLogin, o
                 : "ادخل بحسابك الحالي لإدارة الشركة ومراجعة تقارير الرواتب."}
             </p>
           </div>
+
+          {cloud.session && (
+            <div className="mb-4 rounded-lg border border-blue-200 bg-blue-50 p-3.5 text-xs font-bold text-primary flex flex-wrap items-center justify-between gap-2">
+              <span>أنت مسجل حالياً بحساب: {cloud.user?.email || cloud.session?.user?.email}</span>
+              {onEnter && (
+                <button
+                  type="button"
+                  onClick={onEnter}
+                  className="rounded bg-primary px-3 py-1.5 text-white hover:bg-primary-dark transition font-extrabold"
+                >
+                  الدخول للنظام ←
+                </button>
+              )}
+            </div>
+          )}
 
           <form onSubmit={submit} className="space-y-4">
             <button

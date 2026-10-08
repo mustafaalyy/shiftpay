@@ -1,5 +1,5 @@
 /* ===========================
-   ShiftPay HR — Design System
+   ShiftPay HR â€” Design System
    =========================== */
 
 /* ---------- Fonts ---------- */
@@ -277,6 +277,10 @@ ul, ol {
   display: flex;
   align-items: center;
   gap: var(--space-8);
+}
+
+.nav-mobile-actions {
+  display: none !important;
 }
 
 .nav-link {
@@ -1201,6 +1205,15 @@ ul, ol {
 
   .nav-links.active {
     display: flex;
+  }
+
+  .nav-links.active .nav-mobile-actions {
+    display: flex !important;
+    flex-direction: column;
+    gap: var(--space-3);
+    margin-top: var(--space-3);
+    padding-top: var(--space-3);
+    border-top: 1px solid var(--color-border);
   }
 
   .nav-mobile-toggle {
