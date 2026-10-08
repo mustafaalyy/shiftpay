@@ -15,6 +15,7 @@ export async function exportPayrollToXlsx({ rows, companyName, monthLabel, curre
     "أيام الغياب",
     "الإجازات المستخدمة",
     "الخصومات",
+    "قسط السلفة",
     "المكافآت",
     "صافي الراتب"
   ];
@@ -34,6 +35,7 @@ export async function exportPayrollToXlsx({ rows, companyName, monthLabel, curre
     row.absenceDays,
     row.vacationUsage,
     round(row.deductions),
+    round(row.advanceInstallment || 0),
     round(row.bonuses),
     round(row.netSalary)
   ]);
@@ -68,6 +70,7 @@ export async function exportPayrollToXlsx({ rows, companyName, monthLabel, curre
     { wch: 12 },
     { wch: 18 },
     { wch: 16 },
+    { wch: 14 },
     { wch: 14 },
     { wch: 16 }
   ];
@@ -127,7 +130,7 @@ export async function exportBankTransferSheet({ rows, companyName, monthLabel, c
   XLSX.writeFile(workbook, `ShiftPay-BankTransfer-${monthLabel}.xlsx`);
 }
 
-export async function exportAccountingJournal({ rows, companyName, monthLabel, currency = "EGP" }) {
+export async function exportAccountingJournal({ rows, companyName, monthLabel, currency = "EGP", advances = [] }) {
   const XLSX = await import("xlsx");
 
   // Double-entry style journal entries, compatible with most accounting software
@@ -145,6 +148,37 @@ export async function exportAccountingJournal({ rows, companyName, monthLabel, c
   const today = new Date().toISOString().slice(0, 10);
   const body = [];
 
+  // 1) Advances disbursement entries during this period (مدين: سلف موظفين / دائن: البنك)
+  (advances || []).forEach((adv) => {
+    const isDisbursedThisMonth =
+      adv.disbursementDate &&
+      (adv.disbursementDate.startsWith(monthLabel) || adv.startMonth === monthLabel);
+
+    if (isDisbursedThisMonth && Number(adv.totalAmount) > 0) {
+      body.push([
+        adv.disbursementDate || today,
+        "Employee Advances",
+        `صرف سلفة للموظف (${adv.employeeCode || adv.employeeId || ""})`,
+        round(adv.totalAmount),
+        "",
+        adv.employeeCode || "",
+        ""
+      ]);
+      body.push([
+        adv.disbursementDate || today,
+        "Bank Account",
+        `صرف سلفة من البنك (${adv.employeeCode || adv.employeeId || ""})`,
+        "",
+        round(adv.totalAmount),
+        adv.employeeCode || "",
+        ""
+      ]);
+    }
+  });
+
+  // 2) Payroll journal entries:
+  // Debit: Salary Expense + Overtime Expense
+  // Credit: Salary Deductions Payable + Employee Advances (قسط سلفة) + Salaries Payable (Net Pay)
   rows.forEach((row) => {
     if (row.salary > 0) {
       body.push([
@@ -175,6 +209,17 @@ export async function exportAccountingJournal({ rows, companyName, monthLabel, c
         `${row.employeeName} - Deductions`,
         "",
         round(row.deductions),
+        row.employeeCode,
+        row.department
+      ]);
+    }
+    if (row.advanceInstallment > 0) {
+      body.push([
+        today,
+        "Employee Advances",
+        `${row.employeeName} - ${row.advanceInstallmentLabel || "خصم قسط سلفة"}`,
+        "",
+        round(row.advanceInstallment),
         row.employeeCode,
         row.department
       ]);

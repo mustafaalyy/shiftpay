@@ -656,6 +656,170 @@ function allocateFlexibleRestDates(missingDates, allowedRestDays) {
   return missingDates.slice(0, allowedRestDays);
 }
 
+export function addMonthsToMonth(monthString, count = 1) {
+  if (!monthString || !/^\d{4}-\d{2}$/.test(monthString)) return monthString;
+  const [yearStr, monthStr] = monthString.split("-");
+  let year = parseInt(yearStr, 10);
+  let month = parseInt(monthStr, 10) - 1;
+  month += count;
+  year += Math.floor(month / 12);
+  month = ((month % 12) + 12) % 12;
+  return `${year}-${String(month + 1).padStart(2, "0")}`;
+}
+
+export function generateAdvanceInstallments({ totalAmount, installmentsCount, startMonth }) {
+  const amount = Math.round((Number(totalAmount) || 0) * 100) / 100;
+  const count = Math.max(1, parseInt(installmentsCount, 10) || 1);
+  if (amount <= 0) return [];
+
+  // Base installment rounded down to 2 decimals
+  const baseAmount = Math.floor((amount / count) * 100) / 100;
+  // Sum of first N - 1 installments
+  const firstInstallmentsSum = Math.round(baseAmount * (count - 1) * 100) / 100;
+  // Final installment absorbs the rounding difference so total matches exactly
+  const lastAmount = Math.round((amount - firstInstallmentsSum) * 100) / 100;
+
+  const installments = [];
+  for (let i = 1; i <= count; i++) {
+    const isLast = i === count;
+    installments.push({
+      id: `inst_${Date.now()}_${i}_${Math.random().toString(36).slice(2, 7)}`,
+      installmentIndex: i,
+      dueMonth: addMonthsToMonth(startMonth, i - 1),
+      amount: isLast ? lastAmount : baseAmount,
+      status: "due",
+      deductedAt: null,
+      deductedAmount: 0,
+      notes: ""
+    });
+  }
+  return installments;
+}
+
+export function canAddEmployeeAdvance(employeeId, advances = []) {
+  const activeAdvance = (advances || []).find(
+    (adv) => adv.employeeId === employeeId && adv.status === "active"
+  );
+  if (activeAdvance) {
+    return {
+      allowed: false,
+      reason: `الموظف لديه سلفة نشطة حالياً بقيمة ${activeAdvance.totalAmount} ج. يجب إغلاق السلفة الحالية قبل إنشاء سلفة جديدة.`
+    };
+  }
+  return { allowed: true };
+}
+
+export function postponeInstallment(advance, installmentId) {
+  if (!advance || !Array.isArray(advance.installments)) return advance;
+  const installments = advance.installments.map((inst) => ({ ...inst }));
+  const targetIndex = installments.findIndex((inst) => inst.id === installmentId);
+  if (targetIndex === -1) return advance;
+
+  const target = installments[targetIndex];
+  if (target.status === "deducted") return advance;
+
+  for (let i = targetIndex; i < installments.length; i++) {
+    if (installments[i].status !== "deducted") {
+      installments[i].dueMonth = addMonthsToMonth(installments[i].dueMonth, 1);
+    }
+  }
+  installments[targetIndex].status = "postponed";
+  return {
+    ...advance,
+    installments,
+    updatedAt: new Date().toISOString()
+  };
+}
+
+export function settleAdvanceEarly(advance) {
+  if (!advance || !Array.isArray(advance.installments)) return advance;
+  const today = new Date().toISOString();
+  const installments = advance.installments.map((inst) => {
+    if (inst.status !== "deducted") {
+      return {
+        ...inst,
+        status: "deducted",
+        deductedAt: today,
+        deductedAmount: inst.amount,
+        notes: "سداد مبكر"
+      };
+    }
+    return inst;
+  });
+  return {
+    ...advance,
+    status: "closed",
+    installments,
+    closedAt: today,
+    updatedAt: today
+  };
+}
+
+export function cancelAdvance(advance) {
+  if (!advance) return advance;
+  const today = new Date().toISOString();
+  const installments = (advance.installments || []).map((inst) => {
+    if (inst.status !== "deducted") {
+      return { ...inst, status: "cancelled", notes: "تم إلغاء السلفة" };
+    }
+    return inst;
+  });
+  return {
+    ...advance,
+    status: "cancelled",
+    installments,
+    cancelledAt: today,
+    updatedAt: today
+  };
+}
+
+export function calculateAdvanceBalances(advance) {
+  if (!advance || !Array.isArray(advance.installments)) {
+    return {
+      totalAmount: 0,
+      paidAmount: 0,
+      remainingBalance: 0,
+      paidCount: 0,
+      totalCount: 0,
+      progressPercent: 0
+    };
+  }
+  const totalAmount = Number(advance.totalAmount) || 0;
+  const paidAmount = advance.installments
+    .filter((inst) => inst.status === "deducted")
+    .reduce((sum, inst) => sum + (Number(inst.deductedAmount || inst.amount) || 0), 0);
+  const remainingBalance = advance.installments
+    .filter((inst) => inst.status !== "deducted" && inst.status !== "cancelled")
+    .reduce((sum, inst) => sum + (Number(inst.amount) || 0), 0);
+  const paidCount = advance.installments.filter((inst) => inst.status === "deducted").length;
+  const totalCount = advance.installments.length;
+  const progressPercent = totalAmount > 0 ? Math.min(100, Math.round((paidAmount / totalAmount) * 100)) : 0;
+
+  return {
+    totalAmount,
+    paidAmount,
+    remainingBalance: Math.round(remainingBalance * 100) / 100,
+    paidCount,
+    totalCount,
+    progressPercent
+  };
+}
+
+export function getEmployeeAdvanceBalance(employeeId, advances = []) {
+  const activeAdvance = (advances || []).find(
+    (adv) => adv.employeeId === employeeId && adv.status === "active"
+  );
+  if (!activeAdvance || !Array.isArray(activeAdvance.installments)) {
+    return { hasActiveAdvance: false, balance: 0, advance: null };
+  }
+  const balances = calculateAdvanceBalances(activeAdvance);
+  return {
+    hasActiveAdvance: true,
+    balance: balances.remainingBalance,
+    advance: activeAdvance
+  };
+}
+
 export function calculatePayroll({
   employees,
   departments,
@@ -663,7 +827,8 @@ export function calculatePayroll({
   attendanceLogs,
   settings,
   reportMonth,
-  incompletePunchMode = "manual"
+  incompletePunchMode = "manual",
+  advances = []
 }) {
   const activeEmployees = employees.filter((employee) => employee.active);
   const activeReportMonth = reportMonth || getReportMonth(attendanceLogs);
@@ -892,7 +1057,57 @@ export function calculatePayroll({
     const bonuses = manualBonuses + overtimeBonuses;
     const totalDeductions =
       lateDeductions + absenceDeductions + extraDeductions + missingPunchDeductions + permissionDeductions;
-    const netSalary = Number(employee.salary || 0) - totalDeductions + bonuses;
+    const netBeforeAdvance = Number(employee.salary || 0) - totalDeductions + bonuses;
+
+    // Advances calculation
+    const employeeAdvance = (advances || []).find(
+      (adv) => adv.employeeId === employee.id && adv.status === "active"
+    );
+
+    let advanceInstallment = 0;
+    let advanceInstallmentLabel = "";
+    let advanceInstallmentIndex = 0;
+    let advanceInstallmentsCount = 0;
+    let advancePostponed = false;
+    let advancePostponeReason = "";
+    let advanceRemainingBalance = 0;
+    let advanceId = "";
+    let advanceInstallmentId = "";
+
+    if (employeeAdvance && Array.isArray(employeeAdvance.installments)) {
+      advanceId = employeeAdvance.id;
+      advanceInstallmentsCount = employeeAdvance.installmentsCount || employeeAdvance.installments.length;
+
+      const unpaidInstallments = employeeAdvance.installments.filter(
+        (inst) => inst.status !== "deducted" && inst.status !== "cancelled"
+      );
+      advanceRemainingBalance = unpaidInstallments.reduce(
+        (sum, inst) => sum + (Number(inst.amount) || 0),
+        0
+      );
+
+      const dueInst = unpaidInstallments.find((inst) => inst.dueMonth === activeReportMonth);
+      if (dueInst) {
+        advanceInstallmentId = dueInst.id;
+        advanceInstallmentIndex = dueInst.installmentIndex;
+        const instAmount = Number(dueInst.amount) || 0;
+        const maxAllowed = (Number(employee.salary) || 0) * 0.25;
+
+        if (instAmount > maxAllowed) {
+          advancePostponed = true;
+          advancePostponeReason = "تجاوز القسط الحد الأقصى المسموح (25% من الراتب)";
+        } else if (netBeforeAdvance <= instAmount) {
+          advancePostponed = true;
+          advancePostponeReason = "صافي الراتب لا يكفي لسداد القسط كاملاً دون أن يصبح صفراً أو سالباً";
+        } else {
+          advanceInstallment = instAmount;
+          advanceInstallmentLabel = `قسط سلفة (${advanceInstallmentIndex} من ${advanceInstallmentsCount})`;
+          advanceRemainingBalance = Math.max(0, advanceRemainingBalance - advanceInstallment);
+        }
+      }
+    }
+
+    const netSalary = netBeforeAdvance - advanceInstallment;
     const status = getAttendanceStatus({ absenceDays, lateCount, incompleteSplitDays, missingPunchNeedsReview });
     const detectedShiftSummary = [...detectedShiftCounts.entries()]
       .map(([name, count]) => `${name} (${count})`)
@@ -905,7 +1120,8 @@ export function calculatePayroll({
       missingPunchDays > 0
         ? `بصمة ناقصة: ${missingPunchDays} يوم${missingPunchNeedsReview > 0 ? " (يحتاج مراجعة)" : ""}`
         : "",
-      permissionCount > 0 ? `أذونات: ${permissionCount} يوم (${formatMinutesAsHours(permissionMinutes)})` : ""
+      permissionCount > 0 ? `أذونات: ${permissionCount} يوم (${formatMinutesAsHours(permissionMinutes)})` : "",
+      advancePostponed && advancePostponeReason ? `تأجيل قسط السلفة: ${advancePostponeReason}` : ""
     ].filter(Boolean);
 
     return {
@@ -953,6 +1169,15 @@ export function calculatePayroll({
       overtimeMinutes,
       overtimeBonuses,
       bonuses,
+      advanceInstallment,
+      advanceInstallmentLabel,
+      advanceInstallmentIndex,
+      advanceInstallmentsCount,
+      advancePostponed,
+      advancePostponeReason,
+      advanceRemainingBalance: Math.round(advanceRemainingBalance * 100) / 100,
+      advanceId,
+      advanceInstallmentId,
       salary: Number(employee.salary) || 0,
       netSalary,
       currency: settings.currency || "جنيه",

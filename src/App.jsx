@@ -61,8 +61,10 @@ import {
   getMonthLabel,
   getReportMonth,
   parseAttendanceFile,
-  WEEK_DAYS
+  WEEK_DAYS,
+  getEmployeeAdvanceBalance
 } from "./lib/payroll";
+import EmployeeAdvancesModal from "./components/EmployeeAdvancesModal";
 import { exportAccountingJournal, exportAttendanceTemplate, exportBankTransferSheet, exportElementToPdf, exportEmployeeTemplate, exportPayrollToXlsx } from "./lib/exporters";
 import { makeId, useLocalStorage } from "./lib/storage";
 import {
@@ -293,6 +295,7 @@ export default function App() {
   const [settings, setSettings] = useLocalStorage("shiftpay.settings", DEFAULT_SETTINGS);
   const [siteContent, setSiteContent] = useLocalStorage("shiftpay.siteContent", DEFAULT_SITE_CONTENT);
   const [reports, setReports] = useLocalStorage("shiftpay.reports", defaultReports);
+  const [advances, setAdvances] = useLocalStorage("shiftpay.advances", []);
   const [selectedReportId, setSelectedReportId] = useLocalStorage(
     "shiftpay.selectedReportId",
     ""
@@ -339,9 +342,10 @@ export default function App() {
         attendanceLogs: activeAttendanceLogs,
         settings,
         reportMonth: activeReportMonth,
-        incompletePunchMode: selectedReport?.incompletePunchMode || "manual"
+        incompletePunchMode: selectedReport?.incompletePunchMode || "manual",
+        advances
       }),
-    [employees, departments, shifts, activeAttendanceLogs, settings, activeReportMonth, selectedReport]
+    [employees, departments, shifts, activeAttendanceLogs, settings, activeReportMonth, selectedReport, advances]
   );
   const selectedSlip = payrollRows.find((row) => row.employeeCode === selectedSlipCode) || payrollRows[0];
   const activeNavLabel = navItems.find((item) => item.id === activeView)?.label || monthLabel;
@@ -486,6 +490,7 @@ export default function App() {
           shifts,
           employees,
           reports,
+          advances,
           payrollRows,
           reportMonth: activeReportMonth
         });
@@ -498,7 +503,7 @@ export default function App() {
       }
     }, 2000);
     return () => clearTimeout(timer);
-  }, [employees, departments, shifts, settings, reports, cloud.session, cloud.companyId, cloud.loading]);
+  }, [employees, departments, shifts, settings, reports, advances, cloud.session, cloud.companyId, cloud.loading]);
 
   const resetWorkspaceState = (nextSettings = settings) => {
     setSettings({ ...DEFAULT_SETTINGS, ...nextSettings });
@@ -507,6 +512,7 @@ export default function App() {
     setEmployees([]);
     setAttendanceLogs([]);
     setReports([]);
+    setAdvances([]);
     setSelectedReportId("");
     setReportMonth(CURRENT_MONTH);
     setSelectedSlipCode("");
@@ -525,6 +531,7 @@ export default function App() {
       setSelectedReportId(workspace.reports[0]?.id || "");
       setReportMonth(workspace.reports[0]?.month || CURRENT_MONTH);
     }
+    if (workspace.advances?.length > 0) setAdvances(workspace.advances);
     setSelectedSlipCode("");
   };
 
@@ -640,6 +647,7 @@ export default function App() {
         shifts,
         employees,
         reports,
+        advances,
         payrollRows,
         reportMonth: activeReportMonth
       });
@@ -655,6 +663,18 @@ export default function App() {
     } catch (error) {
       setCloud((previous) => ({ ...previous, loading: false, error: error.message }));
     }
+  };
+
+  const handleSaveAdvance = (newAdvance) => {
+    setAdvances((previous) => [newAdvance, ...(previous || [])]);
+    setNotice("تم اعتماد السلفة وجدولة الأقساط بنجاح.");
+  };
+
+  const handleUpdateAdvance = (updatedAdvance) => {
+    setAdvances((previous) =>
+      (previous || []).map((adv) => (adv.id === updatedAdvance.id ? updatedAdvance : adv))
+    );
+    setNotice("تم تحديث بيانات السلفة بنجاح.");
   };
 
   const handleCloudLoad = async (companyId = cloud.companyId) => {
@@ -800,7 +820,8 @@ export default function App() {
       rows,
       companyName: settings.companyName,
       monthLabel,
-      currency: settings.currency
+      currency: settings.currency,
+      advances
     });
     setExporting("");
   };
@@ -900,6 +921,11 @@ export default function App() {
         shifts={shifts}
         shiftCopy={shiftCopy}
         setNotice={setNotice}
+        advances={advances}
+        onSaveAdvance={handleSaveAdvance}
+        onUpdateAdvance={handleUpdateAdvance}
+        settings={settings}
+        reportMonth={activeReportMonth}
       />
     ),
     attendance: (
@@ -927,6 +953,7 @@ export default function App() {
         departments={departments}
         monthLabel={monthLabel}
         settings={settings}
+        advances={advances}
       />
     ),
     archive: (
@@ -1182,7 +1209,7 @@ export default function App() {
 
 // PublicHomePage is modularized in src/pages/PublicHomePage.jsx
 
-function InsightsView({ payrollRows, employees, departments, monthLabel, settings }) {
+function InsightsView({ payrollRows, employees, departments, monthLabel, settings, advances = [] }) {
   const [tab, setTab] = useState("overview");
 
   if (!payrollRows?.length) {
@@ -1203,6 +1230,9 @@ function InsightsView({ payrollRows, employees, departments, monthLabel, setting
   const totalOT = payrollRows.reduce((s, r) => s + (r.overtimeBonuses || 0), 0);
   const totalLateMinutes = payrollRows.reduce((s, r) => s + (r.lateMinutes || 0), 0);
   const totalAbsenceDays = payrollRows.reduce((s, r) => s + (r.absenceDays || 0), 0);
+  const totalAdvanceDeductions = payrollRows.reduce((s, r) => s + (r.advanceInstallment || 0), 0);
+  const totalActiveAdvances = payrollRows.filter((r) => (r.advanceRemainingBalance || 0) > 0 || (r.advanceInstallment || 0) > 0).length;
+  const advanceRows = payrollRows.filter((r) => (r.advanceInstallment || 0) > 0 || r.advancePostponed || (r.advanceRemainingBalance || 0) > 0);
 
   // Top late employees
   const topLate = [...payrollRows]
@@ -1243,6 +1273,7 @@ function InsightsView({ payrollRows, employees, departments, monthLabel, setting
 
   const tabs = [
     { id: "overview", label: "نظرة عامة" },
+    { id: "advances", label: `السلف والأقساط (${advanceRows.length})` },
     { id: "late", label: "التأخيرات" },
     { id: "overtime", label: "الأوفر تايم" },
     { id: "commitment", label: "الالتزام" },
@@ -1258,11 +1289,16 @@ function InsightsView({ payrollRows, employees, departments, monthLabel, setting
       />
 
       {/* KPI Cards */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
         <div className="rounded-lg border border-line bg-white p-4 shadow-sm">
           <p className="text-xs font-bold text-slate-400">إجمالي الرواتب</p>
           <p className="mt-1 text-2xl font-extrabold text-ink">{totalNet.toLocaleString()} <span className="text-sm font-bold text-slate-400">{settings?.currency || "ج"}</span></p>
           <p className="mt-1 text-xs text-slate-400">من أصل {totalSalary.toLocaleString()}</p>
+        </div>
+        <div className="rounded-lg border border-line bg-white p-4 shadow-sm">
+          <p className="text-xs font-bold text-slate-400">أقساط السلف المخصومة</p>
+          <p className="mt-1 text-2xl font-extrabold text-blue-700">{totalAdvanceDeductions.toLocaleString()} <span className="text-sm font-bold text-slate-400">{settings?.currency || "ج"}</span></p>
+          <p className="mt-1 text-xs text-slate-400">{totalActiveAdvances} موظف لديهم سلف نشطة</p>
         </div>
         <div className="rounded-lg border border-line bg-white p-4 shadow-sm">
           <p className="text-xs font-bold text-slate-400">إجمالي الخصومات</p>
@@ -1315,6 +1351,59 @@ function InsightsView({ payrollRows, employees, departments, monthLabel, setting
                 badge="ملتزم ✓" badgeColor="emerald" />
             ))}
           </InsightsCard>
+        </div>
+      )}
+
+      {tab === "advances" && (
+        <div className="overflow-hidden rounded-lg border border-line bg-white shadow-sm">
+          <div className="border-b border-line bg-slate-50 p-4">
+            <h3 className="text-base font-extrabold text-ink">متابعة أقساط وسلف الموظفين لهذا الشهر</h3>
+            <p className="text-xs text-slate-500 mt-0.5">إجمالي الأقساط المستقطعة: {formatCurrency(totalAdvanceDeductions, settings?.currency)}</p>
+          </div>
+          {advanceRows.length === 0 ? (
+            <div className="p-8 text-center text-sm font-bold text-slate-400">لا توجد سلف أو أقساط مسجلة لهذا الشهر.</div>
+          ) : (
+            <table className="w-full text-sm">
+              <thead className="border-b border-line bg-slate-50 text-xs font-bold text-slate-500">
+                <tr>
+                  <th className="px-4 py-3 text-right">كود الموظف</th>
+                  <th className="px-4 py-3 text-right">اسم الموظف</th>
+                  <th className="px-4 py-3 text-right">قسط الشهر</th>
+                  <th className="px-4 py-3 text-right">الحالة</th>
+                  <th className="px-4 py-3 text-left">الرصيد المتبقي</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-line">
+                {advanceRows.map(r => (
+                  <tr key={r.employeeCode} className="hover:bg-slate-50/50">
+                    <td className="px-4 py-3 font-mono font-bold text-slate-500">{r.employeeCode}</td>
+                    <td className="px-4 py-3 font-bold text-ink">{r.employeeName}</td>
+                    <td className="px-4 py-3 font-extrabold text-ink">
+                      {r.advanceInstallment > 0 ? (
+                        <span>{formatCurrency(r.advanceInstallment, settings?.currency)} <span className="text-xs text-slate-400 font-normal">({r.advanceInstallmentLabel})</span></span>
+                      ) : (
+                        <span className="text-slate-400">—</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3">
+                      {r.advanceInstallment > 0 && (
+                        <span className="rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-bold text-emerald-700">مخصوم بالراتب</span>
+                      )}
+                      {r.advancePostponed && (
+                        <span className="rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-bold text-amber-700">مؤجل ({r.advancePostponeReason})</span>
+                      )}
+                      {!r.advanceInstallment && !r.advancePostponed && (
+                        <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-bold text-slate-500">لا يستحق قسط هذا الشهر</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-left font-extrabold text-primary">
+                      {formatCurrency(r.advanceRemainingBalance, settings?.currency)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
         </div>
       )}
 
@@ -2941,7 +3030,20 @@ function ShiftsView({ shifts, setShifts, setNotice, shiftCopy }) {
   );
 }
 
-function EmployeesView({ employees, setEmployees, departments, shifts, shiftCopy, setNotice }) {
+function EmployeesView({
+  employees,
+  setEmployees,
+  departments,
+  shifts,
+  shiftCopy,
+  setNotice,
+  advances = [],
+  onSaveAdvance,
+  onUpdateAdvance,
+  settings,
+  reportMonth
+}) {
+  const [selectedAdvanceEmployee, setSelectedAdvanceEmployee] = useState(null);
   const emptyEmployee = {
     code: "",
     name: "",
@@ -3317,6 +3419,9 @@ function EmployeesView({ employees, setEmployees, departments, shifts, shiftCopy
                 onCancelEdit={() => setInlineEditingId("")}
                 onArchive={() => setArchived(employee.id, false)}
                 onRestore={() => setArchived(employee.id, true)}
+                onOpenAdvances={() => setSelectedAdvanceEmployee(employee)}
+                advances={advances}
+                currency={settings?.currency || "جنيه"}
               />
             ))}
           </div>
@@ -3328,6 +3433,18 @@ function EmployeesView({ employees, setEmployees, departments, shifts, shiftCopy
           />
         )}
       </section>
+
+      {selectedAdvanceEmployee && (
+        <EmployeeAdvancesModal
+          employee={selectedAdvanceEmployee}
+          advances={advances}
+          onSaveAdvance={onSaveAdvance}
+          onUpdateAdvance={onUpdateAdvance}
+          onClose={() => setSelectedAdvanceEmployee(null)}
+          currency={settings?.currency || "جنيه"}
+          currentMonth={reportMonth}
+        />
+      )}
     </div>
   );
 }
@@ -4560,6 +4677,8 @@ function formatSlipShareText(row, settings, monthLabel) {
     row.overtimeMinutes > 0 ? `• الوقت الإضافي: ${row.overtimeMinutes} دقيقة (مكافأة: ${formatCurrency(row.overtimeBonuses, settings.currency)})` : "",
     row.manualBonuses > 0 ? `• مكافآت يدوية: ${formatCurrency(row.manualBonuses, settings.currency)}` : "",
     row.extraDeductions > 0 ? `• خصومات إضافية: ${formatCurrency(row.extraDeductions, settings.currency)}` : "",
+    row.advanceInstallment > 0 ? `• ${row.advanceInstallmentLabel || "قسط سلفة"}: ${formatCurrency(row.advanceInstallment, settings.currency)}` : "",
+    row.advancePostponed ? `• تنبيه السلفة: تم تأجيل قسط هذا الشهر (${row.advancePostponeReason})` : "",
     `--------------------------------`,
     `*صافي الراتب المستحق: ${formatCurrency(row.netSalary, settings.currency)}*`,
     `تم التوليد عبر منصة ShiftPay HR`
@@ -4624,6 +4743,25 @@ function SalarySlip({ row, settings, monthLabel, shiftCopy = getShiftCopy(settin
         <SlipLine label="خصومات إضافية" value={formatCurrency(row.extraDeductions, settings.currency)} danger />
         <SlipLine label="مكافآت يدوية" value={formatCurrency(row.manualBonuses, settings.currency)} success />
         <SlipLine label="مكافأة الوقت الإضافي" value={formatCurrency(row.overtimeBonuses, settings.currency)} success />
+        {row.advanceInstallment > 0 ? (
+          <SlipLine
+            label={row.advanceInstallmentLabel || `قسط سلفة (${row.advanceInstallmentIndex} من ${row.advanceInstallmentsCount})`}
+            value={formatCurrency(row.advanceInstallment, settings.currency)}
+            danger
+          />
+        ) : null}
+        {row.advanceRemainingBalance > 0 && !row.advanceInstallment ? (
+          <SlipLine
+            label="رصيد السلفة المتبقي"
+            value={formatCurrency(row.advanceRemainingBalance, settings.currency)}
+          />
+        ) : null}
+        {row.advancePostponed ? (
+          <div className="sm:col-span-2 rounded-lg border border-amber-200 bg-amber-50 p-2.5 text-xs font-bold text-amber-800 flex items-center gap-2">
+            <AlertTriangle size={15} className="shrink-0 text-amber-600" />
+            <span>تنبيه السلفة: تم تأجيل قسط هذا الشهر تلقائياً ({row.advancePostponeReason})</span>
+          </div>
+        ) : null}
       </div>
 
       <div className="mt-5 flex items-center justify-between rounded-lg bg-ink px-5 py-4 text-white">
@@ -4743,10 +4881,16 @@ function EmployeeCard({
   onSaveEdit,
   onCancelEdit,
   onArchive,
-  onRestore
+  onRestore,
+  onOpenAdvances,
+  advances = [],
+  currency = "جنيه"
 }) {
   const department = departments.find((item) => item.id === employee.departmentId)?.name || "غير محدد";
   const shift = shifts.find((item) => item.id === employee.shiftId)?.name || "غير محدد";
+  const advanceInfo = useMemo(() => {
+    return getEmployeeAdvanceBalance(employee.id, advances);
+  }, [employee.id, advances]);
 
   return (
     <article className="rounded-lg border border-line p-4">
@@ -4755,13 +4899,26 @@ function EmployeeCard({
           <p className="text-sm font-extrabold text-ink">{employee.name}</p>
           <p className="mt-1 text-xs font-bold text-slate-400">{employee.code}</p>
         </div>
-        <span
-          className={`rounded-full px-3 py-1 text-xs font-extrabold ${
-            employee.active ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-500"
-          }`}
-        >
-          {employee.active ? "نشط" : "مؤرشف"}
-        </span>
+        <div className="flex items-center gap-2">
+          {advanceInfo.hasActiveAdvance && (
+            <button
+              type="button"
+              onClick={onOpenAdvances}
+              className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2.5 py-1 text-xs font-black text-primary hover:bg-blue-100 transition"
+              title="عرض وإدارة أقساط السلفة"
+            >
+              <Wallet size={12} />
+              <span>سلفة: {formatCurrency(advanceInfo.balance, currency)}</span>
+            </button>
+          )}
+          <span
+            className={`rounded-full px-3 py-1 text-xs font-extrabold ${
+              employee.active ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-500"
+            }`}
+          >
+            {employee.active ? "نشط" : "مؤرشف"}
+          </span>
+        </div>
       </div>
       {employee.jobTitle && (
         <p className="mt-1 text-xs font-bold text-primary">{employee.jobTitle}</p>
@@ -4866,6 +5023,9 @@ function EmployeeCard({
         </form>
       ) : (
         <div className="mt-4 flex flex-wrap gap-2">
+          <SecondaryButton type="button" onClick={onOpenAdvances} icon={Wallet}>
+            السلف
+          </SecondaryButton>
           <SecondaryButton type="button" onClick={onEdit} icon={Pencil}>
             تعديل
           </SecondaryButton>

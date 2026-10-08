@@ -120,23 +120,33 @@ export async function ensureCloudCompany(session, settings) {
 }
 
 export async function loadWorkspaceFromCloud(session, companyId) {
-  const [companies, departments, shifts, employees, reports, snapshots, auditLogs] = await Promise.all([
+  const [companies, departments, shifts, employees, reports, snapshots, auditLogs, advances, installments] = await Promise.all([
     dbSelect("companies", `?select=*&${eq("id", companyId)}`, session),
     dbSelect("departments", `?select=*&${eq("company_id", companyId)}&order=name.asc`, session),
     dbSelect("shifts", `?select=*&${eq("company_id", companyId)}&order=name.asc`, session),
     dbSelect("employees", `?select=*&${eq("company_id", companyId)}&order=code.asc`, session),
     dbSelect("attendance_reports", `?select=*&${eq("company_id", companyId)}&order=created_at.desc`, session),
     dbSelect("payroll_snapshots", `?select=*&${eq("company_id", companyId)}&order=created_at.desc`, session),
-    dbSelect("audit_logs", `?select=*&${eq("company_id", companyId)}&order=created_at.desc&limit=20`, session)
+    dbSelect("audit_logs", `?select=*&${eq("company_id", companyId)}&order=created_at.desc&limit=20`, session),
+    dbSelect("advances", `?select=*&${eq("company_id", companyId)}&order=created_at.desc`, session).catch(() => []),
+    dbSelect("advance_installments", `?select=*&${eq("company_id", companyId)}&order=installment_index.asc`, session).catch(() => [])
   ]);
 
   const company = companies[0];
+  const mappedAdvances = (advances || []).map((advRow) => {
+    const insts = (installments || [])
+      .filter((i) => i.advance_id === advRow.id)
+      .map(fromInstallmentRow);
+    return fromAdvanceRow(advRow, insts);
+  });
+
   return {
     settings: company?.settings || null,
     departments: departments.map(fromDepartmentRow),
     shifts: shifts.map(fromShiftRow),
     employees: employees.map(fromEmployeeRow),
     reports: reports.map(fromReportRow),
+    advances: mappedAdvances,
     payrollSnapshots: snapshots,
     auditLogs
   };
@@ -150,6 +160,7 @@ export async function syncWorkspaceToCloud({
   shifts,
   employees,
   reports,
+  advances = [],
   payrollRows,
   reportMonth
 }) {
@@ -178,6 +189,17 @@ export async function syncWorkspaceToCloud({
       ? dbUpsert("attendance_reports", reports.map((item) => toReportRow(item, companyId, session)), session)
       : Promise.resolve([])
   ]);
+
+  if (advances && advances.length) {
+    const advanceRows = advances.map((item) => toAdvanceRow(item, companyId, session));
+    const installmentRows = advances.flatMap((item) =>
+      (item.installments || []).map((inst) => toInstallmentRow(inst, item.id, companyId))
+    );
+    await Promise.all([
+      dbUpsert("advances", advanceRows, session).catch(() => []),
+      installmentRows.length ? dbUpsert("advance_installments", installmentRows, session).catch(() => []) : Promise.resolve([])
+    ]);
+  }
 
   const cloudDepts = await dbSelect("departments", `?select=id&${eq("company_id", companyId)}`, session);
   const localDeptIds = new Set(departments.map((department) => department.id));
@@ -369,5 +391,69 @@ function fromReportRow(row) {
     logs: row.logs || [],
     status: row.status || "draft",
     createdAt: row.created_at
+  };
+}
+
+function toAdvanceRow(item, companyId, session) {
+  return {
+    id: item.id,
+    company_id: companyId,
+    employee_id: item.employeeId,
+    total_amount: Number(item.totalAmount) || 0,
+    disbursement_date: item.disbursementDate || new Date().toISOString().slice(0, 10),
+    installments_count: Number(item.installmentsCount) || 1,
+    start_month: item.startMonth,
+    notes: item.notes || "",
+    status: item.status || "active",
+    created_by: session?.user?.id || null,
+    created_at: item.createdAt || new Date().toISOString(),
+    updated_at: new Date().toISOString()
+  };
+}
+
+function fromAdvanceRow(row, installments = []) {
+  return {
+    id: row.id,
+    employeeId: row.employee_id,
+    totalAmount: Number(row.total_amount) || 0,
+    disbursementDate: row.disbursement_date,
+    installmentsCount: Number(row.installments_count) || 1,
+    startMonth: row.start_month,
+    notes: row.notes || "",
+    status: row.status || "active",
+    installments: installments,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at
+  };
+}
+
+function toInstallmentRow(item, advanceId, companyId) {
+  return {
+    id: item.id,
+    advance_id: advanceId,
+    company_id: companyId,
+    installment_index: Number(item.installmentIndex) || 1,
+    due_month: item.dueMonth,
+    amount: Number(item.amount) || 0,
+    status: item.status || "due",
+    deducted_at: item.deductedAt || null,
+    deducted_amount: Number(item.deductedAmount) || 0,
+    notes: item.notes || "",
+    created_at: item.createdAt || new Date().toISOString(),
+    updated_at: new Date().toISOString()
+  };
+}
+
+function fromInstallmentRow(row) {
+  return {
+    id: row.id,
+    advanceId: row.advance_id,
+    installmentIndex: Number(row.installment_index) || 1,
+    dueMonth: row.due_month,
+    amount: Number(row.amount) || 0,
+    status: row.status || "due",
+    deductedAt: row.deducted_at,
+    deductedAmount: Number(row.deducted_amount) || 0,
+    notes: row.notes || ""
   };
 }

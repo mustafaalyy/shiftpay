@@ -9,7 +9,15 @@ import {
   getEffectiveHolidays,
   getHolidayKey,
   calculatePayroll,
-  DEFAULT_SETTINGS
+  DEFAULT_SETTINGS,
+  addMonthsToMonth,
+  generateAdvanceInstallments,
+  canAddEmployeeAdvance,
+  postponeInstallment,
+  settleAdvanceEarly,
+  cancelAdvance,
+  calculateAdvanceBalances,
+  getEmployeeAdvanceBalance
 } from "../src/lib/payroll.js";
 
 describe("ShiftPay HR - Payroll Engine Unit Tests", () => {
@@ -156,6 +164,364 @@ describe("ShiftPay HR - Payroll Engine Unit Tests", () => {
       assert.equal(row.lateCount, 1);
       assert.equal(row.lateMinutes, 15);
       assert.ok(row.deductions > 0);
+    });
+  });
+
+  describe("Salary Advances in Installments (السلف بالتقسيط)", () => {
+    const advanceEmployee = {
+      id: "EMP-ADV-1",
+      code: "EMP-100",
+      name: "محمود إبراهيم",
+      departmentId: "d1",
+      shiftId: "s1",
+      salary: 8000,
+      active: true,
+      vacationBalance: 15,
+      extraDeductions: 0,
+      bonuses: 0
+    };
+
+    const advanceShift = {
+      id: "s1",
+      name: "صباحي",
+      startTime: "09:00",
+      endTime: "17:00",
+      gracePeriod: 15,
+      lateDeductionPerMinute: 1,
+      overtimeRatePerMinute: 1.5
+    };
+
+    it("generates installments with exact total and rounding adjusted on final installment", () => {
+      // 1000 divided by 3: 333.33 + 333.33 + 333.34 = 1000.00
+      const installments = generateAdvanceInstallments({
+        totalAmount: 1000,
+        installmentsCount: 3,
+        startMonth: "2026-05"
+      });
+
+      assert.equal(installments.length, 3);
+      assert.equal(installments[0].amount, 333.33);
+      assert.equal(installments[0].dueMonth, "2026-05");
+      assert.equal(installments[1].amount, 333.33);
+      assert.equal(installments[1].dueMonth, "2026-06");
+      assert.equal(installments[2].amount, 333.34);
+      assert.equal(installments[2].dueMonth, "2026-07");
+
+      const sum = installments.reduce((acc, inst) => acc + inst.amount, 0);
+      assert.equal(Math.round(sum * 100) / 100, 1000.00);
+    });
+
+    it("handles year transition properly in installment due months", () => {
+      const installments = generateAdvanceInstallments({
+        totalAmount: 3000,
+        installmentsCount: 4,
+        startMonth: "2026-11"
+      });
+      assert.equal(installments[0].dueMonth, "2026-11");
+      assert.equal(installments[1].dueMonth, "2026-12");
+      assert.equal(installments[2].dueMonth, "2027-01");
+      assert.equal(installments[3].dueMonth, "2027-02");
+    });
+
+    it("enforces single active advance per employee", () => {
+      const existingAdvances = [
+        {
+          id: "adv-1",
+          employeeId: "EMP-ADV-1",
+          totalAmount: 3000,
+          status: "active"
+        }
+      ];
+
+      const check1 = canAddEmployeeAdvance("EMP-ADV-1", existingAdvances);
+      assert.equal(check1.allowed, false);
+      assert.ok(check1.reason.includes("سلفة نشطة"));
+
+      const check2 = canAddEmployeeAdvance("EMP-OTHER", existingAdvances);
+      assert.equal(check2.allowed, true);
+
+      // When closed, employee can take a new advance
+      const closedAdvances = [
+        {
+          id: "adv-1",
+          employeeId: "EMP-ADV-1",
+          totalAmount: 3000,
+          status: "closed"
+        }
+      ];
+      const check3 = canAddEmployeeAdvance("EMP-ADV-1", closedAdvances);
+      assert.equal(check3.allowed, true);
+    });
+
+    it("deducts due installment correctly in payroll and produces slip line", () => {
+      const installments = generateAdvanceInstallments({
+        totalAmount: 3000,
+        installmentsCount: 3,
+        startMonth: "2026-05"
+      });
+
+      const activeAdvance = {
+        id: "adv-100",
+        employeeId: advanceEmployee.id,
+        totalAmount: 3000,
+        installmentsCount: 3,
+        startMonth: "2026-05",
+        status: "active",
+        installments
+      };
+
+      const attendanceLogs = [
+        {
+          employeeCode: advanceEmployee.code,
+          name: advanceEmployee.name,
+          date: "2026-05-03",
+          checkIn: "09:00",
+          checkOut: "17:00"
+        }
+      ];
+
+      const results = calculatePayroll({
+        employees: [advanceEmployee],
+        departments: [{ id: "d1", name: "IT" }],
+        shifts: [advanceShift],
+        attendanceLogs,
+        settings: { ...DEFAULT_SETTINGS, payrollMonthDays: 30 },
+        reportMonth: "2026-05",
+        advances: [activeAdvance]
+      });
+
+      const row = results[0];
+      assert.equal(row.advanceInstallment, 1000);
+      assert.equal(row.advanceInstallmentLabel, "قسط سلفة (1 من 3)");
+      assert.equal(row.advancePostponed, false);
+      assert.equal(row.advanceRemainingBalance, 2000);
+      // Net salary = base salary (or after attendance) - advance installment
+      assert.equal(row.netSalary, (advanceEmployee.salary - row.deductions + row.bonuses) - 1000);
+    });
+
+    it("auto-postpones installment when it exceeds 25% of basic salary", () => {
+      // Employee salary is 8000. 25% max is 2000. Installment is 2500.
+      const highInstallment = [
+        {
+          id: "inst-1",
+          installmentIndex: 1,
+          dueMonth: "2026-05",
+          amount: 2500,
+          status: "due"
+        }
+      ];
+
+      const activeAdvance = {
+        id: "adv-high",
+        employeeId: advanceEmployee.id,
+        totalAmount: 2500,
+        installmentsCount: 1,
+        startMonth: "2026-05",
+        status: "active",
+        installments: highInstallment
+      };
+
+      const results = calculatePayroll({
+        employees: [advanceEmployee],
+        departments: [{ id: "d1", name: "IT" }],
+        shifts: [advanceShift],
+        attendanceLogs: [],
+        settings: { ...DEFAULT_SETTINGS, payrollMonthDays: 30 },
+        reportMonth: "2026-05",
+        advances: [activeAdvance]
+      });
+
+      const row = results[0];
+      assert.equal(row.advanceInstallment, 0);
+      assert.equal(row.advancePostponed, true);
+      assert.ok(row.advancePostponeReason.includes("25%"));
+      assert.ok(row.netSalary > 0);
+    });
+
+    it("auto-postpones installment when net salary is less than installment to avoid zero or negative net", () => {
+      // Create employee with very low salary or heavy deductions
+      const lowSalaryEmp = {
+        ...advanceEmployee,
+        id: "EMP-LOW",
+        code: "EMP-LOW",
+        salary: 1000,
+        extraDeductions: 800 // net before advance = 200
+      };
+
+      const installment = [
+        {
+          id: "inst-low-1",
+          installmentIndex: 1,
+          dueMonth: "2026-05",
+          amount: 250, // 250 is <= 25% of 1000, but net before advance is only 200
+          status: "due"
+        }
+      ];
+
+      const activeAdvance = {
+        id: "adv-low",
+        employeeId: lowSalaryEmp.id,
+        totalAmount: 250,
+        installmentsCount: 1,
+        startMonth: "2026-05",
+        status: "active",
+        installments: installment
+      };
+
+      const results = calculatePayroll({
+        employees: [lowSalaryEmp],
+        departments: [{ id: "d1", name: "IT" }],
+        shifts: [advanceShift],
+        attendanceLogs: [],
+        settings: { ...DEFAULT_SETTINGS, payrollMonthDays: 30 },
+        reportMonth: "2026-05",
+        advances: [activeAdvance]
+      });
+
+      const row = results[0];
+      assert.equal(row.advanceInstallment, 0);
+      assert.equal(row.advancePostponed, true);
+      assert.ok(row.netSalary > 0);
+    });
+
+    it("does not deduct advance if reportMonth is prior to advance start month", () => {
+      const installments = generateAdvanceInstallments({
+        totalAmount: 3000,
+        installmentsCount: 3,
+        startMonth: "2026-07"
+      });
+
+      const activeAdvance = {
+        id: "adv-future",
+        employeeId: advanceEmployee.id,
+        totalAmount: 3000,
+        installmentsCount: 3,
+        startMonth: "2026-07",
+        status: "active",
+        installments
+      };
+
+      const results = calculatePayroll({
+        employees: [advanceEmployee],
+        departments: [{ id: "d1", name: "IT" }],
+        shifts: [advanceShift],
+        attendanceLogs: [],
+        settings: { ...DEFAULT_SETTINGS, payrollMonthDays: 30 },
+        reportMonth: "2026-05",
+        advances: [activeAdvance]
+      });
+
+      const row = results[0];
+      assert.equal(row.advanceInstallment, 0);
+      assert.equal(row.advanceRemainingBalance, 3000);
+      assert.equal(row.advancePostponed, false);
+    });
+
+    it("correctly handles early payoff, closing advance and zeroing remaining balance", () => {
+      const advance = {
+        id: "adv-early",
+        employeeId: advanceEmployee.id,
+        totalAmount: 2000,
+        installmentsCount: 2,
+        status: "active",
+        installments: [
+          { id: "i1", installmentIndex: 1, dueMonth: "2026-05", amount: 1000, status: "deducted", deductedAmount: 1000 },
+          { id: "i2", installmentIndex: 2, dueMonth: "2026-06", amount: 1000, status: "due", deductedAmount: 0 }
+        ]
+      };
+
+      const settled = settleAdvanceEarly(advance);
+      assert.equal(settled.status, "closed");
+      assert.equal(settled.installments[1].status, "deducted");
+      assert.equal(settled.installments[1].deductedAmount, 1000);
+
+      const balances = calculateAdvanceBalances(settled);
+      assert.equal(balances.remainingBalance, 0);
+      assert.equal(balances.paidAmount, 2000);
+      assert.equal(balances.progressPercent, 100);
+    });
+
+    it("correctly handles advance cancellation", () => {
+      const advance = {
+        id: "adv-cancel",
+        employeeId: advanceEmployee.id,
+        totalAmount: 1000,
+        installmentsCount: 1,
+        status: "active",
+        installments: [
+          { id: "i1", installmentIndex: 1, dueMonth: "2026-05", amount: 1000, status: "due" }
+        ]
+      };
+
+      const cancelled = cancelAdvance(advance);
+      assert.equal(cancelled.status, "cancelled");
+      assert.equal(cancelled.installments[0].status, "cancelled");
+    });
+
+    it("correctly shifts schedule on manual postponement", () => {
+      const advance = {
+        id: "adv-postpone",
+        employeeId: advanceEmployee.id,
+        totalAmount: 2000,
+        installmentsCount: 2,
+        status: "active",
+        installments: [
+          { id: "i1", installmentIndex: 1, dueMonth: "2026-05", amount: 1000, status: "due" },
+          { id: "i2", installmentIndex: 2, dueMonth: "2026-06", amount: 1000, status: "due" }
+        ]
+      };
+
+      const updated = postponeInstallment(advance, "i1");
+      assert.equal(updated.installments[0].status, "postponed");
+      assert.equal(updated.installments[0].dueMonth, "2026-06");
+      assert.equal(updated.installments[1].dueMonth, "2026-07");
+    });
+
+    it("guarantees 100% regression parity for employees without advances", () => {
+      const employees = [
+        advanceEmployee,
+        {
+          id: "EMP-2",
+          code: "EMP-200",
+          name: "سارة كمال",
+          departmentId: "d1",
+          shiftId: "s1",
+          salary: 12000,
+          active: true,
+          vacationBalance: 20,
+          extraDeductions: 50,
+          bonuses: 100
+        }
+      ];
+
+      const before = calculatePayroll({
+        employees,
+        departments: [{ id: "d1", name: "IT" }],
+        shifts: [advanceShift],
+        attendanceLogs: [],
+        settings: { ...DEFAULT_SETTINGS, payrollMonthDays: 30 },
+        reportMonth: "2026-05"
+      });
+
+      const after = calculatePayroll({
+        employees,
+        departments: [{ id: "d1", name: "IT" }],
+        shifts: [advanceShift],
+        attendanceLogs: [],
+        settings: { ...DEFAULT_SETTINGS, payrollMonthDays: 30 },
+        reportMonth: "2026-05",
+        advances: []
+      });
+
+      assert.equal(before.length, after.length);
+      for (let i = 0; i < before.length; i++) {
+        assert.equal(before[i].netSalary, after[i].netSalary);
+        assert.equal(before[i].deductions, after[i].deductions);
+        assert.equal(before[i].bonuses, after[i].bonuses);
+        assert.equal(before[i].status.label, after[i].status.label);
+        assert.equal(before[i].attendanceDays, after[i].attendanceDays);
+        assert.equal(after[i].advanceInstallment, 0);
+      }
     });
   });
 });
