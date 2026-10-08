@@ -385,3 +385,133 @@ export async function exportElementToPdf(element, fileName) {
 function round(value) {
   return Math.round((Number(value) || 0) * 100) / 100;
 }
+
+export function generateWhatsAppSlipMessage({ row, monthLabel, currency = "جنيه", companyName = "ShiftPay HR" }) {
+  if (!row) return "";
+  const lines = [
+    `📄 *قسيمة راتب شهر ${monthLabel}*`,
+    `🏢 *${companyName}*`,
+    `────────────────`,
+    `👤 *الموظف:* ${row.employeeName} (${row.employeeCode})`,
+    `💼 *القسم:* ${row.department || "عام"}`,
+    `💰 *الراتب الأساسي:* ${round(row.salary)} ${currency}`,
+    row.overtimeBonuses > 0 ? `⏰ *إضافي ومكافآت:* +${round(row.overtimeBonuses + (row.bonuses || 0))} ${currency}` : null,
+    row.deductions > 0 ? `🔻 *خصومات وغياب:* -${round(row.deductions)} ${currency}` : null,
+    row.advanceInstallment > 0 ? `💳 *قسط سلفة (${row.advanceInstallmentLabel || ""}):* -${round(row.advanceInstallment)} ${currency}` : null,
+    `────────────────`,
+    `💵 *صافي الراتب المستحق:* *${round(row.netSalary)} ${currency}*`,
+    `────────────────`,
+    `تم الإصدار عبر نظام ShiftPay HR.`
+  ].filter(Boolean);
+
+  return lines.join("\n");
+}
+
+export function openWhatsAppSlip({ phone, message }) {
+  const cleanPhone = (phone || "").replace(/[^0-9]/g, "");
+  const encodedText = encodeURIComponent(message);
+  const url = cleanPhone
+    ? `https://wa.me/${cleanPhone}?text=${encodedText}`
+    : `https://wa.me/?text=${encodedText}`;
+  window.open(url, "_blank");
+}
+
+export function exportOdooJournalCsv({ rows, companyName, monthLabel, currency = "EGP", advances = [] }) {
+  const today = new Date().toISOString().slice(0, 10);
+  const csvRows = [
+    ["date", "journal", "account", "partner", "label", "debit", "credit"]
+  ];
+
+  (advances || []).forEach((adv) => {
+    const isDisbursed =
+      adv.disbursementDate &&
+      (adv.disbursementDate.startsWith(monthLabel) || adv.startMonth === monthLabel);
+    if (isDisbursed && Number(adv.totalAmount) > 0) {
+      csvRows.push([
+        adv.disbursementDate || today,
+        "Miscellaneous",
+        "112000 Employee Advances",
+        adv.employeeName || adv.employeeCode,
+        `Disbursement ${adv.employeeCode}`,
+        round(adv.totalAmount),
+        "0"
+      ]);
+      csvRows.push([
+        adv.disbursementDate || today,
+        "Bank",
+        "101000 Bank Account",
+        adv.employeeName || adv.employeeCode,
+        `Bank Outflow ${adv.employeeCode}`,
+        "0",
+        round(adv.totalAmount)
+      ]);
+    }
+  });
+
+  rows.forEach((row) => {
+    if (row.salary > 0) {
+      csvRows.push([
+        today,
+        "Payroll",
+        "511000 Salaries Expense",
+        row.employeeName,
+        `Base Salary ${row.employeeCode}`,
+        round(row.salary),
+        "0"
+      ]);
+    }
+    if (row.overtimeBonuses > 0) {
+      csvRows.push([
+        today,
+        "Payroll",
+        "511100 Overtime Expense",
+        row.employeeName,
+        `Overtime ${row.employeeCode}`,
+        round(row.overtimeBonuses),
+        "0"
+      ]);
+    }
+    if (row.deductions > 0) {
+      csvRows.push([
+        today,
+        "Payroll",
+        "211200 Deductions Payable",
+        row.employeeName,
+        `Deductions ${row.employeeCode}`,
+        "0",
+        round(row.deductions)
+      ]);
+    }
+    if (row.advanceInstallment > 0) {
+      csvRows.push([
+        today,
+        "Payroll",
+        "112000 Employee Advances",
+        row.employeeName,
+        `Advance Deduction ${row.employeeCode}`,
+        "0",
+        round(row.advanceInstallment)
+      ]);
+    }
+    csvRows.push([
+      today,
+      "Payroll",
+      "211100 Salaries Payable",
+      row.employeeName,
+      `Net Pay ${row.employeeCode}`,
+      "0",
+      round(row.netSalary)
+    ]);
+  });
+
+  const csvContent =
+    "\uFEFF" +
+    csvRows.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
+  const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `Odoo-Journal-${monthLabel}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}

@@ -524,4 +524,121 @@ describe("ShiftPay HR - Payroll Engine Unit Tests", () => {
       }
     });
   });
+
+  describe("Smart AI Payroll Anomaly Detector", () => {
+    it("detects high deduction anomalies when deductions exceed 30% of base salary", async () => {
+      const { analyzePayrollAnomalies } = await import("../src/lib/payrollAi.js");
+      const sampleRows = [
+        {
+          employeeCode: "EMP-01",
+          employeeName: "أحمد علي",
+          department: "تقنية المعلومات",
+          salary: 10000,
+          netSalary: 6000,
+          deductions: 4000,
+          overtimeBonuses: 0,
+          advanceInstallment: 0
+        }
+      ];
+
+      const analysis = analyzePayrollAnomalies({
+        payrollRows: sampleRows,
+        settings: { currency: "جنيه" },
+        reportMonth: "2026-05"
+      });
+
+      assert.equal(analysis.metrics.highDeductionsCount, 1);
+      assert.ok(analysis.anomalies.some((a) => a.type === "high_deduction"));
+      assert.ok(analysis.healthScore < 100);
+    });
+
+    it("detects salary drop anomalies and returns actionable Arabic recommendations", async () => {
+      const { analyzePayrollAnomalies } = await import("../src/lib/payrollAi.js");
+      const sampleRows = [
+        {
+          employeeCode: "EMP-02",
+          employeeName: "سارة محمد",
+          department: "المبيعات",
+          salary: 8000,
+          netSalary: 3000,
+          deductions: 5000,
+          overtimeBonuses: 0,
+          advanceInstallment: 0
+        }
+      ];
+
+      const analysis = analyzePayrollAnomalies({
+        payrollRows: sampleRows,
+        settings: { currency: "جنيه" },
+        reportMonth: "2026-05"
+      });
+
+      assert.ok(analysis.anomalies.some((a) => a.type === "salary_drop"));
+      assert.ok(analysis.insights.length > 0);
+    });
+
+    it("detects postponed advances and includes them in AI health analysis", async () => {
+      const { analyzePayrollAnomalies } = await import("../src/lib/payrollAi.js");
+      const sampleAdvances = [
+        {
+          id: "adv-1",
+          employeeCode: "EMP-03",
+          employeeName: "محمود حسن",
+          status: "active",
+          installments: [
+            { dueMonth: "2026-05", amount: 1500, status: "postponed" }
+          ]
+        }
+      ];
+
+      const analysis = analyzePayrollAnomalies({
+        payrollRows: [
+          {
+            employeeCode: "EMP-03",
+            employeeName: "محمود حسن",
+            salary: 5000,
+            netSalary: 5000,
+            deductions: 0,
+            overtimeBonuses: 0
+          }
+        ],
+        settings: { currency: "جنيه" },
+        reportMonth: "2026-05",
+        advances: sampleAdvances
+      });
+
+      assert.equal(analysis.metrics.postponedAdvanceCount, 1);
+      assert.ok(analysis.anomalies.some((a) => a.type === "advance_postponed"));
+    });
+  });
+
+  describe("WhatsApp & Export Helpers", () => {
+    it("generates formatted WhatsApp salary slip message with Arabic breakdown", async () => {
+      const { generateWhatsAppSlipMessage } = await import("../src/lib/exporters.js");
+      const sampleRow = {
+        employeeName: "محمد إبراهيم",
+        employeeCode: "EMP-77",
+        department: "الهندسة",
+        salary: 12000,
+        overtimeBonuses: 1500,
+        bonuses: 0,
+        deductions: 500,
+        advanceInstallment: 1000,
+        advanceInstallmentLabel: "قسط 2 من 4",
+        netSalary: 12000
+      };
+
+      const msg = generateWhatsAppSlipMessage({
+        row: sampleRow,
+        monthLabel: "مايو 2026",
+        currency: "جنيه",
+        companyName: "شركة المسار"
+      });
+
+      assert.ok(msg.includes("قسيمة راتب شهر مايو 2026"));
+      assert.ok(msg.includes("محمد إبراهيم"));
+      assert.ok(msg.includes("صافي الراتب المستحق"));
+      assert.ok(msg.includes("قسط سلفة (قسط 2 من 4)"));
+    });
+  });
 });

@@ -67,7 +67,22 @@ import {
   getEmployeeAdvanceBalance
 } from "./lib/payroll";
 import EmployeeAdvancesModal from "./components/EmployeeAdvancesModal";
-import { exportAccountingJournal, exportAttendanceTemplate, exportBankTransferSheet, exportElementToPdf, exportEmployeeTemplate, exportPayrollToXlsx } from "./lib/exporters";
+import CommandPalette from "./components/CommandPalette";
+import EmployeePortalModal from "./components/EmployeePortalModal";
+import AiPayrollAssistantCard from "./components/AiPayrollAssistantCard";
+import Toast from "./components/Toast";
+import { analyzePayrollAnomalies } from "./lib/payrollAi";
+import {
+  exportAccountingJournal,
+  exportAttendanceTemplate,
+  exportBankTransferSheet,
+  exportElementToPdf,
+  exportEmployeeTemplate,
+  exportPayrollToXlsx,
+  exportOdooJournalCsv,
+  generateWhatsAppSlipMessage,
+  openWhatsAppSlip
+} from "./lib/exporters";
 import { makeId, useLocalStorage } from "./lib/storage";
 import {
   ensureCloudCompany,
@@ -304,6 +319,9 @@ export default function App() {
   );
   const [reportMonth, setReportMonth] = useLocalStorage("shiftpay.reportMonth", CURRENT_MONTH);
   const [notice, setNotice] = useState("");
+  const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
+  const [portalEmployee, setPortalEmployee] = useState(null);
+  const [toastMessage, setToastMessage] = useState(null);
   const [syncStatus, setSyncStatus] = useState(""); // "saving" | "saved" | "error" | ""
   const [uploadState, setUploadState] = useState({ loading: false, summary: null });
   const [selectedSlipCode, setSelectedSlipCode] = useState("");
@@ -374,6 +392,29 @@ export default function App() {
       overtimeBonuses
     };
   }, [employees, payrollRows]);
+
+  const payrollAiAnalysis = useMemo(
+    () =>
+      analyzePayrollAnomalies({
+        payrollRows,
+        employees,
+        settings,
+        reportMonth: activeReportMonth,
+        advances
+      }),
+    [payrollRows, employees, settings, activeReportMonth, advances]
+  );
+
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setIsCommandPaletteOpen((prev) => !prev);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
 
   useEffect(() => {
     const handleHashChange = () => {
@@ -830,6 +871,22 @@ export default function App() {
     setExporting("");
   };
 
+  const handleOdooExport = (rows = payrollRows) => {
+    try {
+      exportOdooJournalCsv({
+        rows,
+        companyName: settings.companyName,
+        monthLabel,
+        currency: settings.currency,
+        advances
+      });
+      setNotice("تم تصدير قيود أودو المحاسبية (Odoo Journal CSV) بنجاح.");
+      setToastMessage({ message: "تم تصدير قيود أودو المحاسبية (Odoo CSV) بنجاح.", type: "success" });
+    } catch {
+      setNotice("تعذر تصدير قيود أودو.");
+    }
+  };
+
   const handleReportPdf = async (rows = payrollRows) => {
     setExporting("report");
     setReportExportRows(rows);
@@ -909,6 +966,8 @@ export default function App() {
             reportMonth={activeReportMonth}
             settings={settings}
             onNavigate={navigate}
+            payrollAiAnalysis={payrollAiAnalysis}
+            onOpenPortal={(emp) => setPortalEmployee(emp)}
           />
         );
       case "departments":
@@ -935,6 +994,7 @@ export default function App() {
             onUpdateAdvance={handleUpdateAdvance}
             settings={settings}
             reportMonth={activeReportMonth}
+            onOpenPortal={(emp) => setPortalEmployee(emp)}
           />
         );
       case "attendance":
@@ -965,6 +1025,8 @@ export default function App() {
             monthLabel={monthLabel}
             settings={settings}
             advances={advances}
+            payrollAiAnalysis={payrollAiAnalysis}
+            onNavigate={navigate}
           />
         );
       case "archive":
@@ -998,12 +1060,15 @@ export default function App() {
             onExcel={handleExcelExport}
             onBankTransfer={handleBankTransferExport}
             onAccounting={handleAccountingExport}
+            onOdoo={handleOdooExport}
             onPdf={handleReportPdf}
             onSlipPdf={handleSlipPdf}
             exporting={exporting}
             shiftCopy={shiftCopy}
             setNotice={setNotice}
             onNavigate={navigate}
+            payrollAiAnalysis={payrollAiAnalysis}
+            onOpenPortal={(emp) => setPortalEmployee(emp)}
           />
         );
       case "settings":
@@ -1172,6 +1237,7 @@ export default function App() {
               onSync={handleCloudSync}
               onLogout={handleCloudLogout}
               onNavigate={() => navigate("settings")}
+              onOpenCommandPalette={() => setIsCommandPaletteOpen(true)}
             />
           ) : null}
           {syncStatus ? (
@@ -1220,13 +1286,46 @@ export default function App() {
           <SalarySlip row={selectedSlip} settings={settings} monthLabel={monthLabel} shiftCopy={shiftCopy} exportMode />
         ) : null}
       </div>
+
+      <CommandPalette
+        isOpen={isCommandPaletteOpen}
+        onClose={() => setIsCommandPaletteOpen(false)}
+        onNavigate={navigate}
+        employees={employees}
+        onSelectEmployee={(code) => {
+          setSelectedSlipCode(code);
+          navigate("reports");
+        }}
+        onQuickAction={(action) => {
+          if (action === "excel") handleExcelExport();
+          if (action === "accounting") handleAccountingExport();
+          if (action === "odoo") handleOdooExport();
+          if (action === "bank") handleBankTransferExport();
+        }}
+      />
+
+      <EmployeePortalModal
+        isOpen={Boolean(portalEmployee)}
+        onClose={() => setPortalEmployee(null)}
+        employee={typeof portalEmployee === "string" ? employees.find(e => e.code === portalEmployee) : portalEmployee}
+        payrollRow={typeof portalEmployee === "string" ? payrollRows.find(r => r.employeeCode === portalEmployee) : portalEmployee}
+        advances={advances}
+        monthLabel={monthLabel}
+        settings={settings}
+      />
+
+      <Toast
+        message={toastMessage?.message}
+        type={toastMessage?.type}
+        onClose={() => setToastMessage(null)}
+      />
     </div>
   );
 }
 
 // PublicHomePage is modularized in src/pages/PublicHomePage.jsx
 
-function InsightsView({ payrollRows, employees, departments, monthLabel, settings, advances = [] }) {
+function InsightsView({ payrollRows, employees, departments, monthLabel, settings, advances = [], payrollAiAnalysis, onNavigate }) {
   const [tab, setTab] = useState("overview");
 
   if (!payrollRows?.length) {
@@ -1304,6 +1403,10 @@ function InsightsView({ payrollRows, employees, departments, monthLabel, setting
         title={`تقارير متقدمة — ${monthLabel}`}
         description="نظرة تفصيلية على أداء الموظفين والتكاليف."
       />
+
+      {payrollAiAnalysis && (
+        <AiPayrollAssistantCard analysis={payrollAiAnalysis} onNavigate={onNavigate} />
+      )}
 
       {/* KPI Cards */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
@@ -2183,7 +2286,9 @@ function DashboardView({
   monthLabel,
   reportMonth,
   settings,
-  onNavigate
+  onNavigate,
+  payrollAiAnalysis,
+  onOpenPortal
 }) {
   const currentCalendarMonth = useMemo(() => new Date().toISOString().slice(0, 7), []);
   const [selectedHolidayMonth, setSelectedHolidayMonth] = useState(
@@ -2398,6 +2503,10 @@ function DashboardView({
           </div>
         )}
       </section>
+
+      {payrollAiAnalysis && (
+        <AiPayrollAssistantCard analysis={payrollAiAnalysis} onNavigate={onNavigate} />
+      )}
 
       <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
         <section className="rounded-lg border border-line bg-white p-5 shadow-sm">
@@ -3200,7 +3309,8 @@ function EmployeesView({
   onSaveAdvance,
   onUpdateAdvance,
   settings,
-  reportMonth
+  reportMonth,
+  onOpenPortal
 }) {
   const [selectedAdvanceEmployee, setSelectedAdvanceEmployee] = useState(null);
   const emptyEmployee = {
@@ -3579,6 +3689,7 @@ function EmployeesView({
                 onArchive={() => setArchived(employee.id, false)}
                 onRestore={() => setArchived(employee.id, true)}
                 onOpenAdvances={() => setSelectedAdvanceEmployee(employee)}
+                onOpenPortal={() => onOpenPortal && onOpenPortal(employee)}
                 advances={advances}
                 currency={settings?.currency || "جنيه"}
               />
@@ -3911,12 +4022,15 @@ function ReportsView({
   onExcel,
   onBankTransfer,
   onAccounting,
+  onOdoo,
   onPdf,
   onSlipPdf,
   exporting,
   shiftCopy,
   setNotice,
-  onNavigate
+  onNavigate,
+  payrollAiAnalysis,
+  onOpenPortal
 }) {
   const [reportSearch, setReportSearch] = useState("");
   const [departmentFilter, setDepartmentFilter] = useState("all");
@@ -3994,6 +4108,15 @@ function ReportsView({
             >
               {exporting === "accounting" ? "جاري التصدير" : "قيد محاسبي"}
             </SecondaryButton>
+            {onOdoo && (
+              <SecondaryButton
+                onClick={() => onOdoo(filteredRows)}
+                icon={FileSpreadsheet}
+                disabled={exporting === "odoo" || filteredRows.length === 0}
+              >
+                {exporting === "odoo" ? "جاري التصدير" : "قيد Odoo"}
+              </SecondaryButton>
+            )}
             <PrimaryButton
               onClick={() => onPdf(filteredRows)}
               icon={Printer}
@@ -4004,6 +4127,10 @@ function ReportsView({
           </div>
         }
       />
+
+      {payrollAiAnalysis && (
+        <AiPayrollAssistantCard analysis={payrollAiAnalysis} onNavigate={onNavigate} />
+      )}
 
       <section className="rounded-lg border border-line bg-white p-5 shadow-sm">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg bg-slate-50 p-3">
@@ -4191,6 +4318,27 @@ function ReportsView({
               ومنسق للطباعة.
             </p>
             <div className="mt-5 space-y-3">
+              {onOpenPortal && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onOpenPortal({
+                      id: selectedSlip.employeeId || selectedSlip.employeeCode,
+                      code: selectedSlip.employeeCode,
+                      name: selectedSlip.employeeName,
+                      department: selectedSlip.department,
+                      role: selectedSlip.role || selectedSlip.jobTitle,
+                      baseSalary: selectedSlip.baseSalary,
+                      hireDate: selectedSlip.hireDate,
+                      phone: selectedSlip.phone || ""
+                    });
+                  }}
+                  className="flex w-full items-center justify-center gap-2 rounded-lg border border-primary/30 bg-blue-50 px-4 py-2.5 text-sm font-bold text-primary transition hover:bg-blue-100 hover:border-primary"
+                >
+                  <Sparkles size={17} />
+                  فتح بوابة الموظف والمشاركة الذكية
+                </button>
+              )}
               <PrimaryButton onClick={onSlipPdf} icon={Printer} disabled={exporting === "slip"} full>
                 {exporting === "slip" ? "جاري تجهيز التفاصيل" : "تحميل تفاصيل PDF"}
               </PrimaryButton>
@@ -5043,7 +5191,8 @@ function EmployeeCard({
   onRestore,
   onOpenAdvances,
   advances = [],
-  currency = "جنيه"
+  currency = "جنيه",
+  onOpenPortal
 }) {
   const department = departments.find((item) => item.id === employee.departmentId)?.name || "غير محدد";
   const shift = shifts.find((item) => item.id === employee.shiftId)?.name || "غير محدد";
@@ -5182,6 +5331,11 @@ function EmployeeCard({
         </form>
       ) : (
         <div className="mt-4 flex flex-wrap gap-2">
+          {onOpenPortal && (
+            <SecondaryButton type="button" onClick={onOpenPortal} icon={Sparkles}>
+              قسيمة الراتب
+            </SecondaryButton>
+          )}
           <SecondaryButton type="button" onClick={onOpenAdvances} icon={Wallet}>
             السلف
           </SecondaryButton>
@@ -5359,7 +5513,7 @@ function CloudMiniStatus({ cloud, onNavigate }) {
   );
 }
 
-function CloudTopBar({ cloud, onSync, onLogout, onNavigate }) {
+function CloudTopBar({ cloud, onSync, onLogout, onNavigate, onOpenCommandPalette }) {
   const title = cloud.session
     ? "الحساب السحابي مفعل"
     : cloud.configured
@@ -5372,12 +5526,24 @@ function CloudTopBar({ cloud, onSync, onLogout, onNavigate }) {
       : "يجب تفعيل الحسابات السحابية قبل استقبال العملاء.";
 
   return (
-    <div className="mb-4 flex flex-col gap-3 rounded-lg border border-line bg-white px-4 py-3 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+    <div className="mb-4 flex flex-col gap-3 rounded-xl border border-line bg-white px-4 py-3 shadow-xs sm:flex-row sm:items-center sm:justify-between">
       <div>
         <p className="text-sm font-extrabold text-ink">{title}</p>
         <p className="mt-1 text-sm text-slate-500">{description}</p>
       </div>
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          onClick={onOpenCommandPalette}
+          className="flex items-center gap-2 rounded-lg border border-line bg-slate-50 px-3 py-2 text-xs font-bold text-slate-600 hover:border-primary hover:text-primary transition shadow-2xs"
+          title="شريط الأوامر السريع (Ctrl + K)"
+        >
+          <Search size={14} className="text-slate-400" />
+          <span>بحث سريع بالأوامر</span>
+          <kbd className="rounded bg-white px-1.5 py-0.5 text-[10px] font-black text-slate-400 border border-slate-200">
+            Ctrl + K
+          </kbd>
+        </button>
         {cloud.session ? (
           <SecondaryButton type="button" onClick={onSync} icon={Save} disabled={cloud.loading}>
             {cloud.loading ? "جاري المزامنة" : "حفظ سحابي"}
