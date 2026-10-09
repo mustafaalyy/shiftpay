@@ -641,4 +641,83 @@ describe("ShiftPay HR - Payroll Engine Unit Tests", () => {
       assert.ok(msg.includes("قسط سلفة (قسط 2 من 4)"));
     });
   });
+
+  describe("Biometric Device & Live Punch Sync", () => {
+    it("generates structured device API keys with SPK prefix", async () => {
+      const { generateDeviceApiKey } = await import("../src/lib/biometricSync.js");
+      const key = generateDeviceApiKey("company-123", "CLG82039019");
+      assert.ok(key.startsWith("SPK_CLG82039_"));
+    });
+
+    it("ingests punch event into attendance logs as new record", async () => {
+      const { ingestPunchEvent } = await import("../src/lib/biometricSync.js");
+      const employees = [{ code: "101", name: "علي حسن" }];
+      const result = ingestPunchEvent({
+        punch: { employeeCode: "101", date: "2026-06-01", time: "08:15" },
+        existingLogs: [],
+        employees
+      });
+
+      assert.equal(result.updatedLogs.length, 1);
+      assert.equal(result.updatedLogs[0].employeeCode, "101");
+      assert.equal(result.updatedLogs[0].name, "علي حسن");
+      assert.equal(result.updatedLogs[0].checkIn, "08:15");
+      assert.equal(result.updatedLogs[0].checkOut, "");
+      assert.deepEqual(result.updatedLogs[0].punches, ["08:15"]);
+    });
+
+    it("merges multiple punch events into existing log, updating checkIn and checkOut", async () => {
+      const { ingestPunchEvent } = await import("../src/lib/biometricSync.js");
+      const employees = [{ code: "101", name: "علي حسن" }];
+      const initialLogs = [
+        {
+          employeeCode: "101",
+          name: "علي حسن",
+          date: "2026-06-01",
+          checkIn: "08:15",
+          checkOut: "",
+          punches: ["08:15"]
+        }
+      ];
+
+      // Second punch at 16:30 (check out)
+      const afterPunch2 = ingestPunchEvent({
+        punch: { employeeCode: "101", date: "2026-06-01", time: "16:30" },
+        existingLogs: initialLogs,
+        employees
+      });
+
+      assert.equal(afterPunch2.updatedLogs.length, 1);
+      assert.equal(afterPunch2.updatedLogs[0].checkIn, "08:15");
+      assert.equal(afterPunch2.updatedLogs[0].checkOut, "16:30");
+      assert.deepEqual(afterPunch2.updatedLogs[0].punches, ["08:15", "16:30"]);
+
+      // Third punch earlier at 08:00 (earlier check in)
+      const afterPunch3 = ingestPunchEvent({
+        punch: { employeeCode: "101", date: "2026-06-01", time: "08:00" },
+        existingLogs: afterPunch2.updatedLogs,
+        employees
+      });
+
+      assert.equal(afterPunch3.updatedLogs[0].checkIn, "08:00");
+      assert.equal(afterPunch3.updatedLogs[0].checkOut, "16:30");
+      assert.deepEqual(afterPunch3.updatedLogs[0].punches, ["08:00", "08:15", "16:30"]);
+    });
+
+    it("generates ready-to-run Python bridge script with preconfigured credentials", async () => {
+      const { generatePythonBridgeScript } = await import("../src/lib/biometricSync.js");
+      const script = generatePythonBridgeScript({
+        companyName: "شركة الفرسان",
+        apiKey: "SPK_TEST_KEY",
+        deviceIp: "192.168.1.150",
+        devicePort: 4370,
+        deviceSn: "SN-998877"
+      });
+
+      assert.ok(script.includes("192.168.1.150"));
+      assert.ok(script.includes("SPK_TEST_KEY"));
+      assert.ok(script.includes("SN-998877"));
+      assert.ok(script.includes("pyzk"));
+    });
+  });
 });

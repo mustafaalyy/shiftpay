@@ -43,7 +43,8 @@ import {
   Sparkles,
   UploadCloud,
   Users,
-  Wallet
+  Wallet,
+  Cpu
 } from "lucide-react";
 import {
   calculatePayroll,
@@ -70,8 +71,10 @@ import EmployeeAdvancesModal from "./components/EmployeeAdvancesModal";
 import CommandPalette from "./components/CommandPalette";
 import EmployeePortalModal from "./components/EmployeePortalModal";
 import AiPayrollAssistantCard from "./components/AiPayrollAssistantCard";
+import BiometricDevicesManager from "./components/BiometricDevicesManager";
 import Toast from "./components/Toast";
 import { analyzePayrollAnomalies } from "./lib/payrollAi";
+import { ingestPunchEvent } from "./lib/biometricSync";
 import {
   exportAccountingJournal,
   exportAttendanceTemplate,
@@ -1008,11 +1011,13 @@ export default function App() {
             shifts={shifts}
             settings={settings}
             reports={reports}
+            attendanceLogs={attendanceLogs}
             setAttendanceLogs={setAttendanceLogs}
             setReports={setReports}
             setSelectedReportId={setSelectedReportId}
             setReportMonth={setReportMonth}
             setNotice={setNotice}
+            setToastMessage={setToastMessage}
             onReport={() => navigate("reports")}
           />
         );
@@ -3744,14 +3749,99 @@ function AttendanceView({
   shifts,
   settings,
   reports,
+  attendanceLogs = [],
   setAttendanceLogs,
   setReports,
   setSelectedReportId,
   setReportMonth,
   setNotice,
+  setToastMessage,
   onReport
 }) {
+  const [attendanceTab, setAttendanceTab] = useState("upload");
   const [punchMode, setPunchMode] = useState("auto");
+
+  const [devices, setDevices] = useState(() => {
+    try {
+      const saved = localStorage.getItem("shiftpay.biometricDevices");
+      if (saved) return JSON.parse(saved);
+    } catch {
+      // ignore
+    }
+    return [
+      {
+        id: "dev_default_01",
+        name: "ماكينة الاستقبال - ZKTeco MB20",
+        serialNumber: "ZK9948201",
+        deviceModel: "ZKTeco MB20 (بصمة وجه وأصبع)",
+        protocol: "adms_push",
+        ipAddress: "192.168.1.201",
+        port: 4370,
+        location: "المقر الرئيسي - الاستقبال",
+        apiKey: "SPK_ZK99482_LIVE88",
+        status: "online",
+        lastSyncAt: new Date().toISOString(),
+        lastPunchCount: 142,
+        createdAt: new Date().toISOString()
+      }
+    ];
+  });
+
+  const saveDevicesList = (newList) => {
+    setDevices(newList);
+    try {
+      localStorage.setItem("shiftpay.biometricDevices", JSON.stringify(newList));
+    } catch {
+      // ignore
+    }
+  };
+
+  const handleSaveDevice = (newDevice) => {
+    const updated = [newDevice, ...devices.filter((d) => d.id !== newDevice.id)];
+    saveDevicesList(updated);
+    setNotice(`تم حفظ ماكينة البصمة (${newDevice.name}) بنجاح.`);
+    if (setToastMessage) {
+      setToastMessage({ message: `تمت إضافة ماكينة البصمة (${newDevice.name}) بنجاح.`, type: "success" });
+    }
+  };
+
+  const handleDeleteDevice = (deviceId) => {
+    const updated = devices.filter((d) => d.id !== deviceId);
+    saveDevicesList(updated);
+    setNotice("تم حذف ماكينة البصمة.");
+  };
+
+  const handleSimulatePunch = (punch) => {
+    try {
+      const { updatedLogs, employeeName } = ingestPunchEvent({
+        punch,
+        existingLogs: attendanceLogs,
+        employees
+      });
+      setAttendanceLogs(updatedLogs);
+
+      // Update device lastSyncAt and status
+      const updatedDevices = devices.map((d) =>
+        d.serialNumber === punch.deviceSn
+          ? {
+              ...d,
+              status: "online",
+              lastSyncAt: new Date().toISOString(),
+              lastPunchCount: (d.lastPunchCount || 0) + 1
+            }
+          : d
+      );
+      saveDevicesList(updatedDevices);
+
+      const msg = `✓ تم تسجيل بصمة حية للموظف (${employeeName}) في تمام ${punch.time} بنجاح!`;
+      setNotice(msg);
+      if (setToastMessage) {
+        setToastMessage({ message: msg, type: "success" });
+      }
+    } catch (err) {
+      setNotice(err.message || "تعذر تسجيل البصمة.");
+    }
+  };
 
   const handleUpload = async (event) => {
     const file = event.target.files?.[0];
@@ -3825,18 +3915,61 @@ function AttendanceView({
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        eyebrow="Attendance Upload"
-        title="رفع ملف الحضور"
-        description="اقبل ملف Excel أو CSV بالأعمدة المطلوبة، ثم يحسب النظام الرواتب تلقائيا من أول حضور وآخر انصراف."
-        action={
-          <SecondaryButton type="button" onClick={downloadTemplate} icon={Download}>
-            تحميل نموذج الحضور
-          </SecondaryButton>
-        }
-      />
+      {/* Attendance Mode Switcher Tabs */}
+      <div className="flex flex-wrap items-center gap-2 border-b border-line pb-3">
+        <button
+          type="button"
+          onClick={() => setAttendanceTab("upload")}
+          className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-extrabold transition ${
+            attendanceTab === "upload"
+              ? "bg-primary text-white shadow-sm"
+              : "border border-line bg-white text-slate-600 hover:border-primary hover:text-primary"
+          }`}
+        >
+          <FileSpreadsheet size={16} />
+          رفع ملف الحضور (Excel / CSV)
+        </button>
+        <button
+          type="button"
+          onClick={() => setAttendanceTab("devices")}
+          className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-extrabold transition ${
+            attendanceTab === "devices"
+              ? "bg-primary text-white shadow-sm"
+              : "border border-line bg-white text-slate-600 hover:border-primary hover:text-primary"
+          }`}
+        >
+          <Cpu size={16} />
+          أجهزة البصمة والربط السحابي (Live Sync)
+          <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-black text-emerald-800">
+            مباشر
+          </span>
+        </button>
+      </div>
 
-      <section className="grid gap-6 xl:grid-cols-[1fr_0.9fr]">
+      {attendanceTab === "devices" ? (
+        <BiometricDevicesManager
+          devices={devices}
+          onSaveDevice={handleSaveDevice}
+          onDeleteDevice={handleDeleteDevice}
+          onSimulatePunch={handleSimulatePunch}
+          employees={employees}
+          companyName={settings.companyName || "الشركة"}
+          settings={settings}
+        />
+      ) : (
+        <>
+          <PageHeader
+            eyebrow="Attendance Upload"
+            title="رفع ملف الحضور"
+            description="اقبل ملف Excel أو CSV بالأعمدة المطلوبة، ثم يحسب النظام الرواتب تلقائيا من أول حضور وآخر انصراف."
+            action={
+              <SecondaryButton type="button" onClick={downloadTemplate} icon={Download}>
+                تحميل نموذج الحضور
+              </SecondaryButton>
+            }
+          />
+
+          <section className="grid gap-6 xl:grid-cols-[1fr_0.9fr]">
         <div className="rounded-lg border border-dashed border-blue-300 bg-white p-8 text-center shadow-sm">
           <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-lg bg-blue-50 text-primary">
             <UploadCloud size={30} />
@@ -4018,8 +4151,10 @@ function AttendanceView({
           )}
         </section>
       </section>
-    </div>
-  );
+    </>
+  )}
+</div>
+);
 }
 
 function ReportsView({
