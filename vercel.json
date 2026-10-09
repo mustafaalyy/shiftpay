@@ -3,8 +3,11 @@
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
   "installCommand": "npm install",
-  "cleanUrls": true,
   "rewrites": [
+    {
+      "source": "/google05ed189c1c116296.html",
+      "destination": "/google05ed189c1c116296.html"
+    },
     {
       "source": "/privacy",
       "destination": "/privacy.html"
