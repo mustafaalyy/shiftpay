@@ -572,6 +572,12 @@ export default function PublicHomePage({ siteContent, isAuthenticated, onSignup,
                 <a href="#pricing" className="footer-link" onClick={scrollToId("pricing")}>
                   الباقات والأسعار
                 </a>
+                <a href="/privacy" className="footer-link" target="_blank" rel="noopener noreferrer">
+                  سياسة الخصوصية
+                </a>
+                <a href="/terms" className="footer-link" target="_blank" rel="noopener noreferrer">
+                  شروط الخدمة
+                </a>
               </div>
             </div>
 
@@ -596,6 +602,11 @@ export default function PublicHomePage({ siteContent, isAuthenticated, onSignup,
 
           <div className="footer-bottom">
             <span>{landing.footerCopyright}</span>
+            <div style={{ display: "flex", gap: "12px", alignItems: "center", fontSize: "0.8rem" }}>
+              <a href="/privacy" style={{ color: "rgba(255,255,255,0.7)", textDecoration: "none" }} target="_blank" rel="noopener noreferrer">سياسة الخصوصية</a>
+              <span>•</span>
+              <a href="/terms" style={{ color: "rgba(255,255,255,0.7)", textDecoration: "none" }} target="_blank" rel="noopener noreferrer">شروط الخدمة</a>
+            </div>
             <span>{landing.footerTagline}</span>
           </div>
         </div>
