@@ -13,12 +13,28 @@ import {
   Phone,
   ShieldCheck,
   Sparkles,
-  Check
+  Check,
+  Sun,
+  Moon,
+  Globe,
+  Lock
 } from "lucide-react";
 import { DEFAULT_SITE_CONTENT } from "../lib/constants";
 import "./landing.css";
 
-export default function PublicHomePage({ siteContent, isAuthenticated, onSignup, onSignin, onLogout, onEnter }) {
+export default function PublicHomePage({
+  siteContent,
+  isAuthenticated,
+  onSignup,
+  onSignin,
+  onLogout,
+  onEnter,
+  theme = "light",
+  onToggleTheme,
+  lang = "ar",
+  onToggleLang,
+  onOpenAdmin
+}) {
   const landing = siteContent.landing || DEFAULT_SITE_CONTENT.landing;
   const rootRef = useRef(null);
   const [navScrolled, setNavScrolled] = useState(false);
@@ -118,6 +134,31 @@ export default function PublicHomePage({ siteContent, isAuthenticated, onSignup,
               </a>
             ))}
             <div className="nav-mobile-actions">
+              <div style={{ display: "flex", gap: "8px", justifyContent: "center", marginBottom: "12px" }}>
+                {onToggleTheme && (
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    onClick={onToggleTheme}
+                    title={theme === "dark" ? "الوضع الفاتح" : "الوضع الداكن"}
+                    style={{ padding: "8px 12px", minWidth: "auto" }}
+                  >
+                    {theme === "dark" ? <Sun size={16} /> : <Moon size={16} />}
+                  </button>
+                )}
+                {onToggleLang && (
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    onClick={onToggleLang}
+                    title="تغيير اللغة"
+                    style={{ padding: "8px 12px", minWidth: "auto", fontSize: "0.8rem", fontWeight: "bold" }}
+                  >
+                    <Globe size={14} style={{ marginLeft: "4px" }} />
+                    {lang === "ar" ? "English" : "العربية"}
+                  </button>
+                )}
+              </div>
               {isAuthenticated ? (
                 <>
                   <button
@@ -179,6 +220,31 @@ export default function PublicHomePage({ siteContent, isAuthenticated, onSignup,
           </div>
 
           <div className="nav-actions">
+            {onToggleTheme && (
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={onToggleTheme}
+                title={theme === "dark" ? "الوضع الفاتح" : "الوضع الداكن"}
+                style={{ padding: "8px 12px", minWidth: "auto" }}
+                aria-label="تبديل المظهر"
+              >
+                {theme === "dark" ? <Sun size={17} /> : <Moon size={17} />}
+              </button>
+            )}
+            {onToggleLang && (
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={onToggleLang}
+                title="Language / اللغة"
+                style={{ padding: "8px 12px", minWidth: "auto", fontSize: "0.8rem", fontWeight: "bold" }}
+                aria-label="تغيير اللغة"
+              >
+                <Globe size={15} style={{ marginLeft: "4px" }} />
+                {lang === "ar" ? "EN" : "عربي"}
+              </button>
+            )}
             {isAuthenticated ? (
               <>
                 <button type="button" className="btn btn-secondary" onClick={onSignin} title="تسجيل الدخول بحساب آخر">
@@ -571,6 +637,9 @@ export default function PublicHomePage({ siteContent, isAuthenticated, onSignup,
                 </button>
                 <a href="#pricing" className="footer-link" onClick={scrollToId("pricing")}>
                   الباقات والأسعار
+                </a>
+                <a href="#admin" className="footer-link" onClick={(e) => { if (onOpenAdmin) { e.preventDefault(); onOpenAdmin(); } }}>
+                  إدارة الموقع والأسعار
                 </a>
                 <a href="/privacy" className="footer-link" target="_blank" rel="noopener noreferrer">
                   سياسة الخصوصية

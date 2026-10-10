@@ -1314,3 +1314,54 @@ ul, ol {
     padding: var(--space-6);
   }
 }
+
+/* ---------- Landing Page Dark Mode Support ---------- */
+html.dark .spl {
+  --color-bg: #090e1a;
+  --color-bg-white: #111a2e;
+  --color-bg-subtle: #18243c;
+  --color-bg-muted: #1e2c47;
+  --color-text: #f8fafc;
+  --color-text-secondary: #cbd5e1;
+  --color-text-muted: #94a3b8;
+  --color-border: #1e2c47;
+  --color-border-light: #18243c;
+  background-color: #090e1a;
+  color: #f8fafc;
+}
+
+html.dark .spl .navbar {
+  background: rgba(17, 26, 46, 0.88);
+  border-bottom-color: #1e2c47;
+}
+
+html.dark .spl .navbar.scrolled {
+  background: rgba(17, 26, 46, 0.96);
+  border-bottom-color: #273859;
+}
+
+html.dark .spl .feature-card,
+html.dark .spl .pricing-card,
+html.dark .spl .comparison-card,
+html.dark .spl .faq-item,
+html.dark .spl .hero-mockup-wrap,
+html.dark .spl .dashboard-mockup {
+  background-color: #111a2e;
+  border-color: #1e2c47;
+}
+
+html.dark .spl .btn-secondary {
+  background-color: #18243c;
+  color: #f8fafc;
+  border-color: #273859;
+}
+
+html.dark .spl .btn-secondary:hover {
+  background-color: #223252;
+}
+
+html.dark .spl .footer {
+  background-color: #050811;
+  border-top-color: #1e2c47;
+}
+
