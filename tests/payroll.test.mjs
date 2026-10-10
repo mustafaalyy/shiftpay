@@ -17,7 +17,8 @@ import {
   settleAdvanceEarly,
   cancelAdvance,
   calculateAdvanceBalances,
-  getEmployeeAdvanceBalance
+  getEmployeeAdvanceBalance,
+  getMonthlyHolidayAlerts
 } from "../src/lib/payroll.js";
 
 describe("ShiftPay HR - Payroll Engine Unit Tests", () => {
@@ -720,4 +721,53 @@ describe("ShiftPay HR - Payroll Engine Unit Tests", () => {
       assert.ok(script.includes("pyzk"));
     });
   });
+
+  describe("Subscription Tiers & Multi-Company Limits", () => {
+    it("enforces max 1 company for Free/Basic tier and blocks additional company creation", async () => {
+      const { checkCompanyCreationLimit } = await import("../src/lib/subscriptionTiers.js");
+      const check1 = checkCompanyCreationLimit({ currentCompanies: [{ id: "c1", name: "شركة المسار" }], userTier: "free" });
+      assert.equal(check1.allowed, false);
+      assert.equal(check1.maxAllowed, 1);
+      assert.ok(check1.reason.includes("الحد الأقصى للشركات"));
+    });
+
+    it("allows up to 3 companies in Pro tier and unlimited in Enterprise", async () => {
+      const { checkCompanyCreationLimit } = await import("../src/lib/subscriptionTiers.js");
+      const checkPro = checkCompanyCreationLimit({ currentCompanies: [{ id: "c1" }, { id: "c2" }], userTier: "pro" });
+      assert.equal(checkPro.allowed, true);
+      assert.equal(checkPro.maxAllowed, 3);
+
+      const checkEnt = checkCompanyCreationLimit({ currentCompanies: [{ id: "c1" }, { id: "c2" }, { id: "c3" }, { id: "c4" }], userTier: "enterprise" });
+      assert.equal(checkEnt.allowed, true);
+    });
+
+    it("enforces employee quota of 50 in Free tier and warns when limit is reached", async () => {
+      const { checkEmployeeLimit } = await import("../src/lib/subscriptionTiers.js");
+      const checkOk = checkEmployeeLimit({ currentEmployeeCount: 45, userTier: "free" });
+      assert.equal(checkOk.allowed, true);
+
+      const checkExceeded = checkEmployeeLimit({ currentEmployeeCount: 50, userTier: "free" });
+      assert.equal(checkExceeded.allowed, false);
+      assert.equal(checkExceeded.maxAllowed, 50);
+      assert.ok(checkExceeded.reason.includes("50 موظف"));
+    });
+  });
+
+  describe("Country Holiday Verification (مصر والدول العربية)", () => {
+    it("returns Armed Forces Day (6 October) for Egypt in month 2026-10", () => {
+      const alerts = getMonthlyHolidayAlerts({ country: "EG" }, "2026-10");
+      assert.ok(alerts.some((h) => h.date === "2026-10-06" && h.name.includes("القوات المسلحة")));
+    });
+
+    it("returns Saudi National Day (23 September) for Saudi Arabia in month 2026-09", () => {
+      const alerts = getMonthlyHolidayAlerts({ country: "SA" }, "2026-09");
+      assert.ok(alerts.some((h) => h.date === "2026-09-23" && h.name.includes("اليوم الوطني")));
+    });
+
+    it("returns UAE National Day in December for UAE", () => {
+      const alerts = getMonthlyHolidayAlerts({ country: "AE" }, "2026-12");
+      assert.ok(alerts.some((h) => h.date === "2026-12-02" && h.name.includes("الاتحاد")));
+    });
+  });
 });
+

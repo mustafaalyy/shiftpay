@@ -44,7 +44,10 @@ import {
   UploadCloud,
   Users,
   Wallet,
-  Cpu
+  Cpu,
+  Radio,
+  Globe,
+  Lock
 } from "lucide-react";
 import {
   calculatePayroll,
@@ -72,6 +75,10 @@ import CommandPalette from "./components/CommandPalette";
 import EmployeePortalModal from "./components/EmployeePortalModal";
 import AiPayrollAssistantCard from "./components/AiPayrollAssistantCard";
 import BiometricDevicesManager from "./components/BiometricDevicesManager";
+import LiveAttendanceSheet from "./components/LiveAttendanceSheet";
+import LiveClockWidget from "./components/LiveClockWidget";
+import UpgradePlanModal from "./components/UpgradePlanModal";
+import { checkCompanyCreationLimit, checkEmployeeLimit, getTierConfig } from "./lib/subscriptionTiers";
 import Toast from "./components/Toast";
 import { analyzePayrollAnomalies } from "./lib/payrollAi";
 import { ingestPunchEvent } from "./lib/biometricSync";
@@ -321,6 +328,8 @@ export default function App() {
     ""
   );
   const [reportMonth, setReportMonth] = useLocalStorage("shiftpay.reportMonth", CURRENT_MONTH);
+  const [userTier, setUserTier] = useLocalStorage("shiftpay.userTier", "free");
+  const [upgradeModal, setUpgradeModal] = useState({ isOpen: false, reason: "" });
   const [notice, setNotice] = useState("");
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
   const [portalEmployee, setPortalEmployee] = useState(null);
@@ -998,6 +1007,8 @@ export default function App() {
             settings={settings}
             reportMonth={activeReportMonth}
             onOpenPortal={(emp) => setPortalEmployee(emp)}
+            userTier={userTier}
+            onTriggerUpgrade={(reason) => setUpgradeModal({ isOpen: true, reason })}
           />
         );
       case "attendance":
@@ -1240,10 +1251,21 @@ export default function App() {
           {activeView !== "settings" ? (
             <CloudTopBar
               cloud={cloud}
+              settings={settings}
+              userTier={userTier}
               onSync={handleCloudSync}
               onLogout={handleCloudLogout}
               onNavigate={() => navigate("settings")}
               onOpenCommandPalette={() => setIsCommandPaletteOpen(true)}
+              onAddCompanyClick={() => {
+                const limitCheck = checkCompanyCreationLimit({ currentCompanies: cloud.companies, userTier });
+                if (!limitCheck.allowed) {
+                  setUpgradeModal({ isOpen: true, reason: limitCheck.reason });
+                } else {
+                  navigate("settings");
+                  setNotice("يمكنك إنشاء وضبط بيانات الفرع أو الشركة من قسم الإعدادات.");
+                }
+              }}
             />
           ) : null}
           {syncStatus ? (
@@ -1318,6 +1340,13 @@ export default function App() {
         advances={advances}
         monthLabel={monthLabel}
         settings={settings}
+      />
+
+      <UpgradePlanModal
+        isOpen={upgradeModal.isOpen}
+        onClose={() => setUpgradeModal({ isOpen: false, reason: "" })}
+        currentTier={userTier}
+        triggerReason={upgradeModal.reason}
       />
 
       <Toast
@@ -2312,15 +2341,7 @@ function DashboardView({
   onOpenPortal
 }) {
   const currentCalendarMonth = useMemo(() => new Date().toISOString().slice(0, 7), []);
-  const [selectedHolidayMonth, setSelectedHolidayMonth] = useState(
-    reportMonth || currentCalendarMonth
-  );
-
-  useEffect(() => {
-    if (reportMonth && !selectedHolidayMonth) {
-      setSelectedHolidayMonth(reportMonth);
-    }
-  }, [reportMonth]);
+  const [selectedHolidayMonth, setSelectedHolidayMonth] = useState(currentCalendarMonth);
 
   const activeHolidayMonth = selectedHolidayMonth || currentCalendarMonth;
   const activeHolidayMonthLabel = getMonthLabel(activeHolidayMonth);
@@ -2380,15 +2401,18 @@ function DashboardView({
   return (
     <div className="space-y-6">
       <PageHeader
-        eyebrow={monthLabel}
+        eyebrow={`الشهر الحالي: ${getMonthLabel(currentCalendarMonth)}`}
         title={`مرحبا، ${settings.companyName}`}
-        description="ملخص سريع لحالة الموظفين والرواتب بناء على أحدث ملف حضور محفوظ في النظام."
+        description="ملخص مباشر باليوم والتاريخ والوقت لحالة الموظفين والرواتب والإجازات الرسمية المحدثة."
         action={
           <PrimaryButton onClick={() => onNavigate("attendance")} icon={UploadCloud}>
-            رفع ملف جديد
+            سجل الحضور والبصمات
           </PrimaryButton>
         }
       />
+
+      {/* Realtime Live Clock & Date Widget */}
+      <LiveClockWidget countryCode={settings.country} />
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard label="إجمالي الموظفين" value={metrics.activeEmployees} icon={Users} />
@@ -3331,7 +3355,9 @@ function EmployeesView({
   onUpdateAdvance,
   settings,
   reportMonth,
-  onOpenPortal
+  onOpenPortal,
+  userTier = "free",
+  onTriggerUpgrade
 }) {
   const [selectedAdvanceEmployee, setSelectedAdvanceEmployee] = useState(null);
   const emptyEmployee = {
@@ -3379,6 +3405,12 @@ function EmployeesView({
 
   const saveEmployee = (event) => {
     event.preventDefault();
+    const limitCheck = checkEmployeeLimit({ currentEmployeeCount: employees.length, userTier });
+    if (!limitCheck.allowed) {
+      if (onTriggerUpgrade) onTriggerUpgrade(limitCheck.reason);
+      setNotice(limitCheck.reason);
+      return;
+    }
     const payload = {
       ...form,
       salary: Number(form.salary) || 0,
@@ -3523,6 +3555,42 @@ function EmployeesView({
         title="إدارة الموظفين"
         description="احتفظ بكود الموظف مطابقا لكود ماكينة البصمة لضمان حساب الرواتب تلقائيا عند رفع ملف الحضور."
       />
+
+      {/* Tier Quota Bar */}
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-blue-200 bg-gradient-to-r from-blue-50/70 via-sky-50/50 to-white p-4 shadow-sm">
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-100 text-primary">
+            <Users size={20} />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-black text-slate-800">سعة الموظفين في الحساب</span>
+              <span className="rounded-full bg-blue-100 px-2.5 py-0.5 text-[10px] font-black text-primary">
+                {getTierConfig(userTier).name}
+              </span>
+            </div>
+            <p className="text-xs text-slate-500 mt-0.5">
+              مستخدم: <strong className="text-slate-800">{employees.length}</strong> من أصل <strong className="text-slate-800">{getTierConfig(userTier).maxEmployees}</strong> موظف متاح
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center gap-3">
+          <div className="h-2 w-32 bg-slate-200 rounded-full overflow-hidden">
+            <div
+              className={`h-full ${employees.length >= getTierConfig(userTier).maxEmployees ? "bg-rose-500" : "bg-primary"}`}
+              style={{ width: `${Math.min(100, (employees.length / getTierConfig(userTier).maxEmployees) * 100)}%` }}
+            />
+          </div>
+          <button
+            type="button"
+            onClick={() => onTriggerUpgrade && onTriggerUpgrade("باقة ShiftPay HR: الباقة الأساسية تتيح حتى 50 موظفاً. للترقية إلى 150 أو عدد غير محدود، اختر الباقة المناسبة.")}
+            className="flex items-center gap-1 rounded-lg border border-primary/40 bg-white px-3 py-1.5 text-xs font-bold text-primary hover:bg-blue-50 transition"
+          >
+            <Sparkles size={13} />
+            <span>ترقية السعة</span>
+          </button>
+        </div>
+      </div>
 
       <section className="rounded-lg border border-line bg-white p-5 shadow-sm">
         <div className="flex flex-wrap items-start justify-between gap-4">
@@ -3758,7 +3826,7 @@ function AttendanceView({
   setToastMessage,
   onReport
 }) {
-  const [attendanceTab, setAttendanceTab] = useState("upload");
+  const [attendanceTab, setAttendanceTab] = useState("live_sheet");
   const [punchMode, setPunchMode] = useState("auto");
 
   const [devices, setDevices] = useState(() => {
@@ -3919,6 +3987,21 @@ function AttendanceView({
       <div className="flex flex-wrap items-center gap-2 border-b border-line pb-3">
         <button
           type="button"
+          onClick={() => setAttendanceTab("live_sheet")}
+          className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-extrabold transition ${
+            attendanceTab === "live_sheet"
+              ? "bg-primary text-white shadow-sm"
+              : "border border-line bg-white text-slate-600 hover:border-primary hover:text-primary"
+          }`}
+        >
+          <Radio size={16} className={attendanceTab === "live_sheet" ? "text-emerald-300 animate-pulse" : "text-emerald-600"} />
+          سجل البصمات الحي (Live Punches Sheet)
+          <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-black text-emerald-800">
+            مباشر ⚡
+          </span>
+        </button>
+        <button
+          type="button"
           onClick={() => setAttendanceTab("upload")}
           className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-extrabold transition ${
             attendanceTab === "upload"
@@ -3940,13 +4023,31 @@ function AttendanceView({
         >
           <Cpu size={16} />
           أجهزة البصمة والربط السحابي (Live Sync)
-          <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-black text-emerald-800">
-            مباشر
-          </span>
         </button>
       </div>
 
-      {attendanceTab === "devices" ? (
+      {attendanceTab === "live_sheet" ? (
+        <LiveAttendanceSheet
+          attendanceLogs={attendanceLogs}
+          employees={employees}
+          departments={departments}
+          shifts={shifts}
+          settings={settings}
+          devices={devices}
+          onRecordPunch={handleSimulatePunch}
+          onApplyToPayroll={() => {
+            const month = attendanceLogs.length > 0 ? getReportMonth(attendanceLogs) : new Date().toISOString().slice(0, 7);
+            setReportMonth(month);
+            onReport();
+            setNotice("تم اعتماد وتحديث سجل البصمات الحي في تقرير الرواتب.");
+            if (setToastMessage) {
+              setToastMessage({ message: "تم تحديث واحتساب رواتب الشهر من البصمات الحية بنجاح.", type: "success" });
+            }
+          }}
+          setNotice={setNotice}
+          setToastMessage={setToastMessage}
+        />
+      ) : attendanceTab === "devices" ? (
         <BiometricDevicesManager
           devices={devices}
           onSaveDevice={handleSaveDevice}
@@ -4351,12 +4452,26 @@ function ReportsView({
               </option>
             ))}
           </SelectField>
-          <InputField
-            label="شهر التقرير"
-            type="month"
-            value={reportMonth}
-            onChange={(event) => setReportMonth(event.target.value)}
-          />
+          <div className="flex flex-col justify-end">
+            <div className="flex items-center justify-between mb-1">
+              <label className="text-xs font-bold text-slate-700">شهر التقرير</label>
+              {reportMonth !== new Date().toISOString().slice(0, 7) && (
+                <button
+                  type="button"
+                  onClick={() => setReportMonth(new Date().toISOString().slice(0, 7))}
+                  className="text-[11px] font-bold text-primary hover:underline"
+                >
+                  الشهر الحالي ({getMonthLabel(new Date().toISOString().slice(0, 7))})
+                </button>
+              )}
+            </div>
+            <input
+              type="month"
+              value={reportMonth}
+              onChange={(event) => setReportMonth(event.target.value)}
+              className="w-full rounded-lg border border-line bg-white px-3 py-2 text-xs font-bold text-ink outline-none focus:border-primary"
+            />
+          </div>
           <SelectField
             label="القسم"
             value={departmentFilter}
@@ -5664,25 +5779,56 @@ function CloudMiniStatus({ cloud, onNavigate }) {
   );
 }
 
-function CloudTopBar({ cloud, onSync, onLogout, onNavigate, onOpenCommandPalette }) {
-  const title = cloud.session
-    ? "الحساب السحابي مفعل"
-    : cloud.configured
-      ? "سجّل الدخول لحفظ بياناتك"
-      : "الحسابات غير مفعلة";
-  const description = cloud.session
-    ? "يمكنك حفظ وتحميل البيانات مع عزل بيانات كل شركة."
-    : cloud.configured
-      ? "استخدم البريد الإلكتروني أو Gmail لتفعيل المزامنة وحفظ التقارير."
-      : "يجب تفعيل الحسابات السحابية قبل استقبال العملاء.";
+function CloudTopBar({
+  cloud,
+  settings,
+  userTier = "free",
+  onSync,
+  onLogout,
+  onNavigate,
+  onOpenCommandPalette,
+  onAddCompanyClick
+}) {
+  const tier = getTierConfig(userTier);
+  const country = getCountryProfile(settings?.country || "EG");
+  const companyName = settings?.companyName || "شركة المسار الذكي";
 
   return (
     <div className="mb-4 flex flex-col gap-3 rounded-xl border border-line bg-white px-4 py-3 shadow-xs sm:flex-row sm:items-center sm:justify-between">
-      <div>
-        <p className="text-sm font-extrabold text-ink">{title}</p>
-        <p className="mt-1 text-sm text-slate-500">{description}</p>
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="flex items-center gap-2.5">
+          <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-primary border border-blue-100 shadow-2xs">
+            <Building2 size={20} />
+          </span>
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-black text-ink">{companyName}</span>
+              <span className="rounded-md bg-slate-100 border border-slate-200 px-2 py-0.5 text-[10px] font-bold text-slate-700">
+                {country.name}
+              </span>
+            </div>
+            <div className="flex items-center gap-2 mt-0.5 text-xs text-slate-500">
+              <span className="inline-flex items-center gap-1 font-extrabold text-primary">
+                <Sparkles size={11} />
+                {tier.name}
+              </span>
+              <span>•</span>
+              <span>{tier.maxCompanies === 1 ? "شركة واحدة في بلد واحد" : `${tier.maxCompanies} شركات`}</span>
+            </div>
+          </div>
+        </div>
       </div>
+
       <div className="flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          onClick={onAddCompanyClick}
+          className="flex items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50/70 px-3 py-2 text-xs font-bold text-primary hover:bg-blue-100 transition shadow-2xs"
+          title="إضافة شركة أو فرع جديد"
+        >
+          <Plus size={14} />
+          <span>إضافة شركة جديدة</span>
+        </button>
         <button
           type="button"
           onClick={onOpenCommandPalette}
@@ -5690,7 +5836,7 @@ function CloudTopBar({ cloud, onSync, onLogout, onNavigate, onOpenCommandPalette
           title="شريط الأوامر السريع (Ctrl + K)"
         >
           <Search size={14} className="text-slate-400" />
-          <span>بحث سريع بالأوامر</span>
+          <span>بحث سريع</span>
           <kbd className="rounded bg-white px-1.5 py-0.5 text-[10px] font-black text-slate-400 border border-slate-200">
             Ctrl + K
           </kbd>
