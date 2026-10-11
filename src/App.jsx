@@ -60,7 +60,13 @@ import {
   Eye,
   EyeOff,
   ExternalLink,
-  Check
+  Check,
+  Maximize2,
+  Minimize2,
+  HelpCircle,
+  PanelLeftClose,
+  PanelLeftOpen,
+  Layers
 } from "lucide-react";
 import { getTranslation } from "./lib/translations";
 import {
@@ -563,6 +569,9 @@ export default function App() {
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
   const [portalEmployee, setPortalEmployee] = useState(null);
   const [toastMessage, setToastMessage] = useState(null);
+  const [sidebarCollapsed, setSidebarCollapsed] = useLocalStorage("shiftpay.sidebarCollapsed", false);
+  const [isZenMode, setIsZenMode] = useState(false);
+  const [isKeyboardHelpOpen, setIsKeyboardHelpOpen] = useState(false);
   const [syncStatus, setSyncStatus] = useState(""); // "saving" | "saved" | "error" | ""
   const [uploadState, setUploadState] = useState({ loading: false, summary: null });
   const [selectedSlipCode, setSelectedSlipCode] = useState("");
@@ -796,6 +805,41 @@ export default function App() {
     document.documentElement.lang = lang;
     document.documentElement.dir = lang === "ar" ? "rtl" : "ltr";
   }, [lang]);
+
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      const target = e.target;
+      const isInput =
+        target.tagName === "INPUT" ||
+        target.tagName === "TEXTAREA" ||
+        target.isContentEditable;
+
+      if (e.key === "Escape") {
+        if (isKeyboardHelpOpen) setIsKeyboardHelpOpen(false);
+        else if (isZenMode) setIsZenMode(false);
+        return;
+      }
+
+      if (isInput) return;
+
+      if (e.key === "/" && !e.ctrlKey && !e.metaKey) {
+        e.preventDefault();
+        setIsCommandPaletteOpen(true);
+      } else if (e.key === "z" || e.key === "Z") {
+        e.preventDefault();
+        setIsZenMode((prev) => !prev);
+      } else if (e.key === "[" || e.key === "]") {
+        e.preventDefault();
+        setSidebarCollapsed((prev) => !prev);
+      } else if (e.key === "?") {
+        e.preventDefault();
+        setIsKeyboardHelpOpen((prev) => !prev);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isKeyboardHelpOpen, isZenMode, setSidebarCollapsed]);
 
   const [cloud, setCloud] = useState(() => ({
     configured: getSupabaseConfig().isConfigured,
@@ -2046,20 +2090,48 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-cloud dark:bg-slate-950 transition-colors">
-      <aside className={`hidden border-line bg-white/95 dark:bg-slate-900/95 lg:fixed lg:top-0 lg:z-30 lg:flex lg:h-screen lg:w-72 lg:flex-col lg:justify-between lg:px-5 lg:py-6 ${isRtl ? "border-l lg:right-0" : "border-r lg:left-0"}`}>
+      {/* Floating Zen Focus Mode Badge */}
+      {isZenMode && (
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-40 flex items-center gap-2.5 rounded-full border border-blue-300/40 bg-primary/95 text-white px-4 py-1.5 text-xs font-bold shadow-xl backdrop-blur-md">
+          <Maximize2 size={14} />
+          <span>{lang === "en" ? "Zen Focus Mode Active" : "وضع التركيز المحاسبي مفعّل"}</span>
+          <button
+            type="button"
+            onClick={() => setIsZenMode(false)}
+            className="rounded-full bg-white/20 hover:bg-white/30 px-2.5 py-0.5 text-[11px] font-black text-white transition ml-1"
+          >
+            {lang === "en" ? "Exit (Esc / Z)" : "إنهاء (Esc / Z)"}
+          </button>
+        </div>
+      )}
+
+      <aside
+        className={`hidden border-line bg-white/95 dark:bg-slate-900/95 lg:fixed lg:top-0 lg:z-30 ${
+          isZenMode ? "!hidden" : "lg:flex"
+        } lg:h-screen ${
+          sidebarCollapsed ? "lg:w-20 lg:px-3" : "lg:w-72 lg:px-5"
+        } lg:flex-col lg:justify-between lg:py-6 transition-all duration-200 ${
+          isRtl ? "border-l lg:right-0" : "border-r lg:left-0"
+        }`}
+      >
         <div>
           <button
             type="button"
-            className="flex w-full items-center gap-3 rounded-lg px-2 py-2 text-start"
+            className={`flex items-center gap-3 rounded-xl px-2 py-2 text-start transition ${
+              sidebarCollapsed ? "justify-center w-full" : "w-full"
+            }`}
             onClick={() => navigate("landing")}
+            title="ShiftPay HR"
           >
             <LogoMark />
-            <div>
-              <p className="text-lg font-extrabold text-ink dark:text-white">ShiftPay HR</p>
-              <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
-                {lang === "ar" ? "رواتب الحضور الذكية" : "Smart Attendance & Payroll"}
-              </p>
-            </div>
+            {!sidebarCollapsed && (
+              <div>
+                <p className="text-lg font-extrabold text-ink dark:text-white">ShiftPay HR</p>
+                <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
+                  {lang === "ar" ? "رواتب الحضور الذكية" : "Smart Attendance & Payroll"}
+                </p>
+              </div>
+            )}
           </button>
           <nav className="mt-8 space-y-2">
             {navItems.map((item) => (
@@ -2068,33 +2140,66 @@ export default function App() {
                 item={item}
                 active={activeView === item.id}
                 badge={item.id === "requests" ? pendingRequestsCount : undefined}
+                collapsed={sidebarCollapsed}
                 onClick={() => navigate(item.id)}
               />
             ))}
           </nav>
         </div>
-        <div className="space-y-3 pt-3 border-t border-line">
-          <div className="flex items-center justify-between px-1">
-            <button
-              type="button"
-              onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-              className="flex items-center gap-1.5 rounded-lg border border-line bg-slate-50 dark:bg-slate-800 px-2.5 py-1.5 text-xs font-bold text-slate-700 dark:text-slate-200 hover:border-primary transition shadow-2xs"
-              title="تبديل المظهر"
-            >
-              {theme === "dark" ? <Sun size={13} /> : <Moon size={13} />}
-              <span>{theme === "dark" ? "فاتح" : "داكن"}</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setLang(lang === "ar" ? "en" : "ar")}
-              className="flex items-center gap-1.5 rounded-lg border border-line bg-slate-50 dark:bg-slate-800 px-2.5 py-1.5 text-xs font-bold text-slate-700 dark:text-slate-200 hover:border-primary transition shadow-2xs"
-              title="تغيير اللغة"
-            >
-              <Globe size={13} />
-              <span>{lang === "ar" ? "English" : "العربية"}</span>
-            </button>
-          </div>
-          <CloudMiniStatus cloud={cloud} onNavigate={() => navigate("settings")} />
+        <div className="space-y-3 pt-3 border-t border-line dark:border-slate-800">
+          {/* Sidebar Collapse Toggle Button */}
+          <button
+            type="button"
+            onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+            className="flex w-full items-center justify-center gap-2 rounded-xl border border-line dark:border-slate-800 bg-slate-50 dark:bg-slate-800 p-2.5 text-xs font-bold text-slate-600 dark:text-slate-300 hover:border-primary hover:text-primary transition shadow-2xs"
+            title={sidebarCollapsed ? (lang === "en" ? "Expand sidebar [ / ]" : "توسيع القائمة [ / ]") : (lang === "en" ? "Collapse sidebar [ / ]" : "تصغير القائمة [ / ]")}
+          >
+            {sidebarCollapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
+            {!sidebarCollapsed && <span>{lang === "en" ? "Collapse Sidebar" : "تصغير القائمة"}</span>}
+          </button>
+
+          {!sidebarCollapsed ? (
+            <div className="flex items-center justify-between px-1">
+              <button
+                type="button"
+                onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+                className="flex items-center gap-1.5 rounded-lg border border-line bg-slate-50 dark:bg-slate-800 px-2.5 py-1.5 text-xs font-bold text-slate-700 dark:text-slate-200 hover:border-primary transition shadow-2xs"
+                title="تبديل المظهر"
+              >
+                {theme === "dark" ? <Sun size={13} /> : <Moon size={13} />}
+                <span>{theme === "dark" ? "فاتح" : "داكن"}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setLang(lang === "ar" ? "en" : "ar")}
+                className="flex items-center gap-1.5 rounded-lg border border-line bg-slate-50 dark:bg-slate-800 px-2.5 py-1.5 text-xs font-bold text-slate-700 dark:text-slate-200 hover:border-primary transition shadow-2xs"
+                title="تغيير اللغة"
+              >
+                <Globe size={13} />
+                <span>{lang === "ar" ? "English" : "العربية"}</span>
+              </button>
+            </div>
+          ) : (
+            <div className="flex flex-col items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+                className="rounded-lg border border-line bg-slate-50 dark:bg-slate-800 p-2 text-xs font-bold text-slate-700 dark:text-slate-200 hover:border-primary transition"
+                title="تبديل المظهر"
+              >
+                {theme === "dark" ? <Sun size={14} /> : <Moon size={14} />}
+              </button>
+              <button
+                type="button"
+                onClick={() => setLang(lang === "ar" ? "en" : "ar")}
+                className="rounded-lg border border-line bg-slate-50 dark:bg-slate-800 p-2 text-xs font-bold text-slate-700 dark:text-slate-200 hover:border-primary transition"
+                title="Language"
+              >
+                <Globe size={14} />
+              </button>
+            </div>
+          )}
+          {!sidebarCollapsed && <CloudMiniStatus cloud={cloud} onNavigate={() => navigate("settings")} />}
         </div>
       </aside>
 
@@ -2150,8 +2255,55 @@ export default function App() {
         </nav>
       </div>
 
-      <main className={isRtl ? "lg:pr-72" : "lg:pl-72"}>
+      <main className={`transition-all duration-200 ${isZenMode ? "lg:pr-0 lg:pl-0" : sidebarCollapsed ? (isRtl ? "lg:pr-20" : "lg:pl-20") : (isRtl ? "lg:pr-72" : "lg:pl-72")}`}>
         <div className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+          {/* Breadcrumb Navigation Bar & Zen Focus Controls */}
+          <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-line dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 px-4 py-2.5 backdrop-blur-md shadow-2xs">
+            <div className="flex items-center gap-2 text-xs font-bold text-slate-500 dark:text-slate-400">
+              <button
+                type="button"
+                onClick={() => navigate("dashboard")}
+                className="hover:text-primary transition"
+              >
+                {lang === "en" ? "Home" : "الرئيسية"}
+              </button>
+              <span>/</span>
+              <span className="font-extrabold text-ink dark:text-white">
+                {activeNavLabel}
+              </span>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setIsZenMode(!isZenMode)}
+                className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-bold transition shadow-2xs ${
+                  isZenMode
+                    ? "border-primary bg-primary text-white shadow-md shadow-primary/20"
+                    : "border-line dark:border-slate-800 bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:border-primary"
+                }`}
+                title={lang === "en" ? "Zen Focus Mode [Z]" : "وضع التركيز المحاسبي [Z]"}
+              >
+                {isZenMode ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
+                <span className="hidden sm:inline">
+                  {isZenMode ? (lang === "en" ? "Exit Zen Mode" : "إنهاء التركيز") : (lang === "en" ? "Zen Mode" : "وضع التركيز")}
+                </span>
+                <kbd className="hidden md:inline rounded bg-black/10 dark:bg-white/10 px-1 py-0.5 text-[10px] font-mono">Z</kbd>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setIsKeyboardHelpOpen(true)}
+                className="flex items-center gap-1 rounded-lg border border-line dark:border-slate-800 bg-slate-50 dark:bg-slate-800 px-2 py-1.5 text-xs font-bold text-slate-700 dark:text-slate-300 hover:border-primary transition shadow-2xs"
+                title={lang === "en" ? "Keyboard Shortcuts [?]" : "اختصارات لوحة المفاتيح [?]"}
+              >
+                <HelpCircle size={14} />
+                <span className="hidden md:inline">{lang === "en" ? "Shortcuts" : "الاختصارات"}</span>
+                <kbd className="hidden sm:inline rounded bg-black/10 dark:bg-white/10 px-1 py-0.5 text-[10px] font-mono">?</kbd>
+              </button>
+            </div>
+          </div>
+
           {activeView === "dashboard" ? (
             <CloudTopBar
               cloud={cloud}
@@ -2303,9 +2455,16 @@ export default function App() {
         siteContent={siteContent}
       />
 
+      <KeyboardShortcutsModal
+        isOpen={isKeyboardHelpOpen}
+        onClose={() => setIsKeyboardHelpOpen(false)}
+        lang={lang}
+      />
+
       <Toast
         message={toastMessage?.message}
         type={toastMessage?.type}
+        onUndo={toastMessage?.onUndo}
         onClose={() => setToastMessage(null)}
       />
     </div>
@@ -4987,10 +5146,10 @@ function AttendanceView({
     }
   };
 
-  const handleUpload = async (event) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
+  const [isDraggingOver, setIsDraggingOver] = useState(false);
 
+  const processAttendanceUpload = async (file) => {
+    if (!file) return;
     setUploadState({ loading: true, summary: null });
     const result = await parseAttendanceFile(file);
     const month = result.logs.length > 0 ? getReportMonth(result.logs) : "";
@@ -4998,7 +5157,36 @@ function AttendanceView({
 
     setPunchMode("auto");
     setUploadState({ loading: false, summary: { ...result, fileName: file.name, month, incompleteDays } });
-    event.target.value = "";
+  };
+
+  const handleUpload = async (event) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      await processAttendanceUpload(file);
+      event.target.value = "";
+    }
+  };
+
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDraggingOver(true);
+  };
+
+  const handleDragLeave = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDraggingOver(false);
+  };
+
+  const handleDrop = async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDraggingOver(false);
+    const file = e.dataTransfer?.files?.[0];
+    if (file) {
+      await processAttendanceUpload(file);
+    }
   };
 
   const approveUpload = () => {
@@ -5148,23 +5336,42 @@ function AttendanceView({
           />
 
           <section className="grid gap-6 xl:grid-cols-[1fr_0.9fr]">
-        <div className="rounded-lg border border-dashed border-blue-300 bg-white p-8 text-center shadow-sm">
-          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-lg bg-blue-50 text-primary">
-            <UploadCloud size={30} />
+        <div
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+          className={`rounded-2xl border-2 border-dashed p-8 text-center shadow-xs transition-all duration-200 ${
+            isDraggingOver
+              ? "border-primary bg-blue-50/90 dark:bg-blue-950/40 ring-4 ring-primary/20 scale-[1.01]"
+              : "border-blue-300 dark:border-blue-800 bg-white dark:bg-slate-900"
+          }`}
+        >
+          <div
+            className={`mx-auto flex h-16 w-16 items-center justify-center rounded-2xl transition ${
+              isDraggingOver
+                ? "bg-primary text-white animate-bounce shadow-lg shadow-blue-500/30"
+                : "bg-blue-50 dark:bg-blue-950/60 text-primary dark:text-blue-400"
+            }`}
+          >
+            <UploadCloud size={32} />
           </div>
-          <h2 className="mt-5 text-2xl font-extrabold text-ink">اسحب ملف البصمة أو اختره</h2>
-          <p className="mx-auto mt-3 max-w-xl leading-7 text-slate-500">
+          <h2 className="mt-5 text-2xl font-extrabold text-ink dark:text-white">
+            {isDraggingOver
+              ? (isEn ? "Release to process attendance file now!" : "أفلت ملف البصمة الآن للمعالجة الفورية!")
+              : (isEn ? "Drag & drop biometric file or browse" : "اسحب ملف البصمة أو اختره")}
+          </h2>
+          <p className="mx-auto mt-3 max-w-xl leading-7 text-slate-500 dark:text-slate-400">
             يدعم النظام أعمدة عربية أو إنجليزية مثل EmployeeCode, Name, Date, CheckIn, CheckOut
             ثم يجمع البصمات المتكررة حسب الموظف والتاريخ تلقائيا.
           </p>
-          <div className="mx-auto mt-4 grid max-w-2xl gap-2 text-sm font-bold text-slate-600 sm:grid-cols-3">
-            <span className="rounded-lg bg-slate-50 px-3 py-2">حضور/انصراف مباشر</span>
-            <span className="rounded-lg bg-slate-50 px-3 py-2">سجل بصمة لكل حركة</span>
-            <span className="rounded-lg bg-slate-50 px-3 py-2">أعمدة دخول وخروج متعددة</span>
+          <div className="mx-auto mt-4 grid max-w-2xl gap-2 text-sm font-bold text-slate-600 dark:text-slate-300 sm:grid-cols-3">
+            <span className="rounded-xl bg-slate-50 dark:bg-slate-800 border border-line dark:border-slate-700 px-3 py-2">حضور/انصراف مباشر</span>
+            <span className="rounded-xl bg-slate-50 dark:bg-slate-800 border border-line dark:border-slate-700 px-3 py-2">سجل بصمة لكل حركة</span>
+            <span className="rounded-xl bg-slate-50 dark:bg-slate-800 border border-line dark:border-slate-700 px-3 py-2">أعمدة دخول وخروج متعددة</span>
           </div>
-          <label className="mt-6 inline-flex cursor-pointer items-center justify-center gap-2 rounded-lg bg-primary px-6 py-3 font-extrabold text-white shadow-lg shadow-blue-100 transition hover:bg-blue-700">
+          <label className="mt-6 inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-primary px-6 py-3 font-extrabold text-white shadow-lg shadow-blue-500/20 transition hover:bg-blue-700">
             <FileSpreadsheet size={18} />
-            اختيار ملف
+            {isEn ? "Browse file" : "اختيار ملف من جهازك"}
             <input
               className="hidden"
               type="file"
@@ -5174,7 +5381,9 @@ function AttendanceView({
             />
           </label>
           {uploadState.loading ? (
-            <p className="mt-4 text-sm font-bold text-primary">جاري تحليل الملف...</p>
+            <p className="mt-4 text-sm font-bold text-primary animate-pulse">
+              {isEn ? "Analyzing biometric punches..." : "جاري تحليل وقراءة سجلات البصمة..."}
+            </p>
           ) : null}
         </div>
 
@@ -5712,6 +5921,7 @@ function ReportsView({
                   <MessageCircle size={17} className="text-emerald-600" />
                   إرسال عبر واتساب
                 </button>
+
                 <div className="grid grid-cols-2 gap-2">
                   <button
                     type="button"
@@ -5747,6 +5957,86 @@ function ReportsView({
           </div>
         </section>
       ) : null}
+
+      {/* Floating Live Payroll Dock */}
+      {filteredRows.length > 0 && (
+        <div className="sticky bottom-4 z-20 mt-6 mx-auto w-full rounded-2xl border border-slate-700/60 bg-slate-900/95 p-3.5 text-white shadow-2xl backdrop-blur-md">
+          <div className="flex flex-wrap items-center justify-between gap-4 px-2">
+            <div className="flex items-center gap-6 divide-x divide-slate-800 rtl:divide-x-reverse">
+              <div>
+                <span className="block text-[11px] font-bold text-slate-400">
+                  {isEn ? "Audited Staff" : "الموظفين بالمسير"}
+                </span>
+                <span className="text-base font-black tabular-nums font-mono text-white">
+                  {reportTotals.employees} {isEn ? "emp" : "موظف"}
+                </span>
+              </div>
+              <div className="ps-6">
+                <span className="block text-[11px] font-bold text-slate-400">
+                  {isEn ? "Total Net Payout" : "إجمالي صافي الرواتب"}
+                </span>
+                <span className="text-base font-black tabular-nums font-mono text-emerald-400">
+                  {formatCurrency(reportTotals.net, settings.currency)}
+                </span>
+              </div>
+              <div className="ps-6 hidden sm:block">
+                <span className="block text-[11px] font-bold text-slate-400">
+                  {isEn ? "Total Deductions" : "إجمالي الخصومات"}
+                </span>
+                <span className="text-base font-black tabular-nums font-mono text-rose-400">
+                  {formatCurrency(reportTotals.deductions, settings.currency)}
+                </span>
+              </div>
+              <div className="ps-6 hidden md:block">
+                <span className="block text-[11px] font-bold text-slate-400">
+                  {isEn ? "Overtime & Bonuses" : "الإضافي والمكافآت"}
+                </span>
+                <span className="text-base font-black tabular-nums font-mono text-blue-400">
+                  {formatCurrency(reportTotals.bonuses, settings.currency)}
+                </span>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              {reportStatus !== "approved" ? (
+                <button
+                  type="button"
+                  onClick={approveSelectedReport}
+                  className="flex items-center gap-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 px-3.5 py-2 text-xs font-black text-white shadow-md transition"
+                >
+                  <CheckCircle2 size={15} />
+                  <span>{isEn ? "Approve Payroll" : "اعتماد المسير"}</span>
+                </button>
+              ) : (
+                <span className="flex items-center gap-1.5 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-3 py-1.5 text-xs font-bold">
+                  <CheckCircle2 size={14} />
+                  <span>{isEn ? "Approved" : "معتمد رسميًا"}</span>
+                </span>
+              )}
+              <button
+                type="button"
+                onClick={onWps}
+                disabled={exporting === "wps"}
+                className="flex items-center gap-1.5 rounded-xl border border-slate-700 bg-slate-800 hover:bg-slate-700 px-3 py-2 text-xs font-bold text-slate-200 transition"
+                title={isEn ? "Export SIF / WPS File" : "تصدير ملف حماية الأجور WPS"}
+              >
+                <Building2 size={14} />
+                <span className="hidden sm:inline">WPS / SIF</span>
+              </button>
+              <button
+                type="button"
+                onClick={onExcel}
+                disabled={exporting === "excel"}
+                className="flex items-center gap-1.5 rounded-xl border border-slate-700 bg-slate-800 hover:bg-slate-700 px-3 py-2 text-xs font-bold text-slate-200 transition"
+                title={isEn ? "Export Excel" : "تصدير إكسيل"}
+              >
+                <FileSpreadsheet size={14} />
+                <span className="hidden sm:inline">Excel</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -7495,25 +7785,25 @@ function PayrollTable({ rows, settings, shiftCopy, onSlip, lang = "ar" }) {
             <td className="px-4 py-4">
               <StatusBadge status={row.status} />
             </td>
-            <td className="px-4 py-4 font-bold">{row.attendanceDays}</td>
+            <td className="px-4 py-4 font-bold tabular-nums font-mono">{row.attendanceDays}</td>
             <td className="px-4 py-4 text-sm">
-              <span className="font-bold">{row.lateCount}</span>
-              <span className="text-slate-400"> / {formatNumber(row.lateMinutes)} {isEn ? "m" : "د"}</span>
+              <span className="font-bold tabular-nums font-mono">{row.lateCount}</span>
+              <span className="text-slate-400"> / <span className="tabular-nums font-mono">{formatNumber(row.lateMinutes)}</span> {isEn ? "m" : "د"}</span>
             </td>
             <td className="px-4 py-4 text-sm font-bold text-emerald-600">
-              <span>{formatNumber(row.overtimeMinutes)} {isEn ? "m" : "د"}</span>
-              <span className="block text-xs text-emerald-500">
+              <span className="tabular-nums font-mono">{formatNumber(row.overtimeMinutes)} {isEn ? "m" : "د"}</span>
+              <span className="block text-xs text-emerald-500 tabular-nums font-mono">
                 {formatCurrency(row.overtimeBonuses, settings.currency)}
               </span>
             </td>
             <td className="px-4 py-4 text-sm">
               {row.permissionCount > 0 ? (
                 <>
-                  <span className="font-bold text-amber-700">
+                  <span className="font-bold text-amber-700 tabular-nums font-mono">
                     {row.permissionCount} × {formatMinutesAsHours(row.permissionMinutes)}
                   </span>
                   {row.permissionDeductions > 0 ? (
-                    <span className="block text-xs text-rose-500">
+                    <span className="block text-xs text-rose-500 tabular-nums font-mono">
                       {isEn ? "Ded: " : "خصم "}{formatCurrency(row.permissionDeductions, settings.currency)}
                     </span>
                   ) : (
@@ -7548,28 +7838,68 @@ function PayrollTable({ rows, settings, shiftCopy, onSlip, lang = "ar" }) {
                 ) : null}
               </div>
             </td>
-            <td className="px-4 py-4 font-bold text-rose-600">{row.absenceDays}</td>
-            <td className="px-4 py-4 font-bold text-emerald-600">{row.vacationUsage}</td>
+            <td className="px-4 py-4 font-bold text-rose-600 tabular-nums font-mono">{row.absenceDays}</td>
+            <td className="px-4 py-4 font-bold text-emerald-600 tabular-nums font-mono">{row.vacationUsage}</td>
             <td className="px-4 py-4 font-bold text-rose-600">
-              <span className="rounded-full bg-rose-50 px-3 py-1">
+              <span className="rounded-full bg-rose-50 dark:bg-rose-950/60 px-3 py-1 tabular-nums font-mono">
                 {formatCurrency(row.deductions, settings.currency)}
               </span>
             </td>
             <td className="px-4 py-4 font-bold text-emerald-600">
-              <span className="rounded-full bg-emerald-50 px-3 py-1">
+              <span className="rounded-full bg-emerald-50 dark:bg-emerald-950/60 px-3 py-1 tabular-nums font-mono">
                 {formatCurrency(row.bonuses, settings.currency)}
               </span>
             </td>
-            <td className="px-4 py-4 text-lg font-extrabold text-primary">
-              <span className="rounded-full bg-blue-50 px-3 py-1">
-                {formatCurrency(row.netSalary, settings.currency)}
-              </span>
+            <td className="px-4 py-4">
+              <div className="flex flex-col items-start gap-1">
+                <span className="rounded-full bg-blue-50 dark:bg-blue-950/60 px-3 py-1 text-base font-black tabular-nums font-mono text-primary dark:text-blue-300">
+                  {formatCurrency(row.netSalary, settings.currency)}
+                </span>
+                {row.salary > 0 && (() => {
+                  const diff = (row.netSalary || 0) - (row.salary || 0);
+                  const diffPercent = Math.round((diff / row.salary) * 100);
+                  const tooltip = isEn
+                    ? `Basic: ${formatCurrency(row.salary, settings.currency)} | Overtime & Bonus: +${formatCurrency(row.bonuses, settings.currency)} | Deductions: -${formatCurrency(row.deductions, settings.currency)}`
+                    : `الأساسي: ${formatCurrency(row.salary, settings.currency)} | الإضافي والمكافآت: +${formatCurrency(row.bonuses, settings.currency)} | الخصومات: -${formatCurrency(row.deductions, settings.currency)}`;
+
+                  if (diffPercent > 0) {
+                    return (
+                      <span
+                        title={tooltip}
+                        className="cursor-help inline-flex items-center gap-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 px-2 py-0.5 text-[10px] font-black text-emerald-700 dark:text-emerald-300 tabular-nums font-mono"
+                      >
+                        <TrendingUp size={11} />
+                        <span>+{diffPercent}%</span>
+                      </span>
+                    );
+                  }
+                  if (diffPercent < 0) {
+                    return (
+                      <span
+                        title={tooltip}
+                        className="cursor-help inline-flex items-center gap-0.5 rounded-full bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-800 px-2 py-0.5 text-[10px] font-black text-rose-700 dark:text-rose-300 tabular-nums font-mono"
+                      >
+                        <TrendingDown size={11} />
+                        <span>{diffPercent}%</span>
+                      </span>
+                    );
+                  }
+                  return (
+                    <span
+                      title={tooltip}
+                      className="cursor-help inline-flex items-center gap-0.5 rounded-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-2 py-0.5 text-[10px] font-bold text-slate-500 tabular-nums font-mono"
+                    >
+                      <span>0%</span>
+                    </span>
+                  );
+                })()}
+              </div>
             </td>
             <td className="px-4 py-4">
               <button
                 type="button"
                 onClick={() => onSlip(row.employeeCode)}
-                className="rounded-lg border border-line px-3 py-2 text-sm font-bold text-slate-700 hover:border-primary hover:text-primary"
+                className="rounded-lg border border-line px-3 py-2 text-sm font-bold text-slate-700 hover:border-primary hover:text-primary transition shadow-2xs"
               >
                 {isEn ? "View" : "عرض"}
               </button>
@@ -7582,12 +7912,15 @@ function PayrollTable({ rows, settings, shiftCopy, onSlip, lang = "ar" }) {
 }
 
 function PayrollMobileCard({ row, settings, shiftCopy, onSlip }) {
+  const diff = (row.netSalary || 0) - (row.salary || 0);
+  const diffPercent = row.salary ? Math.round((diff / row.salary) * 100) : 0;
+
   return (
-    <article className="rounded-lg border border-line bg-white p-4 shadow-sm">
+    <article className="rounded-xl border border-line bg-white p-4 shadow-sm dark:bg-slate-900 dark:border-slate-800">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-lg font-extrabold text-ink">{row.employeeName}</p>
-          <p className="mt-1 text-sm text-slate-500">
+          <p className="text-lg font-extrabold text-ink dark:text-white">{row.employeeName}</p>
+          <p className="mt-1 text-sm text-slate-500 font-mono font-bold">
             {row.employeeCode} · {row.department}
           </p>
         </div>
@@ -7618,16 +7951,25 @@ function PayrollMobileCard({ row, settings, shiftCopy, onSlip }) {
           بصمة ناقصة {row.missingPunchDays} يوم{row.missingPunchNeedsReview > 0 ? " — يحتاج مراجعة يدوية" : ""}
         </div>
       ) : null}
-      <div className="mt-4 flex items-center justify-between rounded-lg bg-blue-50 px-4 py-3">
-        <span className="font-bold text-blue-900">صافي الراتب</span>
-        <span className="text-lg font-extrabold text-primary">
+      <div className="mt-4 flex items-center justify-between rounded-xl bg-blue-50 dark:bg-blue-950/50 px-4 py-3">
+        <div>
+          <span className="block font-bold text-blue-900 dark:text-blue-200 text-xs">صافي الراتب</span>
+          {row.salary > 0 && (
+            <span className={`inline-flex items-center gap-0.5 text-[10px] font-black tabular-nums font-mono ${
+              diffPercent > 0 ? "text-emerald-600" : diffPercent < 0 ? "text-rose-600" : "text-slate-500"
+            }`}>
+              {diffPercent > 0 ? `+${diffPercent}%` : `${diffPercent}%`} مقارنة بالأساسي
+            </span>
+          )}
+        </div>
+        <span className="text-lg font-black text-primary dark:text-blue-300 tabular-nums font-mono">
           {formatCurrency(row.netSalary, settings.currency)}
         </span>
       </div>
       <button
         type="button"
         onClick={() => onSlip(row.employeeCode)}
-        className="mt-3 w-full rounded-lg border border-line px-4 py-3 font-bold text-slate-700 hover:border-primary hover:text-primary"
+        className="mt-3 w-full rounded-xl border border-line px-4 py-2.5 text-sm font-bold text-slate-700 dark:text-slate-200 hover:border-primary hover:text-primary transition shadow-2xs"
       >
         عرض تفاصيل المرتب
       </button>
@@ -8108,14 +8450,15 @@ function SearchField({ value, onChange, placeholder }) {
   );
 }
 
-function EmptyState({ icon: Icon, title, text }) {
+function EmptyState({ icon: Icon, title, text, action }) {
   return (
-    <div className="rounded-lg border border-dashed border-line bg-slate-50 p-8 text-center">
-      <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-lg bg-white text-slate-500 shadow-sm">
+    <div className="rounded-2xl border border-dashed border-line dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/40 p-8 text-center">
+      <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-300 shadow-xs border border-line dark:border-slate-700">
         <Icon size={22} />
       </div>
-      <h3 className="mt-4 text-lg font-extrabold text-ink">{title}</h3>
-      <p className="mx-auto mt-2 max-w-md leading-7 text-slate-500">{text}</p>
+      <h3 className="mt-4 text-lg font-extrabold text-ink dark:text-white">{title}</h3>
+      <p className="mx-auto mt-2 max-w-md leading-relaxed text-sm text-slate-500 dark:text-slate-400">{text}</p>
+      {action ? <div className="mt-4 flex justify-center">{action}</div> : null}
     </div>
   );
 }
@@ -8980,24 +9323,124 @@ function SecondaryButton({ children, icon: Icon, full = false, className = "", .
   );
 }
 
-function NavButton({ item, active, onClick, badge }) {
+function KeyboardShortcutsModal({ isOpen, onClose, lang = "ar" }) {
+  if (!isOpen) return null;
+  const isEn = lang === "en";
+
+  const shortcuts = [
+    {
+      key: "/",
+      label: isEn ? "Global Search & Command Palette" : "البحث العام وشريط الأوامر السريع",
+      desc: isEn ? "Quick jump to any view, employee or setting" : "الانتقال السريع لأي شاشة أو موظف أو إعداد"
+    },
+    {
+      key: "Z",
+      label: isEn ? "Zen Focus Mode" : "وضع التركيز المحاسبي (Zen Mode)",
+      desc: isEn ? "Maximize screen workspace and hide sidebar" : "توسيع مساحة الشاشة وإخفاء الشريط الجانبي للمراجعة"
+    },
+    {
+      key: "[ / ]",
+      label: isEn ? "Toggle Sidebar" : "طي / توسيع القائمة الجانبية",
+      desc: isEn ? "Switch between mini-rail and full sidebar" : "التبديل بين الشريط المصغر والكامل"
+    },
+    {
+      key: "?",
+      label: isEn ? "Keyboard Shortcuts" : "قائمة اختصارات لوحة المفاتيح",
+      desc: isEn ? "Show this reference dialog" : "عرض هذه النافذة الإرشادية"
+    },
+    {
+      key: "Esc",
+      label: isEn ? "Close / Exit" : "إغلاق النافذة / إنهاء التركيز",
+      desc: isEn ? "Close active dialog or exit Zen mode" : "إغلاق أي نافذة منبثقة أو الخروج من وضع التركيز"
+    }
+  ];
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-xs">
+      <div className="w-full max-w-lg rounded-2xl border border-line dark:border-slate-800 bg-white dark:bg-slate-900 p-6 shadow-2xl">
+        <div className="flex items-center justify-between border-b border-line dark:border-slate-800 pb-4">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary dark:text-blue-400">
+              <HelpCircle size={22} />
+            </div>
+            <div>
+              <h3 className="text-base font-black text-ink dark:text-white">
+                {isEn ? "Keyboard Shortcuts" : "اختصارات لوحة المفاتيح"}
+              </h3>
+              <p className="text-xs font-bold text-slate-400">
+                {isEn ? "Power tools for lightning-fast navigation" : "تنقل بسرعة واحترافية بدون استخدام الماوس"}
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className="mt-4 divide-y divide-line dark:divide-slate-800">
+          {shortcuts.map((sc) => (
+            <div key={sc.key} className="flex items-center justify-between py-3">
+              <div>
+                <p className="text-sm font-extrabold text-ink dark:text-white">{sc.label}</p>
+                <p className="text-xs text-slate-400">{sc.desc}</p>
+              </div>
+              <kbd className="inline-flex min-w-[34px] items-center justify-center rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 px-2.5 py-1 font-mono text-xs font-black text-slate-700 dark:text-slate-200 shadow-2xs">
+                {sc.key}
+              </kbd>
+            </div>
+          ))}
+        </div>
+
+        <div className="mt-6 flex justify-end">
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-xl bg-primary px-4 py-2 text-xs font-extrabold text-white hover:bg-blue-700 transition"
+          >
+            {isEn ? "Got it" : "فهمت"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function NavButton({ item, active, onClick, badge, collapsed = false }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className={`flex w-full items-center justify-between rounded-lg px-4 py-3 text-start font-bold transition ${
+      title={collapsed ? item.label : undefined}
+      className={`group relative flex items-center rounded-xl transition ${
+        collapsed
+          ? "w-11 h-11 justify-center mx-auto"
+          : "w-full justify-between px-3.5 py-2.5 text-start font-bold"
+      } ${
         active
-          ? "bg-primary text-white shadow-lg shadow-blue-100 dark:shadow-none"
-          : "text-slate-600 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-800"
+          ? "bg-primary text-white shadow-md shadow-primary/20 dark:shadow-none"
+          : "text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
       }`}
     >
-      <div className="flex items-center gap-3">
-        <item.icon size={20} />
-        <span>{item.label}</span>
+      <div className={`flex items-center ${collapsed ? "justify-center" : "gap-3"}`}>
+        <item.icon size={20} className="shrink-0" />
+        {!collapsed && <span className="text-sm font-bold truncate">{item.label}</span>}
       </div>
       {Boolean(badge) && (
-        <span className="flex h-5 min-w-[20px] items-center justify-center rounded-full bg-amber-500 px-1.5 text-[11px] font-black text-white shadow-2xs">
+        <span
+          className={`${
+            collapsed ? "absolute -top-1 -right-1" : ""
+          } flex h-5 min-w-[20px] items-center justify-center rounded-full bg-amber-500 px-1 text-[10px] font-black text-white shadow-2xs`}
+        >
           {badge}
+        </span>
+      )}
+      {collapsed && (
+        <span className="pointer-events-none absolute right-full mr-2 z-50 hidden rounded-md bg-slate-900 px-2 py-1 text-xs font-bold text-white shadow-lg group-hover:block dark:bg-slate-800 whitespace-nowrap">
+          {item.label}
         </span>
       )}
     </button>

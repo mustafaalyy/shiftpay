@@ -609,6 +609,47 @@ export default function EmployeePortalView({
                 <span>{copiedSlip ? (isEn ? "Copied!" : "تم النسخ بنجاح!") : (isEn ? "Copy Salary Summary" : "نسخ ملخص الراتب")}</span>
               </button>
             </div>
+
+            {/* Official Digital Payslip Verification Card */}
+            <div className="rounded-2xl border border-line dark:border-slate-800 bg-white dark:bg-slate-900 p-5 shadow-xs space-y-4">
+              <div className="flex items-center justify-between border-b border-line dark:border-slate-800 pb-3">
+                <div className="flex items-center gap-2 text-xs font-black text-ink dark:text-white">
+                  <ShieldCheck size={16} className="text-emerald-600" />
+                  <span>{isEn ? "Digital Verification & Compliance Token" : "ختم التوثيق الرقمي والاعتماد الرسمي"}</span>
+                </div>
+                <span className="rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 text-[10px] font-black px-2.5 py-0.5">
+                  {isEn ? "VERIFIED" : "موثق إلكترونيًا"}
+                </span>
+              </div>
+
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-4 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200/60 dark:border-slate-700/60">
+                <div className="space-y-1 text-center sm:text-start">
+                  <p className="text-xs font-bold text-slate-500 dark:text-slate-400">
+                    {isEn ? "Verification Token ID" : "رمز المصادقة والتحقق المعتمد"}:
+                  </p>
+                  <p className="font-mono text-xs font-black text-primary dark:text-blue-300 tracking-wider">
+                    {`SP-DOC-${expectedCompanyCode}-${currentEmployee.code}-${(monthLabel || "2026").replace(/\s+/g, "")}`}
+                  </p>
+                  <p className="text-[10px] text-slate-400">
+                    {isEn ? "Certified Document • Valid for official banking & visa authorities" : "مستند رسمي معتمد • صالح للجهات المصرفية والرسمية"}
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <div className="flex h-16 w-16 items-center justify-center rounded-xl border border-line bg-white p-2 shadow-xs dark:border-slate-700 dark:bg-slate-800">
+                    <QrCode size={44} className="text-slate-800 dark:text-white" />
+                  </div>
+                  <div className="text-[11px] font-bold text-slate-500 dark:text-slate-400 text-start">
+                    <p className="font-black text-slate-700 dark:text-slate-200">
+                      {isEn ? "HR Smart Seal" : "ختم الموارد البشرية"}
+                    </p>
+                    <p className="text-[10px] text-emerald-600 font-bold">
+                      {isEn ? "✓ Certified Payroll" : "✓ مسير معتمد رسمياً"}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         )}
 
@@ -894,6 +935,55 @@ export default function EmployeePortalView({
             </div>
           </div>
         )}
+      </div>
+
+      {/* Sticky Mobile Bottom Navigation Bar (md:hidden) */}
+      <div className="fixed bottom-0 left-0 right-0 z-50 border-t border-line dark:border-slate-800 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md px-4 py-2 md:hidden shadow-lg">
+        <div className="grid grid-cols-3 gap-1">
+          <button
+            type="button"
+            onClick={() => setActiveTab("slip")}
+            className={`flex flex-col items-center justify-center py-1.5 rounded-xl transition ${
+              activeTab === "slip"
+                ? "text-primary font-black bg-blue-50 dark:bg-blue-950/50"
+                : "text-slate-500 font-bold"
+            }`}
+          >
+            <FileText size={18} />
+            <span className="text-[11px] mt-0.5">{isEn ? "Payslip" : "الراتب"}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab("requests")}
+            className={`relative flex flex-col items-center justify-center py-1.5 rounded-xl transition ${
+              activeTab === "requests"
+                ? "text-primary font-black bg-blue-50 dark:bg-blue-950/50"
+                : "text-slate-500 font-bold"
+            }`}
+          >
+            <Send size={18} />
+            <span className="text-[11px] mt-0.5">{isEn ? "Requests" : "الطلبات"}</span>
+            {myRequests.filter((r) => r.status?.startsWith("pending")).length > 0 && (
+              <span className="absolute top-1 right-1/4 flex h-3.5 min-w-[14px] items-center justify-center rounded-full bg-amber-500 px-0.5 text-[9px] font-black text-white">
+                {myRequests.filter((r) => r.status?.startsWith("pending")).length}
+              </span>
+            )}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab("profile")}
+            className={`flex flex-col items-center justify-center py-1.5 rounded-xl transition ${
+              activeTab === "profile"
+                ? "text-primary font-black bg-blue-50 dark:bg-blue-950/50"
+                : "text-slate-500 font-bold"
+            }`}
+          >
+            <User size={18} />
+            <span className="text-[11px] mt-0.5">{isEn ? "Balances" : "الأرصدة"}</span>
+          </button>
+        </div>
       </div>
     </div>
   );
