@@ -393,7 +393,13 @@ export const DEFAULT_SETTINGS = {
   // "direct_hourly" -> no allowance at all; every early-leave hour is deducted
   // directly from salary based on the employee's hourly rate.
   permissionPolicy: "monthly_balance",
-  monthlyPermissionHours: 4
+  monthlyPermissionHours: 4,
+  socialInsuranceEnabled: false,
+  employeeInsuranceRate: 11,
+  companyInsuranceRate: 18.75,
+  insuranceSalaryCap: 12600,
+  wpsEmployerCr: "1010000000",
+  wpsBankCode: "RIBL"
 };
 
 export const DEFAULT_DEPARTMENTS = [
@@ -643,10 +649,10 @@ export function getReportMonth(attendanceLogs) {
   return normalizeDate(first.date).slice(0, 7);
 }
 
-export function getMonthLabel(month) {
+export function getMonthLabel(month, lang = "ar") {
   const [year, monthIndex] = month.split("-").map(Number);
   const date = new Date(year, monthIndex - 1, 1);
-  return date.toLocaleDateString("ar-EG", { month: "long", year: "numeric" });
+  return date.toLocaleDateString(lang === "en" ? "en-US" : "ar-EG", { month: "long", year: "numeric" });
 }
 
 export function getCountryProfile(countryCode = "EG") {
@@ -1217,8 +1223,21 @@ export function calculatePayroll({
     const extraDeductions = Number(employee.extraDeductions) || 0;
     const manualBonuses = Number(employee.bonuses) || 0;
     const bonuses = manualBonuses + overtimeBonuses;
+
+    let socialInsuranceDeduction = 0;
+    let companyInsuranceContribution = 0;
+    if (settings.socialInsuranceEnabled) {
+      const baseSalary = Number(employee.salary || 0);
+      const cap = Number(settings.insuranceSalaryCap) || Infinity;
+      const insurableBase = Math.min(baseSalary, cap);
+      const empRate = (Number(settings.employeeInsuranceRate) || 11) / 100;
+      const compRate = (Number(settings.companyInsuranceRate) || 18.75) / 100;
+      socialInsuranceDeduction = Math.round(insurableBase * empRate);
+      companyInsuranceContribution = Math.round(insurableBase * compRate);
+    }
+
     const totalDeductions =
-      lateDeductions + absenceDeductions + extraDeductions + missingPunchDeductions + permissionDeductions;
+      lateDeductions + absenceDeductions + extraDeductions + missingPunchDeductions + permissionDeductions + socialInsuranceDeduction;
     const netBeforeAdvance = Number(employee.salary || 0) - totalDeductions + bonuses;
 
     // Advances calculation
@@ -1325,6 +1344,8 @@ export function calculatePayroll({
       lateDeductions,
       absenceDeductions,
       extraDeductions,
+      socialInsuranceDeduction,
+      companyInsuranceContribution,
       deductions: totalDeductions,
       manualBonuses,
       overtimeCount,

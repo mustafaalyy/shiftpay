@@ -769,5 +769,65 @@ describe("ShiftPay HR - Payroll Engine Unit Tests", () => {
       assert.ok(alerts.some((h) => h.date === "2026-12-02" && h.name.includes("الاتحاد")));
     });
   });
+
+  describe("MENA Labor Compliance & Social Insurance (التأمينات وحماية الأجور)", () => {
+    it("deducts employee social insurance accurately when socialInsuranceEnabled is true", () => {
+      const employees = [
+        { id: "e1", code: "101", name: "أحمد علي", salary: 10000, vacationBalance: 0, active: true }
+      ];
+      const departments = [{ id: "dep-1", name: "المالية" }];
+      const shifts = [{ id: "sh-1", name: "نهاري", startTime: "09:00", endTime: "17:00", workDays: ["sun", "mon", "tue", "wed", "thu"] }];
+      const settings = {
+        ...DEFAULT_SETTINGS,
+        socialInsuranceEnabled: true,
+        employeeInsuranceRate: 11, // 11%
+        companyInsuranceRate: 18.75, // 18.75%
+        insuranceSalaryCap: 12600
+      };
+
+      const result = calculatePayroll({
+        employees,
+        departments,
+        shifts,
+        attendanceLogs: [{ employeeCode: "101", name: "أحمد علي", date: "2026-10-01", checkIn: "09:00", checkOut: "17:00" }],
+        settings,
+        reportMonth: "2026-10",
+        advances: []
+      });
+
+      assert.equal(result.length, 1);
+      // 10,000 * 11% = 1,100
+      assert.equal(result[0].socialInsuranceDeduction, 1100);
+      // 10,000 * 18.75% = 1,875
+      assert.equal(result[0].companyInsuranceContribution, 1875);
+    });
+
+    it("respects insurable salary cap when salary exceeds cap", () => {
+      const employees = [
+        { id: "e2", code: "102", name: "خالد سعيد", salary: 20000, vacationBalance: 0, active: true }
+      ];
+      const departments = [{ id: "dep-1", name: "المالية" }];
+      const shifts = [{ id: "sh-1", name: "نهاري", startTime: "09:00", endTime: "17:00", workDays: ["sun", "mon", "tue", "wed", "thu"] }];
+      const settings = {
+        ...DEFAULT_SETTINGS,
+        socialInsuranceEnabled: true,
+        employeeInsuranceRate: 10, // 10%
+        insuranceSalaryCap: 15000 // capped at 15,000
+      };
+
+      const result = calculatePayroll({
+        employees,
+        departments,
+        shifts,
+        attendanceLogs: [{ employeeCode: "102", name: "خالد سعيد", date: "2026-10-01", checkIn: "09:00", checkOut: "17:00" }],
+        settings,
+        reportMonth: "2026-10",
+        advances: []
+      });
+
+      // 15,000 * 10% = 1,500
+      assert.equal(result[0].socialInsuranceDeduction, 1500);
+    });
+  });
 });
 

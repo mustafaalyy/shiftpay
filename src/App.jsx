@@ -76,6 +76,7 @@ import {
 import EmployeeAdvancesModal from "./components/EmployeeAdvancesModal";
 import CommandPalette from "./components/CommandPalette";
 import EmployeePortalModal from "./components/EmployeePortalModal";
+import NotificationBell from "./components/NotificationBell";
 import AiPayrollAssistantCard from "./components/AiPayrollAssistantCard";
 import BiometricDevicesManager from "./components/BiometricDevicesManager";
 import LiveAttendanceSheet from "./components/LiveAttendanceSheet";
@@ -93,6 +94,7 @@ import {
   exportEmployeeTemplate,
   exportPayrollToXlsx,
   exportOdooJournalCsv,
+  exportWpsSifFile,
   generateWhatsAppSlipMessage,
   openWhatsAppSlip
 } from "./lib/exporters";
@@ -297,10 +299,10 @@ function getShiftCopy(countryCode) {
 
 export default function App() {
   const [activeView, setActiveView] = useState(() => {
-    if (window.location.hash === "#site-admin" || window.location.hash === "#admin") return "site-admin";
-    const hash = window.location.hash.replace("#", "");
+    const rawHash = window.location.hash.replace("#", "");
+    if (["site-admin", "admin", "sp-platform-admin", "master-console"].includes(rawHash)) return "site-admin";
     const appViews = ["dashboard","departments","shifts","employees","attendance","reports","archive","insights","settings"];
-    if (appViews.includes(hash)) return hash;
+    if (appViews.includes(rawHash)) return hash;
     return "landing";
   });
   const [isBooting, setIsBooting] = useState(() => Boolean(getStoredSession()));
@@ -334,6 +336,7 @@ export default function App() {
   const [userTier, setUserTier] = useLocalStorage("shiftpay.userTier", "free");
   const [theme, setTheme] = useLocalStorage("shiftpay.theme", "light");
   const [lang, setLang] = useLocalStorage("shiftpay.lang", "ar");
+  const isRtl = lang === "ar";
   const [upgradeModal, setUpgradeModal] = useState({ isOpen: false, reason: "" });
   const [notice, setNotice] = useState("");
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
@@ -453,7 +456,7 @@ export default function App() {
   useEffect(() => {
     const handleHashChange = () => {
       const hash = window.location.hash.replace(/^#/, "");
-      if (hash === "site-admin" || hash === "admin") {
+      if (["site-admin", "admin", "sp-platform-admin", "master-console"].includes(hash)) {
         setActiveView("site-admin");
         return;
       }
@@ -522,7 +525,7 @@ export default function App() {
         if (session?.access_token) {
           const connected = await bootstrapCloud(session, { silent: !oauthSession });
           if (connected) {
-            if (savedHash === "site-admin" || savedHash === "admin") {
+            if (["site-admin", "admin", "sp-platform-admin", "master-console"].includes(savedHash)) {
               setActiveView("site-admin");
             } else {
               setActiveView(appViews.includes(savedHash) ? savedHash : "dashboard");
@@ -898,7 +901,7 @@ export default function App() {
     setActiveView(view);
     const appViews = ["dashboard","departments","shifts","employees","attendance","reports","archive","insights","settings"];
     if (view === "site-admin" || view === "admin") {
-      window.location.hash = "admin";
+      window.location.hash = "sp-platform-admin";
     } else if (appViews.includes(view)) {
       window.location.hash = view;
     } else {
@@ -962,6 +965,122 @@ export default function App() {
       setNotice("تعذر تصدير قيود أودو.");
     }
   };
+
+  const handleWpsExport = (rows = payrollRows) => {
+    try {
+      exportWpsSifFile({
+        rows,
+        companyName: settings.companyName,
+        monthLabel,
+        reportMonth,
+        currency: settings.currency,
+        employerCr: settings.wpsEmployerCr || "1010000000",
+        bankCode: settings.wpsBankCode || "RIBL"
+      });
+      setNotice(lang === "en" ? "WPS SIF file exported successfully." : "تم تصدير ملف حماية الأجور (WPS SIF) بنجاح.");
+      setToastMessage({
+        message: lang === "en" ? "WPS SIF file exported successfully." : "تم تصدير ملف حماية الأجور (WPS SIF) بنجاح.",
+        type: "success"
+      });
+    } catch {
+      setNotice(lang === "en" ? "Failed to export WPS file." : "تعذر تصدير ملف حماية الأجور.");
+    }
+  };
+
+  const systemAlerts = useMemo(() => {
+    const alerts = [];
+
+    // 1. Incomplete / Missing Punches Alert
+    const missingPunchLogs = detectIncompleteAttendanceDays(attendanceLogs);
+    if (missingPunchLogs.length > 0) {
+      alerts.push({
+        id: "alert-missing-punches",
+        type: "warning",
+        title: lang === "en" ? `${missingPunchLogs.length} Missing Punches` : `${missingPunchLogs.length} حركات بصمة ناقصة`,
+        description:
+          lang === "en"
+            ? "There are single punch records that need verification or manual review."
+            : "يوجد سجلات بصمة فردية (دخول بدون خروج أو العكس) بحاجة لمراجعة أو تسوية.",
+        actionLabel: lang === "en" ? "Review Attendance" : "مراجعة شيت البصمة",
+        targetView: "attendance",
+        icon: <Clock size={15} />
+      });
+    }
+
+    // 2. Draft Payroll Status Alert
+    const currentReport = reports.find((r) => r.month === reportMonth) || reports[0];
+    if (currentReport && currentReport.status === "draft") {
+      alerts.push({
+        id: "alert-draft-payroll",
+        type: "info",
+        title: lang === "en" ? "Payroll Pending Approval" : "مسير الرواتب بانتظار الاعتماد",
+        description:
+          lang === "en"
+            ? `Payroll report for ${monthLabel} is still a draft and has not been approved.`
+            : `تقرير رواتب ${monthLabel} ما زال في حالة مسودة ولم يتم اعتماده رسمياً بعد.`,
+        actionLabel: lang === "en" ? "Approve Payroll" : "اعتماد التقرير",
+        targetView: "reports",
+        icon: <FileSpreadsheet size={15} />
+      });
+    }
+
+    // 3. Employee Advances Due This Month
+    const dueAdvances = (advances || []).filter((adv) => {
+      if (adv.status !== "active") return false;
+      return (adv.installments || []).some(
+        (inst) => inst.dueMonth === reportMonth && inst.status === "pending"
+      );
+    });
+    if (dueAdvances.length > 0) {
+      alerts.push({
+        id: "alert-due-advances",
+        type: "info",
+        title: lang === "en" ? `${dueAdvances.length} Advance Installments Due` : `${dueAdvances.length} أقساط سلف مستحقة`,
+        description:
+          lang === "en"
+            ? "Employees have active loan installments scheduled for deduction this month."
+            : "يوجد موظفون لديهم أقساط سلف مستحقة للخصم من مرتبات الشهر الحالي.",
+        actionLabel: lang === "en" ? "View Advances" : "عرض السلف",
+        targetView: "employees",
+        icon: <CreditCard size={15} />
+      });
+    }
+
+    // 4. AI Payroll Health & Anomalies Alert
+    if (payrollAiAnalysis && payrollAiAnalysis.anomalies && payrollAiAnalysis.anomalies.length > 0) {
+      alerts.push({
+        id: "alert-ai-anomalies",
+        type: "ai",
+        title: lang === "en" ? `${payrollAiAnalysis.anomalies.length} AI Payroll Anomalies` : `${payrollAiAnalysis.anomalies.length} ملاحظات ذكاء اصطناعي`,
+        description:
+          lang === "en"
+            ? payrollAiAnalysis.anomalies[0].recommendation || "High deductions or payroll variance detected."
+            : payrollAiAnalysis.anomalies[0].recommendation || "تم رصد خصومات مرتفعة أو شذوذ في مسير الرواتب.",
+        actionLabel: lang === "en" ? "View AI Insights" : "عرض التحليلات",
+        targetView: "insights",
+        icon: <Sparkles size={15} />
+      });
+    }
+
+    // 5. Tier Quota Warning
+    const maxEmps = getTierConfig(userTier).maxEmployees;
+    if (employees.length >= maxEmps * 0.85) {
+      alerts.push({
+        id: "alert-tier-quota",
+        type: "error",
+        title: lang === "en" ? "Employee Quota Alert" : "تنبيه استهلاك سعة الباقة",
+        description:
+          lang === "en"
+            ? `You have used ${employees.length} of ${maxEmps} available employee slots.`
+            : `قارب حسابك على استهلاك الحد الأقصى (${employees.length} من أصل ${maxEmps} موظف).`,
+        actionLabel: lang === "en" ? "Upgrade Plan" : "ترقية الباقة",
+        onAction: () => setUpgradeModal({ isOpen: true, reason: "ترقية سعة الموظفين" }),
+        icon: <Users size={15} />
+      });
+    }
+
+    return alerts;
+  }, [attendanceLogs, reports, reportMonth, monthLabel, advances, payrollAiAnalysis, userTier, employees.length, lang]);
 
   const handleReportPdf = async (rows = payrollRows) => {
     setExporting("report");
@@ -1044,6 +1163,7 @@ export default function App() {
             onNavigate={navigate}
             payrollAiAnalysis={payrollAiAnalysis}
             onOpenPortal={(emp) => setPortalEmployee(emp)}
+            lang={lang}
           />
         );
       case "departments":
@@ -1052,10 +1172,11 @@ export default function App() {
             departments={departments}
             setDepartments={setDepartments}
             setNotice={setNotice}
+            lang={lang}
           />
         );
       case "shifts":
-        return <ShiftsView shifts={shifts} setShifts={setShifts} setNotice={setNotice} shiftCopy={shiftCopy} />;
+        return <ShiftsView shifts={shifts} setShifts={setShifts} setNotice={setNotice} shiftCopy={shiftCopy} lang={lang} />;
       case "employees":
         return (
           <EmployeesView
@@ -1073,6 +1194,7 @@ export default function App() {
             onOpenPortal={(emp) => setPortalEmployee(emp)}
             userTier={userTier}
             onTriggerUpgrade={(reason) => setUpgradeModal({ isOpen: true, reason })}
+            lang={lang}
           />
         );
       case "attendance":
@@ -1094,6 +1216,7 @@ export default function App() {
             setNotice={setNotice}
             setToastMessage={setToastMessage}
             onReport={() => navigate("reports")}
+            lang={lang}
           />
         );
       case "insights":
@@ -1107,6 +1230,7 @@ export default function App() {
             advances={advances}
             payrollAiAnalysis={payrollAiAnalysis}
             onNavigate={navigate}
+            lang={lang}
           />
         );
       case "archive":
@@ -1120,6 +1244,7 @@ export default function App() {
               navigate("reports");
             }}
             getMonthLabel={getMonthLabel}
+            lang={lang}
           />
         );
       case "reports":
@@ -1141,6 +1266,7 @@ export default function App() {
             onBankTransfer={handleBankTransferExport}
             onAccounting={handleAccountingExport}
             onOdoo={handleOdooExport}
+            onWps={handleWpsExport}
             onPdf={handleReportPdf}
             onSlipPdf={handleSlipPdf}
             exporting={exporting}
@@ -1149,6 +1275,7 @@ export default function App() {
             onNavigate={navigate}
             payrollAiAnalysis={payrollAiAnalysis}
             onOpenPortal={(emp) => setPortalEmployee(emp)}
+            lang={lang}
           />
         );
       case "settings":
@@ -1165,7 +1292,6 @@ export default function App() {
             onCloudLoad={handleCloudLoad}
             onBackupExport={handleBackupExport}
             onBackupImport={handleBackupImport}
-            onOpenSiteAdmin={() => navigate("site-admin")}
             theme={theme}
             onToggleTheme={() => setTheme(theme === "dark" ? "light" : "dark")}
             lang={lang}
@@ -1266,18 +1392,20 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-cloud">
-      <aside className="hidden border-l border-line bg-white/95 lg:fixed lg:right-0 lg:top-0 lg:z-30 lg:flex lg:h-screen lg:w-72 lg:flex-col lg:justify-between lg:px-5 lg:py-6">
+    <div className="min-h-screen bg-cloud dark:bg-slate-950 transition-colors">
+      <aside className={`hidden border-line bg-white/95 dark:bg-slate-900/95 lg:fixed lg:top-0 lg:z-30 lg:flex lg:h-screen lg:w-72 lg:flex-col lg:justify-between lg:px-5 lg:py-6 ${isRtl ? "border-l lg:right-0" : "border-r lg:left-0"}`}>
         <div>
           <button
             type="button"
-            className="flex w-full items-center gap-3 rounded-lg px-2 py-2 text-right"
+            className="flex w-full items-center gap-3 rounded-lg px-2 py-2 text-start"
             onClick={() => navigate("landing")}
           >
             <LogoMark />
             <div>
-              <p className="text-lg font-extrabold text-ink">ShiftPay HR</p>
-              <p className="text-xs font-medium text-slate-500">رواتب الحضور الذكية</p>
+              <p className="text-lg font-extrabold text-ink dark:text-white">ShiftPay HR</p>
+              <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
+                {lang === "ar" ? "رواتب الحضور الذكية" : "Smart Attendance & Payroll"}
+              </p>
             </div>
           </button>
           <nav className="mt-8 space-y-2">
@@ -1363,7 +1491,7 @@ export default function App() {
         </nav>
       </div>
 
-      <main className="lg:pr-72">
+      <main className={isRtl ? "lg:pr-72" : "lg:pl-72"}>
         <div className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
           {activeView === "dashboard" ? (
             <CloudTopBar
@@ -1387,7 +1515,7 @@ export default function App() {
               onToggleTheme={() => setTheme(theme === "dark" ? "light" : "dark")}
               lang={lang}
               onToggleLang={() => setLang(lang === "ar" ? "en" : "ar")}
-              onOpenSiteAdmin={() => navigate("site-admin")}
+              alerts={systemAlerts}
             />
           ) : null}
           {syncStatus ? (
@@ -1451,7 +1579,11 @@ export default function App() {
           if (action === "accounting") handleAccountingExport();
           if (action === "odoo") handleOdooExport();
           if (action === "bank") handleBankTransferExport();
+          if (action === "wps") handleWpsExport();
         }}
+        lang={lang}
+        onToggleTheme={() => setTheme(theme === "dark" ? "light" : "dark")}
+        onToggleLang={() => setLang(lang === "ar" ? "en" : "ar")}
       />
 
       <EmployeePortalModal
@@ -2499,13 +2631,16 @@ function DashboardView({
   settings,
   onNavigate,
   payrollAiAnalysis,
-  onOpenPortal
+  onOpenPortal,
+  lang = "ar"
 }) {
+  const isEn = lang === "en";
+  const isRtl = lang === "ar";
   const currentCalendarMonth = useMemo(() => new Date().toISOString().slice(0, 7), []);
   const [selectedHolidayMonth, setSelectedHolidayMonth] = useState(currentCalendarMonth);
 
   const activeHolidayMonth = selectedHolidayMonth || currentCalendarMonth;
-  const activeHolidayMonthLabel = getMonthLabel(activeHolidayMonth);
+  const activeHolidayMonthLabel = getMonthLabel(activeHolidayMonth, lang);
   const holidayAlerts = useMemo(
     () => getMonthlyHolidayAlerts(settings, activeHolidayMonth),
     [settings, activeHolidayMonth]
@@ -2528,31 +2663,31 @@ function DashboardView({
     return Array.from({ length: 12 }, (_, i) => {
       const m = String(i + 1).padStart(2, "0");
       const key = `${year}-${m}`;
-      return { key, label: getMonthLabel(key) };
+      return { key, label: getMonthLabel(key, lang) };
     });
-  }, [activeHolidayMonth]);
+  }, [activeHolidayMonth, lang]);
 
   const insights = [
     {
-      label: "أيام الغياب",
+      label: isEn ? "Absence Days" : "أيام الغياب",
       value: metrics.absenceDays,
       max: Math.max(metrics.absenceDays, metrics.activeEmployees * 4, 1),
       tone: "bg-rose-500"
     },
     {
-      label: "دقائق التأخير",
+      label: isEn ? "Late Minutes" : "دقائق التأخير",
       value: metrics.lateMinutes,
       max: Math.max(metrics.lateMinutes, 180, 1),
       tone: "bg-amber-500"
     },
     {
-      label: "إجمالي الخصومات",
+      label: isEn ? "Total Deductions" : "إجمالي الخصومات",
       value: Math.round(metrics.totalDeductions),
       max: Math.max(metrics.totalDeductions, metrics.totalNetSalary * 0.12, 1),
       tone: "bg-blue-500"
     },
     {
-      label: "دقائق إضافية",
+      label: isEn ? "Overtime Minutes" : "دقائق إضافية",
       value: metrics.overtimeMinutes,
       max: Math.max(metrics.overtimeMinutes, 180, 1),
       tone: "bg-emerald-500"
@@ -2562,68 +2697,72 @@ function DashboardView({
   return (
     <div className="space-y-6">
       <PageHeader
-        eyebrow={`الشهر الحالي: ${getMonthLabel(currentCalendarMonth)}`}
-        title={`مرحبا، ${settings.companyName}`}
-        description="ملخص مباشر باليوم والتاريخ والوقت لحالة الموظفين والرواتب والإجازات الرسمية المحدثة."
+        eyebrow={isEn ? `Current Month: ${getMonthLabel(currentCalendarMonth, "en")}` : `الشهر الحالي: ${getMonthLabel(currentCalendarMonth, "ar")}`}
+        title={isEn ? `Welcome, ${settings.companyName}` : `مرحبا، ${settings.companyName}`}
+        description={isEn ? "Live real-time summary of employee attendance, payroll status, shifts, and official holidays." : "ملخص مباشر باليوم والتاريخ والوقت لحالة الموظفين والرواتب والإجازات الرسمية المحدثة."}
         action={
           <PrimaryButton onClick={() => onNavigate("attendance")} icon={UploadCloud}>
-            سجل الحضور والبصمات
+            {isEn ? "Attendance & Biometrics" : "سجل الحضور والبصمات"}
           </PrimaryButton>
         }
       />
 
       {/* Realtime Live Clock & Date Widget */}
-      <LiveClockWidget countryCode={settings.country} />
+      <LiveClockWidget countryCode={settings.country} lang={lang} />
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard label="إجمالي الموظفين" value={metrics.activeEmployees} icon={Users} />
-        <StatCard label="الأقسام" value={departments.length} icon={Building2} tone="emerald" />
-        <StatCard label={shiftCopy.plural} value={shifts.length} icon={Clock} tone="amber" />
-        <StatCard label="تقارير الرواتب" value={reports.length} icon={FileSpreadsheet} tone="rose" />
+        <StatCard label={isEn ? "Total Employees" : "إجمالي الموظفين"} value={metrics.activeEmployees} icon={Users} />
+        <StatCard label={isEn ? "Departments" : "الأقسام"} value={departments.length} icon={Building2} tone="emerald" />
+        <StatCard label={isEn ? "Shifts & Schedules" : shiftCopy.plural} value={shifts.length} icon={Clock} tone="amber" />
+        <StatCard label={isEn ? "Payroll Reports" : "تقارير الرواتب"} value={reports.length} icon={FileSpreadsheet} tone="rose" />
       </div>
 
-      <section className="rounded-xl border border-blue-200 bg-gradient-to-br from-blue-50/90 via-sky-50/50 to-white p-5 shadow-sm">
+      <section className="rounded-xl border border-blue-200 bg-gradient-to-br from-blue-50/90 via-sky-50/50 to-white dark:from-slate-900 dark:via-slate-850 dark:to-slate-900 p-5 shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="space-y-1">
             <div className="flex items-center gap-2">
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-bold text-primary">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-100 dark:bg-blue-950 px-2.5 py-0.5 text-xs font-bold text-primary dark:text-blue-300">
                 <CalendarDays size={13} />
-                تنبيه الإجازات الرسمية
+                {isEn ? "Official Holidays Alert" : "تنبيه الإجازات الرسمية"}
               </span>
               {activeHolidayMonth === currentCalendarMonth ? (
-                <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-bold text-emerald-800">
-                  الشهر الحالي
+                <span className="rounded-full bg-emerald-100 dark:bg-emerald-950 px-2 py-0.5 text-[11px] font-bold text-emerald-800 dark:text-emerald-300">
+                  {isEn ? "Current Month" : "الشهر الحالي"}
                 </span>
               ) : null}
             </div>
-            <h2 className="text-xl font-black text-blue-950">
+            <h2 className="text-xl font-black text-blue-950 dark:text-white">
               {holidayAlerts.length > 0 ? (
-                <>
-                  يوجد <span className="text-primary font-black">{formatNumber(holidayAlerts.length)}</span> {holidayAlerts.length === 1 ? "يوم إجازة رسمية" : holidayAlerts.length === 2 ? "يومان إجازة رسمية" : holidayAlerts.length <= 10 ? "أيام إجازات رسمية" : "يوم إجازة رسمية"} في {activeHolidayMonthLabel}
-                </>
+                isEn ? (
+                  <>There {holidayAlerts.length === 1 ? "is" : "are"} <span className="text-primary font-black">{formatNumber(holidayAlerts.length)}</span> official {holidayAlerts.length === 1 ? "holiday" : "holidays"} in {activeHolidayMonthLabel}</>
+                ) : (
+                  <>
+                    يوجد <span className="text-primary font-black">{formatNumber(holidayAlerts.length)}</span> {holidayAlerts.length === 1 ? "يوم إجازة رسمية" : holidayAlerts.length === 2 ? "يومان إجازة رسمية" : holidayAlerts.length <= 10 ? "أيام إجازات رسمية" : "يوم إجازة رسمية"} في {activeHolidayMonthLabel}
+                  </>
+                )
               ) : (
-                <>لا توجد إجازات رسمية مسجلة في {activeHolidayMonthLabel}</>
+                isEn ? <>No official holidays registered in {activeHolidayMonthLabel}</> : <>لا توجد إجازات رسمية مسجلة في {activeHolidayMonthLabel}</>
               )}
             </h2>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            <div className="flex items-center rounded-lg border border-blue-200 bg-white shadow-xs">
+            <div className="flex items-center rounded-lg border border-blue-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-xs">
               <button
                 type="button"
                 onClick={() => shiftHolidayMonth(1)}
-                className="p-2 text-slate-600 hover:bg-blue-50 hover:text-primary transition rounded-r-lg"
-                title="الشهر القادم"
+                className={`p-2 text-slate-600 dark:text-slate-300 hover:bg-blue-50 dark:hover:bg-slate-700 hover:text-primary transition ${isRtl ? "rounded-r-lg" : "rounded-l-lg"}`}
+                title={isEn ? "Next Month" : "الشهر القادم"}
               >
-                <ChevronRight size={16} />
+                {isRtl ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
               </button>
               <select
                 value={activeHolidayMonth}
                 onChange={(e) => setSelectedHolidayMonth(e.target.value)}
-                className="border-x border-blue-200 bg-transparent px-3 py-1.5 text-xs font-bold text-ink outline-none cursor-pointer"
+                className="border-x border-blue-200 dark:border-slate-700 bg-transparent px-3 py-1.5 text-xs font-bold text-ink dark:text-white outline-none cursor-pointer"
               >
                 {yearMonths.map((ym) => (
-                  <option key={ym.key} value={ym.key}>
+                  <option key={ym.key} value={ym.key} className="dark:bg-slate-800">
                     {ym.label}
                   </option>
                 ))}
@@ -2631,10 +2770,10 @@ function DashboardView({
               <button
                 type="button"
                 onClick={() => shiftHolidayMonth(-1)}
-                className="p-2 text-slate-600 hover:bg-blue-50 hover:text-primary transition rounded-l-lg"
-                title="الشهر السابق"
+                className={`p-2 text-slate-600 dark:text-slate-300 hover:bg-blue-50 dark:hover:bg-slate-700 hover:text-primary transition ${isRtl ? "rounded-l-lg" : "rounded-r-lg"}`}
+                title={isEn ? "Previous Month" : "الشهر السابق"}
               >
-                <ChevronLeft size={16} />
+                {isRtl ? <ChevronLeft size={16} /> : <ChevronRight size={16} />}
               </button>
             </div>
 
@@ -2642,14 +2781,14 @@ function DashboardView({
               <button
                 type="button"
                 onClick={() => setSelectedHolidayMonth(currentCalendarMonth)}
-                className="rounded-lg border border-blue-200 bg-white px-3 py-2 text-xs font-bold text-primary hover:bg-blue-50 transition shadow-xs"
+                className="rounded-lg border border-blue-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-xs font-bold text-primary dark:text-blue-300 hover:bg-blue-50 transition shadow-xs"
               >
-                العودة للشهر الحالي
+                {isEn ? "Back to Current Month" : "العودة للشهر الحالي"}
               </button>
             ) : null}
 
             <SecondaryButton type="button" onClick={() => onNavigate("settings")} icon={Settings}>
-              إدارة الإجازات
+              {isEn ? "Manage Holidays" : "إدارة الإجازات"}
             </SecondaryButton>
           </div>
         </div>
@@ -2658,52 +2797,54 @@ function DashboardView({
           <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {holidayAlerts.map((holiday) => {
               const holidayDate = new Date(holiday.date);
-              const dayName = holidayDate.toLocaleDateString("ar-EG", { weekday: "long" });
+              const dayName = holidayDate.toLocaleDateString(isEn ? "en-US" : "ar-EG", { weekday: "long" });
               const todayStr = new Date().toISOString().slice(0, 10);
               const isPast = holiday.date < todayStr;
               const isToday = holiday.date === todayStr;
               return (
                 <div
                   key={`${holiday.date}-${holiday.name}`}
-                  className="group relative rounded-xl border border-blue-100 bg-white p-3.5 shadow-xs transition hover:border-primary/40 hover:shadow-sm"
+                  className="group relative rounded-xl border border-blue-100 dark:border-slate-800 bg-white dark:bg-slate-800 p-3.5 shadow-xs transition hover:border-primary/40 hover:shadow-sm"
                 >
                   <div className="flex items-start justify-between gap-2">
-                    <p className="font-extrabold text-ink leading-snug">{holiday.name}</p>
+                    <p className="font-extrabold text-ink dark:text-white leading-snug">{holiday.name}</p>
                     {isToday ? (
-                      <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-black text-emerald-800 shrink-0">
-                        اليوم
+                      <span className="rounded-full bg-emerald-100 dark:bg-emerald-950 px-2 py-0.5 text-[10px] font-black text-emerald-800 dark:text-emerald-300 shrink-0">
+                        {isEn ? "Today" : "اليوم"}
                       </span>
                     ) : isPast ? (
-                      <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-500 shrink-0">
-                        مضت
+                      <span className="rounded-full bg-slate-100 dark:bg-slate-700 px-2 py-0.5 text-[10px] font-bold text-slate-500 dark:text-slate-300 shrink-0">
+                        {isEn ? "Past" : "مضت"}
                       </span>
                     ) : (
-                      <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-bold text-primary shrink-0">
-                        قادمة
+                      <span className="rounded-full bg-blue-100 dark:bg-blue-950 px-2 py-0.5 text-[10px] font-bold text-primary dark:text-blue-300 shrink-0">
+                        {isEn ? "Upcoming" : "قادمة"}
                       </span>
                     )}
                   </div>
-                  <div className="mt-2.5 flex items-center justify-between text-xs font-bold text-slate-500">
-                    <span className="text-primary font-black flex items-center gap-1">
+                  <div className="mt-2.5 flex items-center justify-between text-xs font-bold text-slate-500 dark:text-slate-400">
+                    <span className="text-primary dark:text-blue-400 font-black flex items-center gap-1">
                       <Clock size={12} />
                       {holiday.date}
                     </span>
-                    <span className="text-slate-600">{dayName}</span>
+                    <span className="text-slate-600 dark:text-slate-300">{dayName}</span>
                   </div>
                 </div>
               );
             })}
           </div>
         ) : (
-          <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-dashed border-blue-200 bg-white/70 p-4">
-            <p className="text-sm font-bold text-slate-500">
-              لا توجد عطلات رسمية مسجلة في هذا الشهر لـ {settings.country}. يمكنك التنقل بين الشهور عبر الأسهم أو إضافة عطلة مخصصة.
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-dashed border-blue-200 dark:border-slate-700 bg-white/70 dark:bg-slate-800/70 p-4">
+            <p className="text-sm font-bold text-slate-500 dark:text-slate-400">
+              {isEn
+                ? `No official holidays registered this month for ${settings.country}. Navigate months or add custom holidays in Settings.`
+                : `لا توجد عطلات رسمية مسجلة في هذا الشهر لـ ${settings.country}. يمكنك التنقل بين الشهور عبر الأسهم أو إضافة عطلة مخصصة.`}
             </p>
             {nextHoliday ? (
-              <div className="flex items-center gap-2 rounded-lg bg-blue-50 px-3 py-1.5 text-xs font-bold text-primary">
-                <span>أقرب إجازة قادمة:</span>
-                <span className="font-extrabold text-blue-950">{nextHoliday.name}</span>
-                <span className="text-slate-500">({nextHoliday.date})</span>
+              <div className="flex items-center gap-2 rounded-lg bg-blue-50 dark:bg-blue-950/60 px-3 py-1.5 text-xs font-bold text-primary dark:text-blue-300">
+                <span>{isEn ? "Next holiday:" : "أقرب إجازة قادمة:"}</span>
+                <span className="font-extrabold text-blue-950 dark:text-white">{nextHoliday.name}</span>
+                <span className="text-slate-500 dark:text-slate-400">({nextHoliday.date})</span>
               </div>
             ) : null}
           </div>
@@ -2715,13 +2856,17 @@ function DashboardView({
       )}
 
       <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
-        <section className="rounded-lg border border-line bg-white p-5 shadow-sm">
+        <section className="rounded-lg border border-line bg-white dark:bg-slate-900 p-5 shadow-sm">
           <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
             <div>
-              <h2 className="text-xl font-extrabold text-ink">رؤى الحضور</h2>
-              <p className="mt-1 text-sm text-slate-500">أرقام مهمة قبل اعتماد كشف الرواتب.</p>
+              <h2 className="text-xl font-extrabold text-ink dark:text-white">
+                {isEn ? "Attendance Insights" : "رؤى الحضور"}
+              </h2>
+              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                {isEn ? "Key metrics before payroll approval." : "أرقام مهمة قبل اعتماد كشف الرواتب."}
+              </p>
             </div>
-            <span className="rounded-full bg-blue-50 px-3 py-1 text-sm font-bold text-primary">
+            <span className="rounded-full bg-blue-50 dark:bg-blue-950 px-3 py-1 text-sm font-bold text-primary dark:text-blue-300">
               {formatCurrency(metrics.totalNetSalary, settings.currency)}
             </span>
           </div>
@@ -2729,10 +2874,10 @@ function DashboardView({
             {insights.map((item) => (
               <div key={item.label}>
                 <div className="mb-2 flex items-center justify-between text-sm font-bold">
-                  <span className="text-slate-600">{item.label}</span>
-                  <span className="text-ink">{formatNumber(item.value)}</span>
+                  <span className="text-slate-600 dark:text-slate-300">{item.label}</span>
+                  <span className="text-ink dark:text-white">{formatNumber(item.value)}</span>
                 </div>
-                <div className="h-3 overflow-hidden rounded-full bg-slate-100">
+                <div className="h-3 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
                   <div
                     className={`h-full rounded-full ${item.tone}`}
                     style={{ width: `${Math.min(100, (item.value / item.max) * 100)}%` }}
@@ -2743,32 +2888,34 @@ function DashboardView({
           </div>
         </section>
 
-        <section className="rounded-lg border border-line bg-white p-5 shadow-sm">
-          <h2 className="text-xl font-extrabold text-ink">معالج التشغيل السريع</h2>
+        <section className="rounded-lg border border-line bg-white dark:bg-slate-900 p-5 shadow-sm">
+          <h2 className="text-xl font-extrabold text-ink dark:text-white">
+            {isEn ? "Quick Setup Wizard" : "معالج التشغيل السريع"}
+          </h2>
           <div className="mt-5 space-y-4">
             {[
-              { label: `أضف الأقسام و${shiftCopy.plural}`, done: departments.length > 0 && shifts.length > 0, target: "departments" },
-              { label: "أكمل بيانات الموظفين", done: metrics.activeEmployees > 0, target: "employees" },
-              { label: "ارفع ملف الحضور الشهري", done: payrollRows.some((row) => row.attendanceDays > 0), target: "attendance" },
-              { label: "راجع التقرير واعتمد الرواتب", done: reports.some((report) => report.status === "approved"), target: "reports" }
+              { label: isEn ? "Add departments and shifts" : `أضف الأقسام و${shiftCopy.plural}`, done: departments.length > 0 && shifts.length > 0, target: "departments" },
+              { label: isEn ? "Complete employee profiles" : "أكمل بيانات الموظفين", done: metrics.activeEmployees > 0, target: "employees" },
+              { label: isEn ? "Upload monthly attendance or punches" : "ارفع ملف الحضور الشهري", done: payrollRows.some((row) => row.attendanceDays > 0), target: "attendance" },
+              { label: isEn ? "Review report & approve payroll" : "راجع التقرير واعتمد الرواتب", done: reports.some((report) => report.status === "approved"), target: "reports" }
             ].map((step) => (
-              <div key={step.label} className="flex items-center justify-between gap-3 rounded-lg bg-slate-50 p-3">
+              <div key={step.label} className="flex items-center justify-between gap-3 rounded-lg bg-slate-50 dark:bg-slate-800 p-3">
                 <div className="flex items-center gap-3">
                   <span
                     className={`flex h-9 w-9 items-center justify-center rounded-lg ${
-                      step.done ? "bg-emerald-50 text-emerald-600" : "bg-white text-slate-400"
+                      step.done ? "bg-emerald-50 text-emerald-600 dark:bg-emerald-950 dark:text-emerald-400" : "bg-white dark:bg-slate-700 text-slate-400"
                     }`}
                   >
                     <CheckCircle2 size={20} />
                   </span>
-                  <span className="font-bold text-slate-700">{step.label}</span>
+                  <span className="font-bold text-slate-700 dark:text-slate-200">{step.label}</span>
                 </div>
                 <button
                   type="button"
                   onClick={() => onNavigate(step.target)}
-                  className="rounded-lg border border-line bg-white px-3 py-2 text-sm font-bold text-slate-600 hover:border-primary hover:text-primary"
+                  className="rounded-lg border border-line bg-white dark:bg-slate-700 px-3 py-2 text-sm font-bold text-slate-600 dark:text-slate-200 hover:border-primary hover:text-primary"
                 >
-                  فتح
+                  {isEn ? "Open" : "فتح"}
                 </button>
               </div>
             ))}
@@ -2776,18 +2923,22 @@ function DashboardView({
         </section>
       </div>
 
-      <section className="rounded-lg border border-line bg-white p-5 shadow-sm">
+      <section className="rounded-lg border border-line bg-white dark:bg-slate-900 p-5 shadow-sm">
         <div className="mb-4 flex items-center justify-between gap-3">
           <div>
-            <h2 className="text-xl font-extrabold text-ink">أعلى الحالات التي تحتاج مراجعة</h2>
-            <p className="mt-1 text-sm text-slate-500">مرتبة حسب الغياب والتأخير.</p>
+            <h2 className="text-xl font-extrabold text-ink dark:text-white">
+              {isEn ? "Top Cases Requiring Review" : "أعلى الحالات التي تحتاج مراجعة"}
+            </h2>
+            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+              {isEn ? "Ranked by absence and late minutes." : "مرتبة حسب الغياب والتأخير."}
+            </p>
           </div>
           <button
             type="button"
             onClick={() => onNavigate("reports")}
-            className="rounded-lg border border-line px-4 py-2 text-sm font-bold text-slate-700 hover:border-primary hover:text-primary"
+            className="rounded-lg border border-line px-4 py-2 text-sm font-bold text-slate-700 dark:text-slate-300 hover:border-primary hover:text-primary"
           >
-            فتح التقرير
+            {isEn ? "Open Report" : "فتح التقرير"}
           </button>
         </div>
         <div className="grid gap-3 md:grid-cols-3">
@@ -2798,14 +2949,14 @@ function DashboardView({
               <article key={row.employeeCode} className="rounded-lg border border-line p-4">
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <p className="font-extrabold text-ink">{row.employeeName}</p>
-                    <p className="mt-1 text-sm text-slate-500">{row.department}</p>
+                    <p className="font-extrabold text-ink dark:text-white">{row.employeeName}</p>
+                    <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{row.department}</p>
                   </div>
                   <StatusBadge status={row.status} />
                 </div>
                 <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
-                  <MetricPill label="غياب" value={`${formatNumber(row.absenceDays)} يوم`} />
-                  <MetricPill label="تأخير" value={`${formatNumber(row.lateMinutes)} د`} />
+                  <MetricPill label={isEn ? "Absence" : "غياب"} value={`${formatNumber(row.absenceDays)} ${isEn ? "d" : "يوم"}`} />
+                  <MetricPill label={isEn ? "Late" : "تأخير"} value={`${formatNumber(row.lateMinutes)} ${isEn ? "m" : "د"}`} />
                 </div>
               </article>
             ))}
@@ -2815,7 +2966,8 @@ function DashboardView({
   );
 }
 
-function DepartmentsView({ departments, setDepartments, setNotice }) {
+function DepartmentsView({ departments, setDepartments, setNotice, lang = "ar" }) {
+  const isEn = lang === "en";
   const [customName, setCustomName] = useState("");
   const [selected, setSelected] = useState(DEPARTMENT_PRESETS[0]);
   const [editingId, setEditingId] = useState("");
@@ -2828,13 +2980,13 @@ function DepartmentsView({ departments, setDepartments, setNotice }) {
     event.preventDefault();
     if (!finalName) return;
     if (departments.some((d) => d.name.toLowerCase() === finalName.toLowerCase())) {
-      setNotice("هذا القسم موجود بالفعل.");
+      setNotice(isEn ? "This department already exists." : "هذا القسم موجود بالفعل.");
       return;
     }
     setDepartments([...departments, { id: makeId("dep"), name: finalName }]);
     setSelected(DEPARTMENT_PRESETS[0]);
     setCustomName("");
-    setNotice("تمت إضافة القسم.");
+    setNotice(isEn ? "Department added successfully." : "تمت إضافة القسم.");
   };
 
   const startEdit = (dep) => {
@@ -2847,52 +2999,52 @@ function DepartmentsView({ departments, setDepartments, setNotice }) {
     if (!name) return;
     setDepartments(departments.map((d) => d.id === id ? { ...d, name } : d));
     setEditingId("");
-    setNotice("تم تحديث القسم.");
+    setNotice(isEn ? "Department updated." : "تم تحديث القسم.");
   };
 
   const deleteDepartment = (id) => {
-    if (!window.confirm("هل أنت متأكد من حذف هذا القسم؟")) return;
+    if (!window.confirm(isEn ? "Are you sure you want to delete this department?" : "هل أنت متأكد من حذف هذا القسم؟")) return;
     setDepartments(departments.filter((d) => d.id !== id));
-    setNotice("تم حذف القسم.");
+    setNotice(isEn ? "Department deleted." : "تم حذف القسم.");
   };
 
   return (
     <div className="space-y-6">
       <PageHeader
-        eyebrow="إدارة الهيكل"
-        title="الأقسام"
-        description="أضف الأقسام من الاقتراحات أو أدخل اسماً مخصصاً."
+        eyebrow={isEn ? "Structure Management" : "إدارة الهيكل"}
+        title={isEn ? "Departments" : "الأقسام"}
+        description={isEn ? "Add departments from presets or enter custom department names." : "أضف الأقسام من الاقتراحات أو أدخل اسماً مخصصاً."}
       />
       <section className="grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
         <form onSubmit={addDepartment} className="rounded-lg border border-line bg-white p-5 shadow-sm">
-          <h2 className="text-xl font-extrabold text-ink">قسم جديد</h2>
+          <h2 className="text-xl font-extrabold text-ink">{isEn ? "New Department" : "قسم جديد"}</h2>
           <div className="mt-5 space-y-4">
             <SelectField
-              label="اختر القسم"
+              label={isEn ? "Choose Department" : "اختر القسم"}
               value={selected}
               onChange={(e) => setSelected(e.target.value)}
             >
               {DEPARTMENT_PRESETS.map((p) => (
                 <option key={p} value={p}>{p}</option>
               ))}
-              <option value="__custom__">✏️ أدخل اسماً مخصصاً...</option>
+              <option value="__custom__">{isEn ? "✏️ Enter custom name..." : "✏️ أدخل اسماً مخصصاً..."}</option>
             </SelectField>
             {isCustom && (
               <InputField
-                label="اسم القسم المخصص"
+                label={isEn ? "Custom Department Name" : "اسم القسم المخصص"}
                 value={customName}
                 onChange={(e) => setCustomName(e.target.value)}
-                placeholder="مثال: اللوجستيات، التسويق..."
+                placeholder={isEn ? "e.g., Logistics, Marketing..." : "مثال: اللوجستيات، التسويق..."}
                 required
               />
             )}
             <PrimaryButton type="submit" icon={Plus} full>
-              إضافة القسم
+              {isEn ? "Add Department" : "إضافة القسم"}
             </PrimaryButton>
           </div>
         </form>
         <section className="rounded-lg border border-line bg-white p-5 shadow-sm">
-          <h2 className="text-xl font-extrabold text-ink">الأقسام الحالية</h2>
+          <h2 className="text-xl font-extrabold text-ink">{isEn ? "Current Departments" : "الأقسام الحالية"}</h2>
           <div className="mt-5 grid gap-3 sm:grid-cols-2">
             {departments.map((department) => (
               <div
@@ -2957,7 +3109,8 @@ function DepartmentsView({ departments, setDepartments, setNotice }) {
   );
 }
 
-function ShiftsView({ shifts, setShifts, setNotice, shiftCopy }) {
+function ShiftsView({ shifts, setShifts, setNotice, shiftCopy, lang = "ar" }) {
+  const isEn = lang === "en";
   const [form, setForm] = useState(() => makeEmptyShift());
   const [editingId, setEditingId] = useState("");
 
@@ -3153,31 +3306,31 @@ function ShiftsView({ shifts, setShifts, setNotice, shiftCopy }) {
   return (
     <div className="space-y-6">
       <PageHeader
-        eyebrow="سياسات الحضور"
-        title={`إدارة ${shiftCopy.plural}`}
-        description={`عرّف ${shiftCopy.definite} كفترة واحدة أو شيفت مقسم، واضبط خصومات التأخير ومكافآت الوقت الإضافي لكل فترة.`}
+        eyebrow={isEn ? "Attendance Policies" : "سياسات الحضور"}
+        title={isEn ? "Shifts & Schedules" : `إدارة ${shiftCopy.plural}`}
+        description={isEn ? "Define shifts, grace periods, late deduction rules, and overtime rates." : `عرّف ${shiftCopy.definite} كفترة واحدة أو شيفت مقسم، واضبط خصومات التأخير ومكافآت الوقت الإضافي لكل فترة.`}
       />
       <section className="grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
         <form onSubmit={saveShift} className="rounded-lg border border-line bg-white p-5 shadow-sm">
           <h2 className="text-xl font-extrabold text-ink">
-            {editingId ? `تعديل ${shiftCopy.definite}` : `${shiftCopy.singular} جديد`}
+            {isEn ? (editingId ? "Edit Shift" : "New Shift") : (editingId ? `تعديل ${shiftCopy.definite}` : `${shiftCopy.singular} جديد`)}
           </h2>
           <div className="mt-5 grid gap-4 sm:grid-cols-2">
             <InputField
-              label={`اسم ${shiftCopy.definite}`}
+              label={isEn ? "Shift Name" : `اسم ${shiftCopy.definite}`}
               value={form.name}
               onChange={(event) => setForm({ ...form, name: event.target.value })}
               required
             />
             <InputField
-              label="فترة السماح بالدقائق"
+              label={isEn ? "Grace Period (Minutes)" : "فترة السماح بالدقائق"}
               type="number"
               value={form.gracePeriod}
               onChange={(event) => setForm({ ...form, gracePeriod: event.target.value })}
               required
             />
             <InputField
-              label="وقت البداية"
+              label={isEn ? "Start Time" : "وقت البداية"}
               type="time"
               value={form.startTime}
               onChange={(event) =>
@@ -3518,8 +3671,10 @@ function EmployeesView({
   reportMonth,
   onOpenPortal,
   userTier = "free",
-  onTriggerUpgrade
+  onTriggerUpgrade,
+  lang = "ar"
 }) {
+  const isEn = lang === "en";
   const [selectedAdvanceEmployee, setSelectedAdvanceEmployee] = useState(null);
   const emptyEmployee = {
     code: "",
@@ -3712,9 +3867,9 @@ function EmployeesView({
   return (
     <div className="space-y-6">
       <PageHeader
-        eyebrow="بيانات مرة واحدة"
-        title="إدارة الموظفين"
-        description="احتفظ بكود الموظف مطابقا لكود ماكينة البصمة لضمان حساب الرواتب تلقائيا عند رفع ملف الحضور."
+        eyebrow={isEn ? "One-time Data" : "بيانات مرة واحدة"}
+        title={isEn ? "Employee Management" : "إدارة الموظفين"}
+        description={isEn ? "Keep the employee ID matching the biometric machine ID to ensure automatic payroll calculation when uploading attendance." : "احتفظ بكود الموظف مطابقا لكود ماكينة البصمة لضمان حساب الرواتب تلقائيا عند رفع ملف الحضور."}
       />
 
       {/* Tier Quota Bar */}
@@ -3725,13 +3880,17 @@ function EmployeesView({
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <span className="text-sm font-black text-slate-800">سعة الموظفين في الحساب</span>
+              <span className="text-sm font-black text-slate-800">{isEn ? "Account Employee Capacity" : "سعة الموظفين في الحساب"}</span>
               <span className="rounded-full bg-blue-100 px-2.5 py-0.5 text-[10px] font-black text-primary">
                 {getTierConfig(userTier).name}
               </span>
             </div>
             <p className="text-xs text-slate-500 mt-0.5">
-              مستخدم: <strong className="text-slate-800">{employees.length}</strong> من أصل <strong className="text-slate-800">{getTierConfig(userTier).maxEmployees}</strong> موظف متاح
+              {isEn ? (
+                <>Used: <strong className="text-slate-800">{employees.length}</strong> of <strong className="text-slate-800">{getTierConfig(userTier).maxEmployees}</strong> available</>
+              ) : (
+                <>مستخدم: <strong className="text-slate-800">{employees.length}</strong> من أصل <strong className="text-slate-800">{getTierConfig(userTier).maxEmployees}</strong> موظف متاح</>
+              )}
             </p>
           </div>
         </div>
@@ -3748,7 +3907,7 @@ function EmployeesView({
             className="flex items-center gap-1 rounded-lg border border-primary/40 bg-white px-3 py-1.5 text-xs font-bold text-primary hover:bg-blue-50 transition"
           >
             <Sparkles size={13} />
-            <span>ترقية السعة</span>
+            <span>{isEn ? "Upgrade Capacity" : "ترقية السعة"}</span>
           </button>
         </div>
       </div>
@@ -3756,23 +3915,23 @@ function EmployeesView({
       <section className="rounded-lg border border-line bg-white p-5 shadow-sm">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <h2 className="text-xl font-extrabold text-ink">استيراد من Excel</h2>
+            <h2 className="text-xl font-extrabold text-ink">{isEn ? "Import from Excel" : "استيراد من Excel"}</h2>
             <p className="mt-2 leading-7 text-slate-500">
-              ارفع شيت فيه الأكواد والأسماء مرة واحدة. القسم والشيفت والراتب والإجازات اختيارية ويمكن تعديلها لاحقا.
+              {isEn ? "Upload an Excel sheet with employee codes and names. Departments, shifts, salaries, and vacation balances can be updated later." : "ارفع شيت فيه الأكواد والأسماء مرة واحدة. القسم والشيفت والراتب والإجازات اختيارية ويمكن تعديلها لاحقا."}
             </p>
           </div>
           <SecondaryButton type="button" onClick={downloadEmployeeTemplate} icon={Download}>
-            تحميل نموذج الموظفين
+            {isEn ? "Download Template" : "تحميل نموذج الموظفين"}
           </SecondaryButton>
         </div>
         <label className="mt-5 inline-flex cursor-pointer items-center justify-center gap-2 rounded-lg bg-primary px-6 py-3 font-extrabold text-white shadow-lg shadow-blue-100 transition hover:bg-blue-700">
           <FileSpreadsheet size={18} />
-          رفع ملف الموظفين
+          {isEn ? "Upload Employee Sheet" : "رفع ملف الموظفين"}
           <input className="hidden" type="file" accept=".xlsx,.xls,.csv" onChange={handleBulkEmployees} />
         </label>
         {importSummary ? (
           <div className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm font-bold text-emerald-800">
-            تم إضافة {formatNumber(importSummary.added)} موظف، تم تجاهل {formatNumber(importSummary.skipped)} صف.
+            {isEn ? `Added ${formatNumber(importSummary.added)} employees, skipped ${formatNumber(importSummary.skipped)} rows.` : `تم إضافة ${formatNumber(importSummary.added)} موظف، تم تجاهل ${formatNumber(importSummary.skipped)} صف.`}
           </div>
         ) : null}
       </section>
@@ -3985,8 +4144,10 @@ function AttendanceView({
   setReportMonth,
   setNotice,
   setToastMessage,
-  onReport
+  onReport,
+  lang = "ar"
 }) {
+  const isEn = lang === "en";
   const [attendanceTab, setAttendanceTab] = useState("live_sheet");
   const [punchMode, setPunchMode] = useState("auto");
 
@@ -4156,9 +4317,9 @@ function AttendanceView({
           }`}
         >
           <Radio size={16} className={attendanceTab === "live_sheet" ? "text-emerald-300 animate-pulse" : "text-emerald-600"} />
-          سجل البصمات الحي (Live Punches Sheet)
+          {isEn ? "Live Punches Sheet" : "سجل البصمات الحي (Live Punches Sheet)"}
           <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-black text-emerald-800">
-            مباشر ⚡
+            {isEn ? "Live ⚡" : "مباشر ⚡"}
           </span>
         </button>
         <button
@@ -4171,7 +4332,7 @@ function AttendanceView({
           }`}
         >
           <FileSpreadsheet size={16} />
-          رفع ملف الحضور (Excel / CSV)
+          {isEn ? "Upload Attendance (Excel / CSV)" : "رفع ملف الحضور (Excel / CSV)"}
         </button>
         <button
           type="button"
@@ -4183,7 +4344,7 @@ function AttendanceView({
           }`}
         >
           <Cpu size={16} />
-          أجهزة البصمة والربط السحابي (Live Sync)
+          {isEn ? "Biometric Devices & Cloud Sync" : "أجهزة البصمة والربط السحابي (Live Sync)"}
         </button>
       </div>
 
@@ -4200,13 +4361,14 @@ function AttendanceView({
             const month = attendanceLogs.length > 0 ? getReportMonth(attendanceLogs) : new Date().toISOString().slice(0, 7);
             setReportMonth(month);
             onReport();
-            setNotice("تم اعتماد وتحديث سجل البصمات الحي في تقرير الرواتب.");
+            setNotice(isEn ? "Live biometric punches applied to current payroll report." : "تم اعتماد وتحديث سجل البصمات الحي في تقرير الرواتب.");
             if (setToastMessage) {
-              setToastMessage({ message: "تم تحديث واحتساب رواتب الشهر من البصمات الحية بنجاح.", type: "success" });
+              setToastMessage({ message: isEn ? "Monthly payroll successfully updated from live punches." : "تم تحديث واحتساب رواتب الشهر من البصمات الحية بنجاح.", type: "success" });
             }
           }}
           setNotice={setNotice}
           setToastMessage={setToastMessage}
+          lang={lang}
         />
       ) : attendanceTab === "devices" ? (
         <BiometricDevicesManager
@@ -4436,6 +4598,7 @@ function ReportsView({
   onBankTransfer,
   onAccounting,
   onOdoo,
+  onWps,
   onPdf,
   onSlipPdf,
   exporting,
@@ -4443,8 +4606,10 @@ function ReportsView({
   setNotice,
   onNavigate,
   payrollAiAnalysis,
-  onOpenPortal
+  onOpenPortal,
+  lang = "ar"
 }) {
+  const isEn = lang === "en";
   const [reportSearch, setReportSearch] = useState("");
   const [departmentFilter, setDepartmentFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -4489,15 +4654,15 @@ function ReportsView({
           : report
       )
     );
-    setNotice("تم اعتماد تقرير الرواتب.");
+    setNotice(isEn ? "Payroll report has been approved." : "تم اعتماد تقرير الرواتب.");
   };
 
   return (
     <div className="space-y-6">
       <PageHeader
         eyebrow={monthLabel}
-        title="تقرير الرواتب"
-        description="جدول احترافي قابل للتمرير على الشاشات الكبيرة ويتحول إلى بطاقات واضحة على الجوال."
+        title={isEn ? "Payroll Report" : "تقرير الرواتب"}
+        description={isEn ? "Professional payroll report with automatic calculation, one-click exports, and individual slips." : "جدول احترافي قابل للتمرير على الشاشات الكبيرة ويتحول إلى بطاقات واضحة على الجوال."}
         action={
           <div className="flex flex-wrap gap-2">
             <SecondaryButton
@@ -4505,21 +4670,21 @@ function ReportsView({
               icon={Download}
               disabled={exporting === "excel" || filteredRows.length === 0}
             >
-              {exporting === "excel" ? "جاري التصدير" : "Excel"}
+              {exporting === "excel" ? (isEn ? "Exporting..." : "جاري التصدير") : "Excel"}
             </SecondaryButton>
             <SecondaryButton
               onClick={() => onBankTransfer(filteredRows)}
               icon={Landmark}
               disabled={exporting === "bank" || filteredRows.length === 0}
             >
-              {exporting === "bank" ? "جاري التصدير" : "ملف البنك"}
+              {exporting === "bank" ? (isEn ? "Exporting..." : "جاري التصدير") : (isEn ? "Bank File" : "ملف البنك")}
             </SecondaryButton>
             <SecondaryButton
               onClick={() => onAccounting(filteredRows)}
               icon={BookOpen}
               disabled={exporting === "accounting" || filteredRows.length === 0}
             >
-              {exporting === "accounting" ? "جاري التصدير" : "قيد محاسبي"}
+              {exporting === "accounting" ? (isEn ? "Exporting..." : "جاري التصدير") : (isEn ? "Journal Entry" : "قيد محاسبي")}
             </SecondaryButton>
             {onOdoo && (
               <SecondaryButton
@@ -4527,7 +4692,17 @@ function ReportsView({
                 icon={FileSpreadsheet}
                 disabled={exporting === "odoo" || filteredRows.length === 0}
               >
-                {exporting === "odoo" ? "جاري التصدير" : "قيد Odoo"}
+                {exporting === "odoo" ? (isEn ? "Exporting..." : "جاري التصدير") : (isEn ? "Odoo Entry" : "قيد Odoo")}
+              </SecondaryButton>
+            )}
+            {onWps && (
+              <SecondaryButton
+                onClick={() => onWps(filteredRows)}
+                icon={ShieldCheck}
+                disabled={filteredRows.length === 0}
+                title={isEn ? "Export Wage Protection System SIF file" : "تصدير ملف حماية الأجور (WPS SIF)"}
+              >
+                {isEn ? "WPS SIF" : "حماية الأجور (WPS)"}
               </SecondaryButton>
             )}
             <PrimaryButton
@@ -4535,7 +4710,7 @@ function ReportsView({
               icon={Printer}
               disabled={exporting === "report" || filteredRows.length === 0}
             >
-              {exporting === "report" ? "جاري التصدير" : "PDF"}
+              {exporting === "report" ? (isEn ? "Exporting..." : "جاري التصدير") : "PDF"}
             </PrimaryButton>
           </div>
         }
@@ -4548,9 +4723,9 @@ function ReportsView({
       <section className="rounded-lg border border-line bg-white p-5 shadow-sm">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg bg-slate-50 p-3">
           <div>
-            <p className="text-xs font-bold text-slate-500">حالة التقرير</p>
+            <p className="text-xs font-bold text-slate-500">{isEn ? "Report Status" : "حالة التقرير"}</p>
             <p className={`mt-1 text-sm font-extrabold ${reportStatus === "approved" ? "text-emerald-700" : "text-amber-700"}`}>
-              {reportStatus === "approved" ? "معتمد وجاهز للأرشفة" : "مسودة تحتاج اعتماد"}
+              {reportStatus === "approved" ? (isEn ? "Approved & Ready for Archive" : "معتمد وجاهز للأرشفة") : (isEn ? "Draft (Pending Approval)" : "مسودة تحتاج اعتماد")}
             </p>
           </div>
           <PrimaryButton
@@ -4559,7 +4734,7 @@ function ReportsView({
             onClick={approveSelectedReport}
             disabled={!selectedStoredReport || reportStatus === "approved"}
           >
-            اعتماد التقرير
+            {isEn ? "Approve Report" : "اعتماد التقرير"}
           </PrimaryButton>
         </div>
         {reports.length > 1 && (
@@ -4567,7 +4742,7 @@ function ReportsView({
             <div className="flex items-center justify-between mb-3">
               <h3 className="font-extrabold text-ink flex items-center gap-2">
                 <Archive size={16} className="text-primary" />
-                آخر التقارير
+                {isEn ? "Recent Reports" : "آخر التقارير"}
               </h3>
               {reports.length > 3 && (
                 <button
@@ -4575,7 +4750,7 @@ function ReportsView({
                   onClick={() => onNavigate("archive")}
                   className="text-sm font-bold text-primary hover:underline flex items-center gap-1"
                 >
-                  عرض الكل ({reports.length})
+                  {isEn ? `View All (${reports.length})` : `عرض الكل (${reports.length})`}
                   <ChevronLeft size={14} />
                 </button>
               )}
@@ -4592,13 +4767,13 @@ function ReportsView({
                       : "border-line bg-white text-slate-600 hover:border-primary hover:text-primary"
                   }`}
                 >
-                  <span>{getMonthLabel(report.month)}</span>
+                  <span>{getMonthLabel(report.month, lang)}</span>
                   <span className={`rounded px-2 py-0.5 text-xs ${
                     report.status === "approved" ? "bg-emerald-100 text-emerald-700" :
                     report.status === "paid" ? "bg-blue-100 text-blue-700" :
                     "bg-slate-100 text-slate-500"
                   }`}>
-                    {report.status === "approved" ? "معتمد" : report.status === "paid" ? "مدفوع" : "مسودة"}
+                    {report.status === "approved" ? (isEn ? "Approved" : "معتمد") : report.status === "paid" ? (isEn ? "Paid" : "مدفوع") : (isEn ? "Draft" : "مسودة")}
                   </span>
                 </button>
               ))}
@@ -4606,23 +4781,23 @@ function ReportsView({
           </div>
         )}
         <div className="grid gap-4 lg:grid-cols-4">
-          <SelectField label="التقرير المحفوظ" value={selectedReportId} onChange={handleReportSelect}>
+          <SelectField label={isEn ? "Saved Report" : "التقرير المحفوظ"} value={selectedReportId} onChange={handleReportSelect}>
             {reports.map((report) => (
               <option key={report.id} value={report.id}>
-                {report.fileName} - {getMonthLabel(report.month)}
+                {report.fileName} - {getMonthLabel(report.month, lang)}
               </option>
             ))}
           </SelectField>
           <div className="flex flex-col justify-end">
             <div className="flex items-center justify-between mb-1">
-              <label className="text-xs font-bold text-slate-700">شهر التقرير</label>
+              <label className="text-xs font-bold text-slate-700">{isEn ? "Report Month" : "شهر التقرير"}</label>
               {reportMonth !== new Date().toISOString().slice(0, 7) && (
                 <button
                   type="button"
                   onClick={() => setReportMonth(new Date().toISOString().slice(0, 7))}
                   className="text-[11px] font-bold text-primary hover:underline"
                 >
-                  الشهر الحالي ({getMonthLabel(new Date().toISOString().slice(0, 7))})
+                  {isEn ? `Current Month (${getMonthLabel(new Date().toISOString().slice(0, 7), lang)})` : `الشهر الحالي (${getMonthLabel(new Date().toISOString().slice(0, 7))})`}
                 </button>
               )}
             </div>
@@ -4634,11 +4809,11 @@ function ReportsView({
             />
           </div>
           <SelectField
-            label="القسم"
+            label={isEn ? "Department" : "القسم"}
             value={departmentFilter}
             onChange={(event) => setDepartmentFilter(event.target.value)}
           >
-            <option value="all">كل الأقسام</option>
+            <option value="all">{isEn ? "All Departments" : "كل الأقسام"}</option>
             {departments.map((department) => (
               <option key={department.id} value={department.name}>
                 {department.name}
@@ -4646,21 +4821,21 @@ function ReportsView({
             ))}
           </SelectField>
           <SelectField
-            label="الحالة"
+            label={isEn ? "Status" : "الحالة"}
             value={statusFilter}
             onChange={(event) => setStatusFilter(event.target.value)}
           >
-            <option value="all">كل الحالات</option>
-            <option value="ملتزم">ملتزم</option>
-            <option value="مراجعة">مراجعة</option>
-            <option value="متكرر">متكرر</option>
+            <option value="all">{isEn ? "All Statuses" : "كل الحالات"}</option>
+            <option value="ملتزم">{isEn ? "Compliant" : "ملتزم"}</option>
+            <option value="مراجعة">{isEn ? "Review Needed" : "مراجعة"}</option>
+            <option value="متكرر">{isEn ? "Recurring Issues" : "متكرر"}</option>
           </SelectField>
         </div>
         <div className="mt-4 grid gap-4 lg:grid-cols-[1fr_auto] lg:items-end">
           <SearchField
             value={reportSearch}
             onChange={(event) => setReportSearch(event.target.value)}
-            placeholder="بحث باسم الموظف أو الكود"
+            placeholder={isEn ? "Search by employee name or ID..." : "بحث باسم الموظف أو الكود"}
           />
           <SecondaryButton
             type="button"
@@ -4671,36 +4846,36 @@ function ReportsView({
               setStatusFilter("all");
             }}
           >
-            مسح الفلاتر
+            {isEn ? "Clear Filters" : "مسح الفلاتر"}
           </SecondaryButton>
         </div>
       </section>
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
-        <ReportTotalCard label="الموظفون" value={formatNumber(reportTotals.employees)} icon={Users} />
+        <ReportTotalCard label={isEn ? "Employees" : "الموظفون"} value={formatNumber(reportTotals.employees)} icon={Users} />
         <ReportTotalCard
-          label="إجمالي الصافي"
+          label={isEn ? "Total Net" : "إجمالي الصافي"}
           value={formatCurrency(reportTotals.net, settings.currency)}
-          icon={Wallet}
           tone="blue"
+          icon={Wallet}
         />
         <ReportTotalCard
-          label="إجمالي الخصومات"
+          label={isEn ? "Total Deductions" : "إجمالي الخصومات"}
           value={formatCurrency(reportTotals.deductions, settings.currency)}
-          icon={CircleDollarSign}
           tone="rose"
+          icon={CircleDollarSign}
         />
         <ReportTotalCard
-          label="إجمالي المكافآت"
+          label={isEn ? "Total Bonuses" : "إجمالي المكافآت"}
           value={formatCurrency(reportTotals.bonuses, settings.currency)}
-          icon={Sparkles}
           tone="emerald"
+          icon={Sparkles}
         />
         <ReportTotalCard
-          label="وقت إضافي"
+          label={isEn ? "Overtime" : "وقت إضافي"}
           value={formatCurrency(reportTotals.overtime, settings.currency)}
-          icon={Clock}
           tone="emerald"
+          icon={Clock}
         />
       </div>
 
@@ -4709,7 +4884,7 @@ function ReportsView({
           <>
             <div className="hidden md:block">
               <div className="dashboard-scroll max-h-[620px] overflow-auto rounded-lg">
-                <PayrollTable rows={filteredRows} settings={settings} shiftCopy={shiftCopy} onSlip={setSelectedSlipCode} />
+                <PayrollTable rows={filteredRows} settings={settings} shiftCopy={shiftCopy} onSlip={setSelectedSlipCode} lang={lang} />
               </div>
             </div>
             <div className="grid gap-3 p-4 md:hidden">
@@ -4728,8 +4903,8 @@ function ReportsView({
           <div className="p-5">
             <EmptyState
               icon={FileSpreadsheet}
-              title="لا توجد نتائج في التقرير"
-              text="جرّب تغيير البحث أو الفلاتر، أو اختر تقريرا محفوظا آخر."
+              title={isEn ? "No records found" : "لا توجد نتائج في التقرير"}
+              text={isEn ? "Try adjusting your search filters or select another report." : "جرّب تغيير البحث أو الفلاتر، أو اختر تقريرا محفوظا آخر."}
             />
           </div>
         )}
@@ -4834,12 +5009,12 @@ function SettingsView({
   onCloudLoad,
   onBackupExport,
   onBackupImport,
-  onOpenSiteAdmin,
   theme = "light",
   onToggleTheme,
   lang = "ar",
   onToggleLang
 }) {
+  const isEn = lang === "en";
   const update = (patch) => setSettings({ ...settings, ...patch });
   const countryProfile = getCountryProfile(settings.country);
   const selectedYear = new Date().getFullYear();
@@ -4948,57 +5123,10 @@ function SettingsView({
   return (
     <div className="space-y-6">
       <PageHeader
-        eyebrow="تهيئة النظام"
-        title="الإعدادات"
-        description="اضبط بيانات الشركة وأيام العمل وسياسات الخصم التي يستخدمها تقرير الرواتب."
+        eyebrow={lang === "en" ? "System Configuration" : "تهيئة النظام"}
+        title={lang === "en" ? "Settings" : "الإعدادات"}
+        description={lang === "en" ? "Configure company profile, work days, and deduction policies used across payroll." : "اضبط بيانات الشركة وأيام العمل وسياسات الخصم التي يستخدمها تقرير الرواتب."}
       />
-
-      <section className="rounded-xl border border-line bg-white dark:bg-slate-900 p-5 shadow-sm transition-colors">
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <div>
-            <h2 className="text-lg font-extrabold text-ink dark:text-white">المظهر، اللغة، وإدارة واجهة الموقع</h2>
-            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-              التحكم في المظهر الداكن/الفاتح، لغة الواجهة، والوصول المباشر للوحة إدارة محتوى وأسعار الموقع.
-            </p>
-          </div>
-          <div className="flex flex-wrap items-center gap-2.5">
-            {onToggleTheme && (
-              <button
-                type="button"
-                onClick={onToggleTheme}
-                className="flex items-center gap-2 rounded-lg border border-line bg-slate-50 dark:bg-slate-800 px-3.5 py-2 text-xs font-bold text-slate-700 dark:text-slate-200 hover:border-primary transition shadow-2xs"
-                title="تبديل المظهر"
-              >
-                {theme === "dark" ? <Sun size={15} /> : <Moon size={15} />}
-                <span>{theme === "dark" ? "الوضع الفاتح" : "الوضع الداكن"}</span>
-              </button>
-            )}
-
-            {onToggleLang && (
-              <button
-                type="button"
-                onClick={onToggleLang}
-                className="flex items-center gap-2 rounded-lg border border-line bg-slate-50 dark:bg-slate-800 px-3.5 py-2 text-xs font-bold text-slate-700 dark:text-slate-200 hover:border-primary transition shadow-2xs"
-                title="تغيير اللغة"
-              >
-                <Globe size={15} />
-                <span>{lang === "ar" ? "English" : "العربية"}</span>
-              </button>
-            )}
-
-            {onOpenSiteAdmin && (
-              <button
-                type="button"
-                onClick={onOpenSiteAdmin}
-                className="flex items-center gap-2 rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-950/40 px-3.5 py-2 text-xs font-bold text-primary dark:text-blue-300 hover:bg-blue-100 transition shadow-2xs"
-              >
-                <Settings size={15} />
-                <span>إدارة نصوص الموقع والأسعار</span>
-              </button>
-            )}
-          </div>
-        </div>
-      </section>
 
       {cloud.session ? (
         <CloudAccessPanel
@@ -5179,6 +5307,97 @@ function SettingsView({
         </div>
       </section>
 
+      {/* MENA Compliance, Social Insurance & WPS */}
+      <section className="rounded-lg border border-line bg-white p-5 shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="text-xl font-extrabold text-ink flex items-center gap-2">
+              <ShieldCheck className="text-primary" size={20} />
+              {isEn ? "MENA Labor Compliance, Social Insurance & WPS" : "الامتثال المؤسسي، التأمينات الاجتماعية وحماية الأجور (WPS)"}
+            </h2>
+            <p className="mt-1 text-sm text-slate-500">
+              {isEn
+                ? "Configure social insurance statutory contributions (GOSI / Egyptian Labor Law 148) and Wage Protection System (WPS) bank file credentials."
+                : "ضبط نسب اشتراكات التأمينات الاجتماعية وقوانين العمل الإقليمية، وبيانات ملفات حماية الأجور المعتمدة للبنوك ووزارات العمل."}
+            </p>
+          </div>
+          <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-black text-primary">
+            {countryProfile.name}
+          </span>
+        </div>
+
+        <div className="mt-5 space-y-4">
+          <label className="flex items-center gap-3 rounded-xl border border-line bg-slate-50 p-4 cursor-pointer hover:border-primary/50 transition">
+            <input
+              type="checkbox"
+              checked={Boolean(settings.socialInsuranceEnabled)}
+              onChange={(e) => update({ socialInsuranceEnabled: e.target.checked })}
+              className="h-5 w-5 rounded border-line text-primary focus:ring-primary"
+            />
+            <div>
+              <span className="text-sm font-extrabold text-ink">
+                {isEn ? "Enable Statutory Social Insurance Deduction" : "تفعيل احتساب خصم التأمينات الاجتماعية تلقائياً"}
+              </span>
+              <p className="text-xs text-slate-500 mt-0.5">
+                {isEn
+                  ? "Automatically deducts employee statutory insurance from base salary and tracks employer contribution."
+                  : "يقوم بحساب واستقطاع حصة الموظف من الراتب الأساسي مع توضيح مساهمة المنشأة في قيود الرواتب."}
+              </p>
+            </div>
+          </label>
+
+          {settings.socialInsuranceEnabled ? (
+            <div className="grid gap-4 sm:grid-cols-3 rounded-xl border border-blue-100 bg-blue-50/50 p-4">
+              <InputField
+                label={isEn ? "Employee Contribution Rate (%)" : "نسبة خصم الموظف (%)"}
+                type="number"
+                min="0"
+                max="50"
+                step="0.25"
+                value={settings.employeeInsuranceRate ?? 11}
+                onChange={(e) => update({ employeeInsuranceRate: Number(e.target.value) || 0 })}
+              />
+              <InputField
+                label={isEn ? "Employer Contribution Rate (%)" : "نسبة مساهمة المنشأة (%)"}
+                type="number"
+                min="0"
+                max="50"
+                step="0.25"
+                value={settings.companyInsuranceRate ?? 18.75}
+                onChange={(e) => update({ companyInsuranceRate: Number(e.target.value) || 0 })}
+              />
+              <InputField
+                label={isEn ? "Insurance Salary Cap" : "الحد الأقصى للأجر التأميني"}
+                type="number"
+                min="0"
+                value={settings.insuranceSalaryCap ?? 12600}
+                onChange={(e) => update({ insuranceSalaryCap: Number(e.target.value) || 0 })}
+              />
+            </div>
+          ) : null}
+
+          <div className="mt-4 pt-4 border-t border-line">
+            <h3 className="text-sm font-extrabold text-ink mb-3">
+              {isEn ? "Wage Protection System (WPS) Credentials" : "بيانات نظام حماية الأجور (WPS) للبنوك ووزارة العمل"}
+            </h3>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <InputField
+                label={isEn ? "Employer ID / Commercial Register (CR)" : "الرقم الموحد للمنشأة / السجل التجاري"}
+                value={settings.wpsEmployerCr || "1010000000"}
+                onChange={(e) => update({ wpsEmployerCr: e.target.value })}
+                placeholder="مثال: 1010000000 أو رقم الملف الوزاري"
+              />
+              <InputField
+                label={isEn ? "Bank Routing / Identifier Code" : "رمز البنك المعتمد للمنشأة (Bank Code)"}
+                value={settings.wpsBankCode || "RIBL"}
+                onChange={(e) => update({ wpsBankCode: e.target.value })}
+                placeholder="مثال: RIBL, ALBI, CIB, NBE, FAB"
+              />
+            </div>
+          </div>
+        </div>
+      </section>
+
       <section className="rounded-lg border border-line bg-white p-5 shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
@@ -5266,27 +5485,46 @@ function SettingsView({
   );
 }
 
-function PayrollTable({ rows, settings, shiftCopy, onSlip }) {
-  const headers = [
-    "الموظف",
-    "القسم",
-    shiftCopy.definite,
-    "الحالة",
-    "الحضور",
-    "التأخير",
-    "الإضافي",
-    "الأذونات",
-    "ملاحظات",
-    "الغياب",
-    "الإجازات",
-    "الخصومات",
-    "المكافآت",
-    "الصافي",
-    "تفاصيل المرتب"
-  ];
+function PayrollTable({ rows, settings, shiftCopy, onSlip, lang = "ar" }) {
+  const isEn = lang === "en";
+  const headers = isEn
+    ? [
+        "Employee",
+        "Department",
+        shiftCopy?.definite || "Shift",
+        "Status",
+        "Attendance",
+        "Late",
+        "Overtime",
+        "Permissions",
+        "Notes",
+        "Absence",
+        "Leaves",
+        "Deductions",
+        "Bonuses",
+        "Net Salary",
+        "Salary Slip"
+      ]
+    : [
+        "الموظف",
+        "القسم",
+        shiftCopy.definite,
+        "الحالة",
+        "الحضور",
+        "التأخير",
+        "الإضافي",
+        "الأذونات",
+        "ملاحظات",
+        "الغياب",
+        "الإجازات",
+        "الخصومات",
+        "المكافآت",
+        "الصافي",
+        "تفاصيل المرتب"
+      ];
 
   return (
-    <table className="w-full min-w-[1320px] border-collapse text-right">
+    <table className={`w-full min-w-[1320px] border-collapse ${isEn ? "text-left" : "text-right"}`}>
       <thead className="sticky top-0 z-10 bg-slate-50 text-sm text-slate-600">
         <tr>
           {headers.map((header) => (
@@ -5311,10 +5549,10 @@ function PayrollTable({ rows, settings, shiftCopy, onSlip }) {
             <td className="px-4 py-4 font-bold">{row.attendanceDays}</td>
             <td className="px-4 py-4 text-sm">
               <span className="font-bold">{row.lateCount}</span>
-              <span className="text-slate-400"> / {formatNumber(row.lateMinutes)} د</span>
+              <span className="text-slate-400"> / {formatNumber(row.lateMinutes)} {isEn ? "m" : "د"}</span>
             </td>
             <td className="px-4 py-4 text-sm font-bold text-emerald-600">
-              <span>{formatNumber(row.overtimeMinutes)} د</span>
+              <span>{formatNumber(row.overtimeMinutes)} {isEn ? "m" : "د"}</span>
               <span className="block text-xs text-emerald-500">
                 {formatCurrency(row.overtimeBonuses, settings.currency)}
               </span>
@@ -5327,10 +5565,10 @@ function PayrollTable({ rows, settings, shiftCopy, onSlip }) {
                   </span>
                   {row.permissionDeductions > 0 ? (
                     <span className="block text-xs text-rose-500">
-                      خصم {formatCurrency(row.permissionDeductions, settings.currency)}
+                      {isEn ? "Ded: " : "خصم "}{formatCurrency(row.permissionDeductions, settings.currency)}
                     </span>
                   ) : (
-                    <span className="block text-xs text-emerald-500">بدون خصم</span>
+                    <span className="block text-xs text-emerald-500">{isEn ? "No deduction" : "بدون خصم"}</span>
                   )}
                 </>
               ) : (
@@ -5341,7 +5579,7 @@ function PayrollTable({ rows, settings, shiftCopy, onSlip }) {
               <div className="flex flex-col gap-1">
                 {row.incompleteSplitDays > 0 ? (
                   <span className="rounded-full bg-amber-50 px-3 py-1 font-bold text-amber-700">
-                    شيفت مقسم غير مكتمل
+                    {isEn ? "Incomplete Split Shift" : "شيفت مقسم غير مكتمل"}
                   </span>
                 ) : null}
                 {row.missingPunchDays > 0 ? (
@@ -5352,8 +5590,8 @@ function PayrollTable({ rows, settings, shiftCopy, onSlip }) {
                         : "bg-rose-50 text-rose-700"
                     }`}
                   >
-                    بصمة ناقصة × {row.missingPunchDays}
-                    {row.missingPunchNeedsReview > 0 ? " (مراجعة)" : ""}
+                    {isEn ? `Missing Punch × ${row.missingPunchDays}` : `بصمة ناقصة × ${row.missingPunchDays}`}
+                    {row.missingPunchNeedsReview > 0 ? (isEn ? " (Review)" : " (مراجعة)") : ""}
                   </span>
                 ) : null}
                 {row.incompleteSplitDays === 0 && row.missingPunchDays === 0 ? (
@@ -5384,7 +5622,7 @@ function PayrollTable({ rows, settings, shiftCopy, onSlip }) {
                 onClick={() => onSlip(row.employeeCode)}
                 className="rounded-lg border border-line px-3 py-2 text-sm font-bold text-slate-700 hover:border-primary hover:text-primary"
               >
-                عرض
+                {isEn ? "View" : "عرض"}
               </button>
             </td>
           </tr>
@@ -6005,7 +6243,7 @@ function CloudTopBar({
   onToggleTheme,
   lang = "ar",
   onToggleLang,
-  onOpenSiteAdmin
+  alerts = []
 }) {
   const tier = getTierConfig(userTier);
   const country = getCountryProfile(settings?.country || "EG");
@@ -6057,6 +6295,8 @@ function CloudTopBar({
           </kbd>
         </button>
 
+        <NotificationBell alerts={alerts} onNavigate={onNavigate} lang={lang} />
+
         {onToggleTheme && (
           <button
             type="button"
@@ -6079,18 +6319,6 @@ function CloudTopBar({
           >
             <Globe size={13} />
             <span>{lang === "ar" ? "EN" : "عربي"}</span>
-          </button>
-        )}
-
-        {onOpenSiteAdmin && (
-          <button
-            type="button"
-            onClick={onOpenSiteAdmin}
-            className="flex items-center gap-1.5 rounded-lg border border-line bg-white dark:bg-slate-900 px-2.5 py-2 text-xs font-bold text-slate-600 dark:text-slate-300 hover:text-primary hover:border-primary transition shadow-2xs"
-            title="إدارة واجهة الموقع والأسعار"
-          >
-            <Settings size={13} />
-            <span>{lang === "ar" ? "إدارة الموقع" : "Site Admin"}</span>
           </button>
         )}
       </div>
@@ -6759,8 +6987,10 @@ function NavButton({ item, active, onClick }) {
     <button
       type="button"
       onClick={onClick}
-      className={`flex w-full items-center gap-3 rounded-lg px-4 py-3 text-right font-bold transition ${
-        active ? "bg-primary text-white shadow-lg shadow-blue-100" : "text-slate-600 hover:bg-slate-50"
+      className={`flex w-full items-center gap-3 rounded-lg px-4 py-3 text-start font-bold transition ${
+        active
+          ? "bg-primary text-white shadow-lg shadow-blue-100 dark:shadow-none"
+          : "text-slate-600 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-800"
       }`}
     >
       <item.icon size={20} />

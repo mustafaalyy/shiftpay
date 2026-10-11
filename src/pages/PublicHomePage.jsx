@@ -638,9 +638,6 @@ export default function PublicHomePage({
                 <a href="#pricing" className="footer-link" onClick={scrollToId("pricing")}>
                   الباقات والأسعار
                 </a>
-                <a href="#admin" className="footer-link" onClick={(e) => { if (onOpenAdmin) { e.preventDefault(); onOpenAdmin(); } }}>
-                  إدارة الموقع والأسعار
-                </a>
                 <a href="/privacy" className="footer-link" target="_blank" rel="noopener noreferrer">
                   سياسة الخصوصية
                 </a>

@@ -1,4 +1,4 @@
-// ShiftPay HR - Bilingual Translations Dictionary (Arabic default, English supported)
+// ShiftPay HR - Enterprise Bilingual Translations Dictionary (Arabic default, English supported)
 
 export const translations = {
   ar: {
@@ -19,14 +19,30 @@ export const translations = {
     quick_search: "بحث سريع",
     cloud_save: "حفظ سحابي",
     saving: "جاري الحفظ...",
-    saved: "تم الحفظ",
+    saved: "تم الحفظ ✓",
+    save_failed: "فشل الحفظ ✗",
     logout: "تسجيل خروج",
     company_account: "حساب الشركة",
-    site_admin: "إدارة الموقع والأسعار",
     toggle_theme_dark: "الوضع الداكن",
     toggle_theme_light: "الوضع الفاتح",
     toggle_lang: "English",
     main_branch: "الفرع الرئيسي",
+    current_month_prefix: "الشهر الحالي: ",
+    welcome_prefix: "مرحباً، ",
+    dashboard_header_desc: "ملخص مباشر باليوم والتاريخ والوقت لحالة الموظفين والرواتب والإجازات الرسمية المحدثة.",
+    attendance_action_btn: "سجل الحضور والبصمات",
+
+    // Dashboard KPIs & Metrics
+    kpi_total_employees: "إجمالي الموظفين",
+    kpi_departments: "الأقسام",
+    kpi_shifts: "النوبات والورديات",
+    kpi_net_salary: "صافي الرواتب المستحقة",
+    kpi_base_salary: "إجمالي الرواتب الأساسية",
+    kpi_absence_days: "أيام الغياب",
+    kpi_late_minutes: "دقائق التأخير",
+    kpi_total_deductions: "إجمالي الخصومات",
+    kpi_overtime_minutes: "دقائق إضافية",
+    kpi_active_advances: "سلف نشطة بالتقسيط",
 
     // Dashboard & Live Attendance
     live_attendance_title: "سجل الحضور والبصمة الحي",
@@ -39,7 +55,11 @@ export const translations = {
     export_xlsx: "تصدير Excel",
     current_month: "الشهر الحالي",
     all_departments: "كافة الأقسام",
+    filter_all: "الكل",
+    filter_today: "اليوم",
+    filter_month: "الشهر الحالي",
     search_employee_placeholder: "ابحث بالاسم أو الكود الوظيفي...",
+    apply_to_payroll: "ترحيل إلى كشف الرواتب",
 
     // Attendance Table Headers
     col_employee: "الموظف",
@@ -50,6 +70,7 @@ export const translations = {
     col_checkout: "الخروج الأخير",
     col_timeline: "مسار البصمات",
     col_status: "الحالة",
+    col_actions: "إجراءات",
 
     // Statuses
     status_present: "حاضر",
@@ -58,31 +79,82 @@ export const translations = {
     status_rest: "عطلة رسمية",
     status_weekend: "راحة أسبوعية",
     status_late: "متأخر",
+    status_incomplete: "بصمة ناقصة",
 
-    // Metrics
-    metric_total_salary: "إجمالي الرواتب الأساسية",
-    metric_net_salary: "صافي الرواتب المستحقة",
-    metric_deductions: "إجمالي الخصومات",
-    metric_overtime: "بدل الساعات الإضافية",
-    metric_advances: "أقساط السلف المستحقة",
+    // Departments View
+    departments_title: "الأقسام",
+    departments_eyebrow: "الهيكل التنظيمي",
+    departments_desc: "نظم موظفيك حسب الأقسام لتسهيل المتابعة وإصدار التقارير المجمعة.",
+    add_department_btn: "إضافة قسم جديد",
+    dept_name_label: "اسم القسم",
+    dept_employees_count: "عدد الموظفين",
+    no_departments: "لا توجد أقسام مسجلة حالياً.",
 
-    // Tiers
-    tier_basic: "الباقة الأساسية",
-    tier_pro: "الباقة الاحترافية",
-    tier_business: "باقة الأعمال الإقليمية",
-    tier_single_company: "شركة واحدة في دولة واحدة",
-    tier_multi_company: "حتى 3 شركات / فروع",
-    tier_unlimited_company: "شركات وفروع غير محدودة",
+    // Shifts View
+    shifts_title: "النوبات والورديات",
+    shifts_eyebrow: "مواعيد العمل",
+    shifts_desc: "حدد مواعيد الحضور والانصراف، فترات السماح، وقواعد الخصم التلقائي للتأخير والإضافي.",
+    add_shift_btn: "إضافة نوبة عمل جديدة",
+    shift_name_label: "اسم النوبة",
+    shift_start_label: "بداية النوبة",
+    shift_end_label: "نهاية النوبة",
+    grace_period_label: "فترة السماح (دقائق)",
 
-    // Site Admin
-    admin_title: "لوحة إدارة واجهة الموقع والأسعار",
-    admin_desc: "تعديل نصوص الصفحة الرئيسية، الباقات، الأسعار، وأرقام التواصل",
-    admin_login_title: "تسجيل دخول مدير الموقع",
-    admin_passcode_placeholder: "أدخل رمز الأدمن (1122) أو البريد",
-    admin_login_btn: "دخول لوحة الإدارة",
-    admin_save_btn: "حفظ التعديلات ونشرها",
-    admin_back_to_site: "العودة للموقع",
-    admin_save_success: "تم حفظ ونشر التعديلات بنجاح."
+    // Employees View
+    employees_title: "الموظفون",
+    employees_eyebrow: "إدارة الكادر",
+    employees_desc: "سجل بيانات موظفيك، رواتبهم، نوبات عملهم، وأرصدة إجازاتهم وسلفهم.",
+    add_employee_btn: "إضافة موظف جديد",
+    emp_code_label: "كود الموظف",
+    emp_name_label: "اسم الموظف",
+    emp_salary_label: "الراتب الأساسي",
+    emp_job_label: "المسمى الوظيفي",
+    emp_phone_label: "رقم الهاتف",
+    emp_shift_label: "النوبة / الشيفت",
+    emp_dept_label: "القسم",
+    emp_vacation_balance: "رصيد الإجازات",
+    emp_advances_btn: "السلف والأقساط",
+
+    // Payroll Reports View
+    reports_title: "تقرير الرواتب",
+    reports_eyebrow: "مسير الأجور",
+    reports_desc: "كشف تفصيلي بالرواتب المستحقة والاستقطاعات والبدلات المحسوبة تلقائياً.",
+    export_excel_btn: "تصدير Excel",
+    export_bank_btn: "كشف تحويلات البنك",
+    export_accounting_btn: "القيود اليومية",
+    export_odoo_btn: "تصدير Odoo CSV",
+    export_pdf_btn: "طباعة PDF",
+    salary_slip_title: "مفردات راتب موظف",
+    net_payable_label: "صافي الراتب المستحق",
+    base_salary_label: "الراتب الأساسي",
+    late_deduction_label: "خصم التأخير",
+    absence_deduction_label: "خصم الغياب",
+    advance_installment_label: "قسط السلفة",
+    overtime_pay_label: "بدل الساعات الإضافية",
+
+    // Common Buttons & Labels
+    btn_save: "حفظ التعديلات",
+    btn_cancel: "إلغاء",
+    btn_delete: "حذف",
+    btn_edit: "تعديل",
+    btn_close: "إغلاق",
+    btn_confirm: "تأكيد",
+    btn_export: "تصدير",
+    btn_print: "طباعة",
+    btn_search: "بحث",
+    btn_filter: "تصفية",
+
+    // Settings View
+    settings_title: "الإعدادات",
+    settings_eyebrow: "تهيئة النظام",
+    settings_desc: "اضبط بيانات الشركة وأيام العمل وسياسات الخصم التي يستخدمها تقرير الرواتب.",
+    company_info_title: "بيانات الشركة",
+    company_name_label: "اسم الشركة / المنشأة",
+    country_label: "الدولة ونظام العمل",
+    currency_label: "العملة المعتمدة",
+    work_days_title: "أيام العمل الأسبوعية",
+    holidays_title: "الإجازات الرسمية والعطلات",
+    backup_title: "النسخ الاحتياطي"
   },
   en: {
     // Navigation
@@ -102,14 +174,30 @@ export const translations = {
     quick_search: "Quick Search",
     cloud_save: "Cloud Save",
     saving: "Saving...",
-    saved: "Saved",
+    saved: "Saved ✓",
+    save_failed: "Save Failed ✗",
     logout: "Sign Out",
     company_account: "Company Profile",
-    site_admin: "Site Admin & Pricing",
     toggle_theme_dark: "Dark Mode",
     toggle_theme_light: "Light Mode",
     toggle_lang: "العربية",
     main_branch: "Main Branch",
+    current_month_prefix: "Current Month: ",
+    welcome_prefix: "Welcome, ",
+    dashboard_header_desc: "Real-time summary of attendance, payroll, shifts, and official national holidays.",
+    attendance_action_btn: "Attendance & Punches",
+
+    // Dashboard KPIs & Metrics
+    kpi_total_employees: "Total Employees",
+    kpi_departments: "Departments",
+    kpi_shifts: "Shifts & Schedules",
+    kpi_net_salary: "Total Net Payable",
+    kpi_base_salary: "Total Base Salary",
+    kpi_absence_days: "Absence Days",
+    kpi_late_minutes: "Late Minutes",
+    kpi_total_deductions: "Total Deductions",
+    kpi_overtime_minutes: "Overtime Minutes",
+    kpi_active_advances: "Active Advance Installments",
 
     // Dashboard & Live Attendance
     live_attendance_title: "Live Attendance & Punch Stream",
@@ -122,7 +210,11 @@ export const translations = {
     export_xlsx: "Export Excel",
     current_month: "Current Month",
     all_departments: "All Departments",
+    filter_all: "All",
+    filter_today: "Today",
+    filter_month: "Current Month",
     search_employee_placeholder: "Search employee by name or code...",
+    apply_to_payroll: "Apply to Payroll",
 
     // Attendance Table Headers
     col_employee: "Employee",
@@ -133,6 +225,7 @@ export const translations = {
     col_checkout: "Last Check-Out",
     col_timeline: "Punch Timeline",
     col_status: "Status",
+    col_actions: "Actions",
 
     // Statuses
     status_present: "Present",
@@ -141,34 +234,89 @@ export const translations = {
     status_rest: "Holiday",
     status_weekend: "Weekend",
     status_late: "Late",
+    status_incomplete: "Missing Punch",
 
-    // Metrics
-    metric_total_salary: "Total Base Salary",
-    metric_net_salary: "Total Net Payable",
-    metric_deductions: "Total Deductions",
-    metric_overtime: "Total Overtime",
-    metric_advances: "Active Advance Deductions",
+    // Departments View
+    departments_title: "Departments",
+    departments_eyebrow: "Organizational Structure",
+    departments_desc: "Organize employees into departments for aggregated payroll summaries and reporting.",
+    add_department_btn: "Add New Department",
+    dept_name_label: "Department Name",
+    dept_employees_count: "Employees Count",
+    no_departments: "No departments registered yet.",
 
-    // Tiers
-    tier_basic: "Basic Plan",
-    tier_pro: "Professional Plan",
-    tier_business: "Enterprise Plan",
-    tier_single_company: "Single Company in 1 Country",
-    tier_multi_company: "Up to 3 Companies / Branches",
-    tier_unlimited_company: "Unlimited Companies & Branches",
+    // Shifts View
+    shifts_title: "Shifts & Schedules",
+    shifts_eyebrow: "Work Timetable",
+    shifts_desc: "Define shift start and end times, grace periods, late deduction rules, and overtime rates.",
+    add_shift_btn: "Add New Shift",
+    shift_name_label: "Shift Name",
+    shift_start_label: "Shift Start Time",
+    shift_end_label: "Shift End Time",
+    grace_period_label: "Grace Period (Minutes)",
 
-    // Site Admin
-    admin_title: "Site & Pricing Administration",
-    admin_desc: "Manage homepage content, pricing tiers, limits, and contact channels",
-    admin_login_title: "Site Administrator Access",
-    admin_passcode_placeholder: "Enter admin passcode (1122) or email",
-    admin_login_btn: "Access Admin Console",
-    admin_save_btn: "Save & Publish Changes",
-    admin_back_to_site: "Return to Homepage",
-    admin_save_success: "Changes saved and published successfully."
+    // Employees View
+    employees_title: "Employees",
+    employees_eyebrow: "Staff Management",
+    employees_desc: "Manage personnel records, salaries, assigned shifts, leave balances, and salary advances.",
+    add_employee_btn: "Add New Employee",
+    emp_code_label: "Employee Code",
+    emp_name_label: "Employee Name",
+    emp_salary_label: "Base Salary",
+    emp_job_label: "Job Title",
+    emp_phone_label: "Phone Number",
+    emp_shift_label: "Assigned Shift",
+    emp_dept_label: "Department",
+    emp_vacation_balance: "Vacation Balance",
+    emp_advances_btn: "Advances & Installments",
+
+    // Payroll Reports View
+    reports_title: "Payroll Reports",
+    reports_eyebrow: "Payroll Register",
+    reports_desc: "Detailed payroll breakdown with auto-calculated deductions, overtime, advances, and net salaries.",
+    export_excel_btn: "Export Excel",
+    export_bank_btn: "Bank Transfer Sheet",
+    export_accounting_btn: "Accounting Journal",
+    export_odoo_btn: "Export Odoo CSV",
+    export_pdf_btn: "Print PDF Report",
+    salary_slip_title: "Salary Slip",
+    net_payable_label: "Net Payable",
+    base_salary_label: "Base Salary",
+    late_deduction_label: "Late Deduction",
+    absence_deduction_label: "Absence Deduction",
+    advance_installment_label: "Advance Installment",
+    overtime_pay_label: "Overtime Allowance",
+
+    // Common Buttons & Labels
+    btn_save: "Save Changes",
+    btn_cancel: "Cancel",
+    btn_delete: "Delete",
+    btn_edit: "Edit",
+    btn_close: "Close",
+    btn_confirm: "Confirm",
+    btn_export: "Export",
+    btn_print: "Print",
+    btn_search: "Search",
+    btn_filter: "Filter",
+
+    // Settings View
+    settings_title: "Settings",
+    settings_eyebrow: "System Configuration",
+    settings_desc: "Configure company details, weekly workdays, and deduction policies used in payroll.",
+    company_info_title: "Company Profile",
+    company_name_label: "Company / Organization Name",
+    country_label: "Country & Labor Rules",
+    currency_label: "Operating Currency",
+    work_days_title: "Weekly Work Days",
+    holidays_title: "Official Holidays",
+    backup_title: "Data Backup & Restore"
   }
 };
 
 export function getTranslation(lang = "ar", key, fallback = "") {
   return translations[lang]?.[key] || translations.ar?.[key] || fallback || key;
+}
+
+export function t(key, lang = "ar", fallback = "") {
+  return getTranslation(lang, key, fallback);
 }

@@ -515,3 +515,77 @@ export function exportOdooJournalCsv({ rows, companyName, monthLabel, currency =
   a.click();
   URL.revokeObjectURL(url);
 }
+
+/**
+ * Wage Protection System (WPS / حماية الأجور) Exporter for MENA (Saudi Arabia, UAE, Egypt)
+ * Generates official Salary Information File (SIF / CSV) format required by Ministry of Labor & Central Banks.
+ */
+export function exportWpsSifFile({
+  rows,
+  companyName = "ShiftPay HR",
+  monthLabel = "",
+  reportMonth = "",
+  currency = "SAR",
+  employerCr = "1010000000",
+  bankCode = "RIBL"
+}) {
+  const eligibleRows = (rows || []).filter((r) => r.netSalary > 0);
+  const now = new Date();
+  const creationDate = now.toISOString().slice(0, 10).replace(/-/g, "");
+  const creationTime = now.toTimeString().slice(0, 5).replace(":", "");
+  const salaryPeriod = (reportMonth || now.toISOString().slice(0, 7)).replace(/-/g, "");
+  const totalSalaries = eligibleRows.reduce((sum, r) => sum + round(r.netSalary), 0);
+
+  const lines = [];
+
+  // Header Record (SCR: Salary Control Record)
+  // SCR,Employer_ID,Bank_Code,File_Date,File_Time,Period,Total_Net,Total_Count,Currency
+  lines.push(
+    [
+      "SCR",
+      employerCr,
+      bankCode,
+      creationDate,
+      creationTime,
+      salaryPeriod,
+      totalSalaries.toFixed(2),
+      eligibleRows.length,
+      currency
+    ].join(",")
+  );
+
+  // Detailed Records (DTR: Detail Transaction Record)
+  // DTR,Employee_Account_or_IBAN,Employee_National_ID_or_Code,Employee_Name,Net_Pay,Basic_Pay,Extra_Allowances,Deductions,Reference
+  eligibleRows.forEach((r, idx) => {
+    const iban = r.iban || `SA00${String(r.employeeCode).padStart(12, "0")}`;
+    const nationalId = r.nationalId || r.employeeCode || `EMP${idx + 1}`;
+    const net = round(r.netSalary).toFixed(2);
+    const basic = round(r.salary || r.netSalary).toFixed(2);
+    const allowances = round((r.bonuses || 0) + (r.overtimeBonuses || 0)).toFixed(2);
+    const deductions = round(r.deductions || 0).toFixed(2);
+    const notes = `SALARY-${salaryPeriod}`;
+
+    lines.push(
+      [
+        "DTR",
+        iban,
+        nationalId,
+        `"${String(r.employeeName).replace(/"/g, '""')}"`,
+        net,
+        basic,
+        allowances,
+        deductions,
+        notes
+      ].join(",")
+    );
+  });
+
+  const content = "\uFEFF" + lines.join("\r\n");
+  const blob = new Blob([content], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `WPS-${companyName.replace(/\s+/g, "_")}-${salaryPeriod}.sif`;
+  link.click();
+  URL.revokeObjectURL(url);
+}

@@ -31,8 +31,10 @@ export default function LiveAttendanceSheet({
   onRecordPunch,
   onApplyToPayroll,
   setNotice,
-  setToastMessage
+  setToastMessage,
+  lang = "ar"
 }) {
+  const isEn = lang === "en";
   const todayStr = useMemo(() => new Date().toISOString().slice(0, 10), []);
   const currentMonthStr = useMemo(() => new Date().toISOString().slice(0, 7), []);
 
@@ -106,20 +108,25 @@ export default function LiveAttendanceSheet({
       const isLate = inMinutes > shiftStart + grace;
       if (isLate) {
         const lateMin = inMinutes - shiftStart;
-        return { label: `متأخر (${lateMin} دقيقة)`, tone: "amber", isLate: true, lateMinutes: lateMin };
+        return {
+          label: isEn ? `Late (${lateMin}m)` : `متأخر (${lateMin} دقيقة)`,
+          tone: "amber",
+          isLate: true,
+          lateMinutes: lateMin
+        };
       }
-      return { label: "حاضر في الموعد", tone: "emerald", isLate: false };
+      return { label: isEn ? "On Time" : "حاضر في الموعد", tone: "emerald", isLate: false };
     }
 
     if (hasIn && !hasOut) {
-      return { label: "سجل حضور (بدون انصراف)", tone: "blue", incomplete: true };
+      return { label: isEn ? "Check-in only" : "سجل حضور (بدون انصراف)", tone: "blue", incomplete: true };
     }
 
     if (!hasIn && hasOut) {
-      return { label: "سجل انصراف فقط", tone: "rose", incomplete: true };
+      return { label: isEn ? "Check-out only" : "سجل انصراف فقط", tone: "rose", incomplete: true };
     }
 
-    return { label: "حاضر", tone: "slate" };
+    return { label: isEn ? "Present" : "حاضر", tone: "slate" };
   };
 
   // Metrics for today's logs
@@ -214,17 +221,21 @@ export default function LiveAttendanceSheet({
           <div className="flex items-center gap-2">
             <span className="flex h-2.5 w-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
             <span className="text-xs font-black text-emerald-800 bg-emerald-100/90 px-2 py-0.5 rounded-full border border-emerald-300">
-              مزامنة حية ومباشرة (Live Realtime Sheet)
+              {isEn ? "Live Biometric Stream" : "مزامنة حية ومباشرة (Live Realtime Sheet)"}
             </span>
             <span className="text-xs text-slate-500">
-              {devices.length > 0 ? `متصل بـ ${devices.length} جهاز بصمة` : "جاهز لاستقبال البصمات"}
+              {devices.length > 0
+                ? (isEn ? `Connected to ${devices.length} biometric device(s)` : `متصل بـ ${devices.length} جهاز بصمة`)
+                : (isEn ? "Ready for biometric punches" : "جاهز لاستقبال البصمات")}
             </span>
           </div>
           <h2 className="text-xl font-black text-blue-950">
-            سجل البصمات والحركات اليومية
+            {isEn ? "Live Biometrics & Punch Stream" : "سجل البصمات والحركات اليومية"}
           </h2>
           <p className="text-xs text-slate-600">
-            كل بصمة يسجلها الموظف على الماكينة أو عبر وسيط الربط تظهر هنا في اللحظة والثانية مع احتساب وقت الحضور والانصراف والتأخير.
+            {isEn
+              ? "Every punch recorded by employees on devices or cloud bridges appears here in real-time with check-in/out and late calculations."
+              : "كل بصمة يسجلها الموظف على الماكينة أو عبر وسيط الربط تظهر هنا في اللحظة والثانية مع احتساب وقت الحضور والانصراف والتأخير."}
           </p>
         </div>
 
@@ -235,7 +246,7 @@ export default function LiveAttendanceSheet({
             className="flex items-center gap-1.5 rounded-lg bg-primary px-3.5 py-2 text-xs font-extrabold text-white shadow hover:opacity-90 transition active:scale-95"
           >
             <Plus size={15} />
-            <span>تسجيل بصمة يدوية</span>
+            <span>{isEn ? "Manual Punch" : "تسجيل بصمة يدوية"}</span>
           </button>
           <button
             type="button"
@@ -243,17 +254,17 @@ export default function LiveAttendanceSheet({
             className="flex items-center gap-1.5 rounded-lg border border-line bg-white px-3.5 py-2 text-xs font-extrabold text-slate-700 shadow-sm hover:border-primary hover:text-primary transition"
           >
             <Download size={15} />
-            <span>تصدير Excel</span>
+            <span>{isEn ? "Export Excel" : "تصدير Excel"}</span>
           </button>
           {onApplyToPayroll && (
             <button
               type="button"
               onClick={onApplyToPayroll}
               className="flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3.5 py-2 text-xs font-extrabold text-white shadow hover:bg-emerald-700 transition"
-              title="اعتماد البصمات الحية مباشرة في حسابات رواتب الشهر"
+              title={isEn ? "Apply live punches to current payroll month" : "اعتماد البصمات الحية مباشرة في حسابات رواتب الشهر"}
             >
               <Sparkles size={15} />
-              <span>تحديث مسير الرواتب بالبصمات</span>
+              <span>{isEn ? "Apply to Payroll" : "تحديث مسير الرواتب بالبصمات"}</span>
             </button>
           )}
         </div>
@@ -263,46 +274,46 @@ export default function LiveAttendanceSheet({
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <div className="rounded-xl border border-line bg-white p-4 shadow-sm">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-slate-500">بصمات اليوم</span>
+            <span className="text-xs font-bold text-slate-500">{isEn ? "Today's Punches" : "بصمات اليوم"}</span>
             <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-50 text-primary">
               <Users size={16} />
             </span>
           </div>
           <p className="mt-2 text-2xl font-black text-ink">{formatNumber(metrics.totalToday)}</p>
-          <p className="text-[11px] text-slate-400">موظف سجلوا حضورهم اليوم</p>
+          <p className="text-[11px] text-slate-400">{isEn ? "Employees punched in today" : "موظف سجلوا حضورهم اليوم"}</p>
         </div>
 
         <div className="rounded-xl border border-emerald-100 bg-emerald-50/40 p-4 shadow-sm">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-emerald-800">حاضرون في الموعد</span>
+            <span className="text-xs font-bold text-emerald-800">{isEn ? "On Time" : "حاضرون في الموعد"}</span>
             <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-100 text-emerald-700">
               <CheckCircle2 size={16} />
             </span>
           </div>
           <p className="mt-2 text-2xl font-black text-emerald-900">{formatNumber(metrics.onTime)}</p>
-          <p className="text-[11px] text-emerald-700">ضمن فترة السماح المحددة</p>
+          <p className="text-[11px] text-emerald-700">{isEn ? "Within designated grace period" : "ضمن فترة السماح المحددة"}</p>
         </div>
 
         <div className="rounded-xl border border-amber-100 bg-amber-50/40 p-4 shadow-sm">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-amber-800">متأخرون اليوم</span>
+            <span className="text-xs font-bold text-amber-800">{isEn ? "Late Today" : "متأخرون اليوم"}</span>
             <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-100 text-amber-700">
               <AlertTriangle size={16} />
             </span>
           </div>
           <p className="mt-2 text-2xl font-black text-amber-900">{formatNumber(metrics.late)}</p>
-          <p className="text-[11px] text-amber-700">تجاوزوا موعد بدء الشيفت</p>
+          <p className="text-[11px] text-amber-700">{isEn ? "Exceeded shift start time" : "تجاوزوا موعد بدء الشيفت"}</p>
         </div>
 
         <div className="rounded-xl border border-purple-100 bg-purple-50/40 p-4 shadow-sm">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-purple-800">بصمة فردية (بدون انصراف)</span>
+            <span className="text-xs font-bold text-purple-800">{isEn ? "Single Punch (No Exit)" : "بصمة فردية (بدون انصراف)"}</span>
             <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-purple-100 text-purple-700">
               <HelpCircle size={16} />
             </span>
           </div>
           <p className="mt-2 text-2xl font-black text-purple-900">{formatNumber(metrics.singlePunch)}</p>
-          <p className="text-[11px] text-purple-700">بانتظار تسجيل الانصراف</p>
+          <p className="text-[11px] text-purple-700">{isEn ? "Awaiting check-out punch" : "بانتظار تسجيل الانصراف"}</p>
         </div>
       </div>
 
@@ -318,7 +329,7 @@ export default function LiveAttendanceSheet({
                 dateFilter === "today" ? "bg-white text-primary shadow-sm" : "text-slate-600 hover:text-ink"
               }`}
             >
-              اليوم ({todayStr})
+              {isEn ? `Today (${todayStr})` : `اليوم (${todayStr})`}
             </button>
             <button
               type="button"
@@ -327,7 +338,7 @@ export default function LiveAttendanceSheet({
                 dateFilter === "month" ? "bg-white text-primary shadow-sm" : "text-slate-600 hover:text-ink"
               }`}
             >
-              هذا الشهر ({currentMonthStr})
+              {isEn ? `This Month (${currentMonthStr})` : `هذا الشهر (${currentMonthStr})`}
             </button>
             <button
               type="button"
@@ -336,7 +347,7 @@ export default function LiveAttendanceSheet({
                 dateFilter === "all" ? "bg-white text-primary shadow-sm" : "text-slate-600 hover:text-ink"
               }`}
             >
-              جميع السجلات
+              {isEn ? "All Records" : "جميع السجلات"}
             </button>
             <button
               type="button"
@@ -345,7 +356,7 @@ export default function LiveAttendanceSheet({
                 dateFilter === "custom" ? "bg-white text-primary shadow-sm" : "text-slate-600 hover:text-ink"
               }`}
             >
-              تاريخ مخصص
+              {isEn ? "Custom Date" : "تاريخ مخصص"}
             </button>
           </div>
 
@@ -364,7 +375,7 @@ export default function LiveAttendanceSheet({
             onChange={(e) => setSelectedDeptId(e.target.value)}
             className="rounded-lg border border-line bg-white px-3 py-1.5 text-xs text-slate-700 outline-none focus:border-primary"
           >
-            <option value="">كل الأقسام</option>
+            <option value="">{isEn ? "All Departments" : "كل الأقسام"}</option>
             {departments.map((d) => (
               <option key={d.id} value={d.id}>{d.name}</option>
             ))}
@@ -373,13 +384,13 @@ export default function LiveAttendanceSheet({
 
         {/* Search */}
         <div className="relative min-w-[220px]">
-          <Search size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" />
+          <Search size={14} className={`absolute ${isEn ? "left-3" : "right-3"} top-1/2 -translate-y-1/2 text-slate-400`} />
           <input
             type="text"
-            placeholder="بحث بالاسم أو كود الموظف..."
+            placeholder={isEn ? "Search by name or code..." : "بحث بالاسم أو كود الموظف..."}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full rounded-lg border border-line bg-slate-50/50 py-1.5 pr-8 pl-3 text-xs outline-none focus:border-primary focus:bg-white transition"
+            className={`w-full rounded-lg border border-line bg-slate-50/50 py-1.5 ${isEn ? "pl-8 pr-3" : "pr-8 pl-3"} text-xs outline-none focus:border-primary focus:bg-white transition`}
           />
         </div>
       </div>
@@ -387,17 +398,17 @@ export default function LiveAttendanceSheet({
       {/* Punches Data Sheet Table */}
       <div className="overflow-hidden rounded-xl border border-line bg-white shadow-sm">
         <div className="overflow-x-auto">
-          <table className="w-full text-right text-xs">
+          <table className="w-full text-start text-xs">
             <thead className="border-b border-line bg-slate-50/80 text-slate-600 font-extrabold">
               <tr>
-                <th className="py-3 px-4">كود</th>
-                <th className="py-3 px-4">اسم الموظف</th>
-                <th className="py-3 px-4">القسم</th>
-                <th className="py-3 px-4">التاريخ</th>
-                <th className="py-3 px-4">حضور (Check-In)</th>
-                <th className="py-3 px-4">انصراف (Check-Out)</th>
-                <th className="py-3 px-4">شريط الحركات المسجلة</th>
-                <th className="py-3 px-4">الحالة</th>
+                <th className="py-3 px-4">{isEn ? "Code" : "كود"}</th>
+                <th className="py-3 px-4">{isEn ? "Employee Name" : "اسم الموظف"}</th>
+                <th className="py-3 px-4">{isEn ? "Department" : "القسم"}</th>
+                <th className="py-3 px-4">{isEn ? "Date" : "التاريخ"}</th>
+                <th className="py-3 px-4">{isEn ? "Check-In" : "حضور (Check-In)"}</th>
+                <th className="py-3 px-4">{isEn ? "Check-Out" : "انصراف (Check-Out)"}</th>
+                <th className="py-3 px-4">{isEn ? "Timeline" : "شريط الحركات المسجلة"}</th>
+                <th className="py-3 px-4">{isEn ? "Status" : "الحالة"}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-line/60">
@@ -405,16 +416,20 @@ export default function LiveAttendanceSheet({
                 <tr>
                   <td colSpan={8} className="py-12 text-center text-slate-400">
                     <Clock size={36} className="mx-auto mb-2 text-slate-300" />
-                    <p className="font-bold text-slate-600">لا توجد بصمات مسجلة في هذا النطاق.</p>
+                    <p className="font-bold text-slate-600">
+                      {isEn ? "No biometric punches recorded in this range." : "لا توجد بصمات مسجلة في هذا النطاق."}
+                    </p>
                     <p className="text-xs text-slate-400 mt-1">
-                      يمكنك استخدام زر "تسجيل بصمة يدوية" أو محاكاة البصمة من تبويب أجهزة البصمة.
+                      {isEn
+                        ? "You can record a manual punch or simulate one in Biometric Devices."
+                        : "يمكنك استخدام زر \"تسجيل بصمة يدوية\" أو محاكاة البصمة من تبويب أجهزة البصمة."}
                     </p>
                   </td>
                 </tr>
               ) : (
                 filteredLogs.map((log, index) => {
                   const emp = employeeMap.get(String(log.employeeCode).trim());
-                  const dept = emp?.departmentId ? deptMap.get(emp.departmentId) : "عام";
+                  const dept = emp?.departmentId ? deptMap.get(emp.departmentId) : (isEn ? "General" : "عام");
                   const st = computeLogStatus(log);
                   const punches = Array.isArray(log.punches) && log.punches.length > 0
                     ? log.punches
@@ -426,7 +441,7 @@ export default function LiveAttendanceSheet({
                         {log.employeeCode}
                       </td>
                       <td className="py-3 px-4 font-extrabold text-ink">
-                        {log.name || emp?.name || `موظف ${log.employeeCode}`}
+                        {log.name || emp?.name || (isEn ? `Employee ${log.employeeCode}` : `موظف ${log.employeeCode}`)}
                       </td>
                       <td className="py-3 px-4 text-slate-500 font-medium">
                         {dept}
@@ -458,7 +473,7 @@ export default function LiveAttendanceSheet({
                             <span
                               key={pIdx}
                               className="rounded bg-slate-100 border border-slate-200 px-1.5 py-0.5 font-mono text-[11px] font-bold text-slate-700"
-                              title={`حركة رقم ${pIdx + 1}`}
+                              title={isEn ? `Punch #${pIdx + 1}` : `حركة رقم ${pIdx + 1}`}
                             >
                               {pTime}
                             </span>
@@ -488,7 +503,7 @@ export default function LiveAttendanceSheet({
           </table>
         </div>
         <div className="border-t border-line bg-slate-50 px-4 py-2.5 text-xs text-slate-500 flex justify-between items-center">
-          <span>إجمالي السجلات المعروضة: <strong>{formatNumber(filteredLogs.length)}</strong></span>
+          <span>{isEn ? "Total displayed logs: " : "إجمالي السجلات المعروضة: "}<strong>{formatNumber(filteredLogs.length)}</strong></span>
           <span className="text-[11px] text-slate-400">ShiftPay HR Live Attendance Engine</span>
         </div>
       </div>
@@ -500,26 +515,32 @@ export default function LiveAttendanceSheet({
             <button
               type="button"
               onClick={() => setIsManualModalOpen(false)}
-              className="absolute top-4 left-4 rounded-full p-1 text-slate-400 hover:bg-slate-100"
+              className={`absolute top-4 ${isEn ? "right-4" : "left-4"} rounded-full p-1 text-slate-400 hover:bg-slate-100`}
             >
               <X size={18} />
             </button>
 
-            <h3 className="text-lg font-black text-slate-900 mb-1">تسجيل بصمة حية / يدوية</h3>
+            <h3 className="text-lg font-black text-slate-900 mb-1">
+              {isEn ? "Record Live / Manual Punch" : "تسجيل بصمة حية / يدوية"}
+            </h3>
             <p className="text-xs text-slate-500 mb-4">
-              إضافة بصمة لموظف يدوياً (تسمع فوراً في سجل الحضور ومسير الرواتب).
+              {isEn
+                ? "Manually add an employee punch (applies immediately to attendance and payroll)."
+                : "إضافة بصمة لموظف يدوياً (تسمع فوراً في سجل الحضور ومسير الرواتب)."}
             </p>
 
             <form onSubmit={handleManualPunchSubmit} className="space-y-4">
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">الموظف</label>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  {isEn ? "Employee" : "الموظف"}
+                </label>
                 <select
                   required
                   value={manualForm.employeeCode}
                   onChange={(e) => setManualForm({ ...manualForm, employeeCode: e.target.value })}
                   className="w-full rounded-lg border border-line p-2 text-xs outline-none focus:border-primary"
                 >
-                  <option value="">-- اختر الموظف --</option>
+                  <option value="">{isEn ? "-- Select Employee --" : "-- اختر الموظف --"}</option>
                   {employees.map((emp) => (
                     <option key={emp.id} value={emp.code}>
                       {emp.code} — {emp.name}
@@ -530,7 +551,9 @@ export default function LiveAttendanceSheet({
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">تاريخ البصمة</label>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    {isEn ? "Punch Date" : "تاريخ البصمة"}
+                  </label>
                   <input
                     type="date"
                     required
@@ -540,7 +563,9 @@ export default function LiveAttendanceSheet({
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">وقت البصمة (الساعة:الدقيقة)</label>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    {isEn ? "Punch Time" : "وقت البصمة (الساعة:الدقيقة)"}
+                  </label>
                   <input
                     type="time"
                     required
@@ -552,10 +577,12 @@ export default function LiveAttendanceSheet({
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">ملاحظات (اختياري)</label>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  {isEn ? "Notes (Optional)" : "ملاحظات (اختياري)"}
+                </label>
                 <input
                   type="text"
-                  placeholder="مثال: بصمة مبررة بإذن، نسيان كارت..."
+                  placeholder={isEn ? "e.g., Authorized permission, forgot badge..." : "مثال: بصمة مبررة بإذن، نسيان كارت..."}
                   value={manualForm.note}
                   onChange={(e) => setManualForm({ ...manualForm, note: e.target.value })}
                   className="w-full rounded-lg border border-line p-2 text-xs outline-none focus:border-primary"
@@ -567,14 +594,14 @@ export default function LiveAttendanceSheet({
                   type="submit"
                   className="flex-1 rounded-lg bg-primary py-2.5 text-xs font-black text-white hover:opacity-90 shadow"
                 >
-                  حفظ وتأكيد البصمة
+                  {isEn ? "Confirm & Record Punch" : "حفظ وتأكيد البصمة"}
                 </button>
                 <button
                   type="button"
                   onClick={() => setIsManualModalOpen(false)}
                   className="rounded-lg border border-line px-4 py-2.5 text-xs font-bold text-slate-600 hover:bg-slate-50"
                 >
-                  إلغاء
+                  {isEn ? "Cancel" : "إلغاء"}
                 </button>
               </div>
             </form>

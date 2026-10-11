@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Clock, Calendar, Sparkles, MapPin } from "lucide-react";
 import { getCountryProfile } from "../lib/payroll";
 
-export default function LiveClockWidget({ countryCode = "EG", onSyncNow }) {
+export default function LiveClockWidget({ countryCode = "EG", onSyncNow, lang = "ar" }) {
   const [now, setNow] = useState(() => new Date());
 
   useEffect(() => {
@@ -13,16 +13,17 @@ export default function LiveClockWidget({ countryCode = "EG", onSyncNow }) {
   }, []);
 
   const country = getCountryProfile(countryCode);
+  const isEn = lang === "en";
 
-  const timeString = now.toLocaleTimeString("ar-EG", {
+  const timeString = now.toLocaleTimeString(isEn ? "en-US" : "ar-EG", {
     hour: "2-digit",
     minute: "2-digit",
     second: "2-digit",
     hour12: true
   });
 
-  const dayName = now.toLocaleDateString("ar-EG", { weekday: "long" });
-  const dateString = now.toLocaleDateString("ar-EG", {
+  const dayName = now.toLocaleDateString(isEn ? "en-US" : "ar-EG", { weekday: "long" });
+  const dateString = now.toLocaleDateString(isEn ? "en-US" : "ar-EG", {
     day: "numeric",
     month: "long",
     year: "numeric"
@@ -44,12 +45,12 @@ export default function LiveClockWidget({ countryCode = "EG", onSyncNow }) {
               {timeString}
             </span>
             <span className="rounded-full bg-emerald-500/20 border border-emerald-400/40 px-2 py-0.5 text-[10px] font-bold text-emerald-300">
-              تحديث حي بالثانية
+              {isEn ? "Live Clock" : "تحديث حي بالثانية"}
             </span>
           </div>
           <div className="flex items-center gap-2 text-xs text-sky-200/90 font-medium mt-0.5">
             <Calendar size={13} className="text-sky-300" />
-            <span>{dayName}، {dateString}</span>
+            <span>{isEn ? `${dayName}, ${dateString}` : `${dayName}، ${dateString}`}</span>
           </div>
         </div>
       </div>
@@ -57,7 +58,7 @@ export default function LiveClockWidget({ countryCode = "EG", onSyncNow }) {
       <div className="flex items-center gap-2">
         <div className="flex items-center gap-1.5 rounded-lg bg-white/10 px-3 py-1.5 text-xs text-sky-100 border border-white/10">
           <MapPin size={13} className="text-sky-300" />
-          <span className="font-bold">{country.name}</span>
+          <span className="font-bold">{isEn ? (country.localeLabel || country.name) : country.name}</span>
           <span className="text-sky-300/70">|</span>
           <span className="text-sky-200 font-medium">{country.currency}</span>
         </div>
@@ -66,10 +67,10 @@ export default function LiveClockWidget({ countryCode = "EG", onSyncNow }) {
             type="button"
             onClick={onSyncNow}
             className="flex items-center gap-1.5 rounded-lg bg-sky-500/30 hover:bg-sky-500/50 border border-sky-400/40 px-3 py-1.5 text-xs font-bold text-white transition active:scale-95"
-            title="مزامنة وتحديث التوقيت فوراً"
+            title={isEn ? "Sync and update time now" : "مزامنة وتحديث التوقيت فوراً"}
           >
             <Sparkles size={13} className="text-sky-200" />
-            <span>تحديث الآن</span>
+            <span>{isEn ? "Sync Now" : "تحديث الآن"}</span>
           </button>
         )}
       </div>
