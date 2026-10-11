@@ -34,7 +34,9 @@ export default function CommandPalette({
   onQuickAction,
   lang = "ar",
   onToggleTheme,
-  onToggleLang
+  onToggleLang,
+  onOpenAuditTrail,
+  onOpenPortal
 }) {
   const [query, setQuery] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -123,6 +125,28 @@ export default function CommandPalette({
             category: isEn ? "Preferences" : "التفضيلات",
             icon: Globe,
             action: onToggleLang
+          }
+        ]
+      : []),
+    ...(onOpenAuditTrail
+      ? [
+          {
+            id: "audit_trail",
+            label: isEn ? "Security Audit Trail & Governance" : "سجل التتبع الأمني والحوكمة (Audit Trail)",
+            category: isEn ? "Quick Actions" : "إجراءات سريعة",
+            icon: ShieldCheck,
+            action: onOpenAuditTrail
+          }
+        ]
+      : []),
+    ...(onOpenPortal
+      ? [
+          {
+            id: "ess_portal",
+            label: isEn ? "Employee Self-Service (ESS Portal)" : "بوابة الخدمة الذاتية للموظفين (ESS)",
+            category: isEn ? "Quick Actions" : "إجراءات سريعة",
+            icon: Users,
+            action: onOpenPortal
           }
         ]
       : [])

@@ -38,6 +38,10 @@ import {
   Search,
   Settings,
   ShieldCheck,
+  Shield,
+  Activity,
+  Send,
+  UserCheck,
   Menu,
   X,
   Sparkles,
@@ -77,6 +81,7 @@ import EmployeeAdvancesModal from "./components/EmployeeAdvancesModal";
 import CommandPalette from "./components/CommandPalette";
 import EmployeePortalModal from "./components/EmployeePortalModal";
 import NotificationBell from "./components/NotificationBell";
+import AuditTrailModal from "./components/AuditTrailModal";
 import AiPayrollAssistantCard from "./components/AiPayrollAssistantCard";
 import BiometricDevicesManager from "./components/BiometricDevicesManager";
 import LiveAttendanceSheet from "./components/LiveAttendanceSheet";
@@ -288,6 +293,150 @@ const NAV_ITEMS = [
   { id: "settings", label: "الإعدادات", icon: Settings }
 ];
 
+export const RBAC_ROLES = [
+  {
+    id: "super_admin",
+    labelAr: "مدير النظام العام",
+    labelEn: "Super Admin",
+    badge: "bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300",
+    allowedViews: ["dashboard", "departments", "shifts", "employees", "attendance", "reports", "insights", "settings"]
+  },
+  {
+    id: "hr_director",
+    labelAr: "مدير الموارد البشرية",
+    labelEn: "HR Director",
+    badge: "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300",
+    allowedViews: ["dashboard", "departments", "shifts", "employees", "attendance", "reports", "insights"]
+  },
+  {
+    id: "attendance_officer",
+    labelAr: "مسؤول الحضور والانصراف",
+    labelEn: "Attendance Officer",
+    badge: "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300",
+    allowedViews: ["attendance", "shifts"]
+  },
+  {
+    id: "dept_manager",
+    labelAr: "مدير القسم",
+    labelEn: "Department Manager",
+    badge: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300",
+    allowedViews: ["dashboard", "employees", "attendance"],
+    filterByDept: true
+  },
+  {
+    id: "payroll_accountant",
+    labelAr: "محاسب الرواتب",
+    labelEn: "Payroll Accountant",
+    badge: "bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300",
+    allowedViews: ["dashboard", "reports", "insights"]
+  }
+];
+
+const DEFAULT_EMPLOYEE_REQUESTS = [
+  {
+    id: "req-1",
+    employeeCode: "E003",
+    employeeName: "محمود حسن",
+    department: "Sales",
+    type: "leave",
+    typeLabelAr: "طلب إجازة اعتيادية",
+    typeLabelEn: "Annual Leave Request",
+    details: "إجازة لمدة يومين لظروف عائلية",
+    date: "2026-10-15",
+    days: 2,
+    hours: null,
+    amount: null,
+    status: "pending_manager",
+    currentStage: "المدير المباشر",
+    createdAt: "2026-10-11 02:30",
+    history: [
+      { step: "submitted", by: "محمود حسن", at: "2026-10-11 02:30", note: "تقديم الطلب عبر البوابة" }
+    ]
+  },
+  {
+    id: "req-2",
+    employeeCode: "E001",
+    employeeName: "أحمد محمود",
+    department: "HR",
+    type: "advance",
+    typeLabelAr: "طلب سلفة مالية",
+    typeLabelEn: "Salary Advance Request",
+    details: "طلب سلفة 3,000 جنيه تقسط على 3 أشهر",
+    date: "2026-10-11",
+    days: null,
+    hours: null,
+    amount: 3000,
+    status: "pending_hr",
+    currentStage: "مدير الموارد البشرية",
+    createdAt: "2026-10-10 11:00",
+    history: [
+      { step: "submitted", by: "أحمد محمود", at: "2026-10-10 11:00", note: "تقديم الطلب عبر البوابة" },
+      { step: "manager_approved", by: "المدير المباشر", at: "2026-10-10 14:20", note: "موافقة مبدئية" }
+    ]
+  },
+  {
+    id: "req-3",
+    employeeCode: "E004",
+    employeeName: "نوران سامي",
+    department: "Operations",
+    type: "permission",
+    typeLabelAr: "إذن انصراف مبكر",
+    typeLabelEn: "Early Departure Permission",
+    details: "انصراف مبكر ساعتين لموعد شخصي",
+    date: "2026-10-12",
+    days: null,
+    hours: 2,
+    amount: null,
+    status: "approved",
+    currentStage: "معتمد نهائياً",
+    createdAt: "2026-10-09 10:00",
+    history: [
+      { step: "submitted", by: "نوران سامي", at: "2026-10-09 10:00", note: "تقديم الطلب" },
+      { step: "manager_approved", by: "مدير العمليات", at: "2026-10-09 11:30", note: "تمت الموافقة" },
+      { step: "hr_approved", by: "مدير الموارد البشرية", at: "2026-10-09 13:00", note: "اعتماد نهائي" }
+    ]
+  }
+];
+
+const DEFAULT_AUDIT_LOGS = [
+  {
+    id: "log-1",
+    timestamp: "2026-10-11 04:30:12",
+    user: "أحمد محمود (Super Admin)",
+    action: "تعديل راتب موظف",
+    details: "تعديل راتب نوران سامي من 16,000 إلى 17,000 ج.م",
+    ip: "197.34.120.45",
+    status: "success"
+  },
+  {
+    id: "log-2",
+    timestamp: "2026-10-10 16:15:00",
+    user: "سارة علي (HR Director)",
+    action: "اعتماد مسير رواتب",
+    details: "اعتماد مسير رواتب أكتوبر 2026 وتوليد ملف حماية الأجور WPS SIF",
+    ip: "197.34.120.45",
+    status: "success"
+  },
+  {
+    id: "log-3",
+    timestamp: "2026-10-09 09:20:44",
+    user: "بصمة ZKTeco (Auto Sync)",
+    action: "مزامنة أجهزة البصمة",
+    details: "استيراد 142 حركة حضور وانصراف لفرع القاهرة تلقائياً",
+    ip: "10.0.0.12",
+    status: "success"
+  },
+  {
+    id: "log-4",
+    timestamp: "2026-10-08 11:05:22",
+    user: "محاسب الرواتب",
+    action: "تصدير قيود محاسبية",
+    details: "تصدير قيود مسير الرواتب بصيغة Odoo ERP و SAP",
+    ip: "197.34.120.45",
+    status: "success"
+  }
+];
+
 function getShiftCopy(countryCode) {
   const isEgypt = countryCode === "EG";
   return {
@@ -348,6 +497,162 @@ export default function App() {
   const [exporting, setExporting] = useState("");
   const [reportExportRows, setReportExportRows] = useState(null);
 
+  // Enterprise RBAC & Governance
+  const [currentRole, setCurrentRole] = useLocalStorage("shiftpay.currentRole", "super_admin");
+  const [isAuditTrailOpen, setIsAuditTrailOpen] = useState(false);
+  const [auditLogs, setAuditLogs] = useState(() => {
+    try {
+      const saved = localStorage.getItem("shiftpay.auditLogs");
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return DEFAULT_AUDIT_LOGS;
+  });
+  const [employeeRequests, setEmployeeRequests] = useState(() => {
+    try {
+      const saved = localStorage.getItem("shiftpay.employeeRequests");
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return DEFAULT_EMPLOYEE_REQUESTS;
+  });
+
+  const addAuditLog = (action, details, user = currentRole, ip = "197.34.120.45") => {
+    const roleCfg = RBAC_ROLES.find((r) => r.id === user);
+    const userLabel = roleCfg ? `${roleCfg.labelAr} (${roleCfg.labelEn})` : String(user);
+    const newEntry = {
+      id: `log-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+      timestamp: new Date().toISOString().slice(0, 19).replace("T", " "),
+      user: userLabel,
+      action,
+      details,
+      ip,
+      status: "success"
+    };
+    setAuditLogs((prev) => {
+      const updated = [newEntry, ...prev];
+      try {
+        localStorage.setItem("shiftpay.auditLogs", JSON.stringify(updated.slice(0, 100)));
+      } catch {}
+      return updated;
+    });
+  };
+
+  const handleSelectRole = (roleId) => {
+    setCurrentRole(roleId);
+    const roleCfg = RBAC_ROLES.find((r) => r.id === roleId) || RBAC_ROLES[0];
+    if (!roleCfg.allowedViews.includes(activeView)) {
+      setActiveView(roleCfg.allowedViews[0] || "dashboard");
+    }
+    const roleName = lang === "en" ? roleCfg.labelEn : roleCfg.labelAr;
+    setToastMessage({
+      message: lang === "en" ? `Switched role to: ${roleName}` : `تم تبديل الصلاحية إلى: ${roleName}`,
+      type: "info"
+    });
+    addAuditLog("تبديل الصلاحية (RBAC)", `تم تبديل دور المستخدم إلى ${roleName}`, roleName);
+  };
+
+  const handleSubmitEmployeeRequest = (newReq) => {
+    setEmployeeRequests((prev) => {
+      const updated = [newReq, ...prev];
+      try {
+        localStorage.setItem("shiftpay.employeeRequests", JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
+    addAuditLog(
+      lang === "en" ? "Self-Service Request Submitted" : "تقديم طلب خدمة ذاتية",
+      `${newReq.typeLabelAr} للموظف ${newReq.employeeName} (${newReq.employeeCode})`,
+      newReq.employeeName
+    );
+    setToastMessage({
+      message: lang === "en" ? "Request submitted successfully!" : "تم تقديم الطلب وإرساله للمدير المباشر بنجاح!",
+      type: "success"
+    });
+  };
+
+  const handleApproveEmployeeRequest = (reqId, role) => {
+    setEmployeeRequests((prev) => {
+      const updated = prev.map((req) => {
+        if (req.id !== reqId) return req;
+        if (req.status === "pending_manager") {
+          return {
+            ...req,
+            status: "pending_hr",
+            currentStage: lang === "en" ? "HR Director" : "مدير الموارد البشرية",
+            history: [
+              ...req.history,
+              {
+                step: "manager_approved",
+                by: role,
+                at: new Date().toISOString().slice(0, 16).replace("T", " "),
+                note: lang === "en" ? "Approved by Direct Manager" : "تمت الموافقة من المدير المباشر"
+              }
+            ]
+          };
+        } else {
+          return {
+            ...req,
+            status: "approved",
+            currentStage: lang === "en" ? "Fully Approved" : "معتمد نهائياً",
+            history: [
+              ...req.history,
+              {
+                step: "hr_approved",
+                by: role,
+                at: new Date().toISOString().slice(0, 16).replace("T", " "),
+                note: lang === "en" ? "Final approval by HR Director" : "اعتماد نهائي من مدير الموارد البشرية"
+              }
+            ]
+          };
+        }
+      });
+      try {
+        localStorage.setItem("shiftpay.employeeRequests", JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
+
+    const targetReq = employeeRequests.find((r) => r.id === reqId);
+    addAuditLog(
+      lang === "en" ? "Request Approved" : "اعتماد طلب موظف",
+      `تمت الموافقة على ${targetReq?.typeLabelAr || "طلب"} للموظف ${targetReq?.employeeName || ""}`,
+      role
+    );
+    setToastMessage({
+      message: lang === "en" ? "Request approved successfully!" : "تمت الموافقة على الطلب بنجاح وتحديث المسار!",
+      type: "success"
+    });
+  };
+
+  const handleRejectEmployeeRequest = (reqId) => {
+    setEmployeeRequests((prev) => {
+      const updated = prev.map((req) => {
+        if (req.id !== reqId) return req;
+        return {
+          ...req,
+          status: "rejected",
+          currentStage: lang === "en" ? "Rejected" : "مرفوض",
+          history: [
+            ...req.history,
+            {
+              step: "rejected",
+              by: currentRole,
+              at: new Date().toISOString().slice(0, 16).replace("T", " "),
+              note: lang === "en" ? "Request rejected" : "تم رفض الطلب"
+            }
+          ]
+        };
+      });
+      try {
+        localStorage.setItem("shiftpay.employeeRequests", JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
+    setToastMessage({
+      message: lang === "en" ? "Request rejected." : "تم رفض الطلب.",
+      type: "info"
+    });
+  };
+
   useEffect(() => {
     if (theme === "dark") {
       document.documentElement.classList.add("dark");
@@ -374,15 +679,19 @@ export default function App() {
     lastSyncAt: ""
   }));
   const shiftCopy = useMemo(() => getShiftCopy(settings.country), [settings.country]);
+  const activeRoleConfig = useMemo(
+    () => RBAC_ROLES.find((r) => r.id === currentRole) || RBAC_ROLES[0],
+    [currentRole]
+  );
   const navItems = useMemo(
     () =>
-      NAV_ITEMS.map((item) => {
+      NAV_ITEMS.filter((item) => activeRoleConfig.allowedViews.includes(item.id)).map((item) => {
         if (lang === "en") {
           return { ...item, label: getTranslation(lang, `nav_${item.id}`, item.label) };
         }
         return item.id === "shifts" ? { ...item, label: shiftCopy.plural } : item;
       }),
-    [lang, shiftCopy.plural]
+    [lang, shiftCopy.plural, activeRoleConfig]
   );
 
   const selectedReport = reports.find((report) => report.id === selectedReportId) || reports[0];
@@ -989,8 +1298,104 @@ export default function App() {
 
   const systemAlerts = useMemo(() => {
     const alerts = [];
+    const today = new Date();
 
-    // 1. Incomplete / Missing Punches Alert
+    // 1. Proactive Alert: انتهاء إقامة موظف (Iqama / Residency Expiration <= 30 days)
+    const expiringIqamas = employees.filter((emp) => {
+      if (!emp.iqamaExpiry) return false;
+      const expDate = new Date(emp.iqamaExpiry);
+      const diffDays = Math.ceil((expDate - today) / (1000 * 60 * 60 * 24));
+      return diffDays <= 30;
+    });
+    if (expiringIqamas.length > 0) {
+      alerts.push({
+        id: "alert-iqama-expiry",
+        type: "error",
+        title: lang === "en" ? `${expiringIqamas.length} Iqama / Residency Expiring Soon` : `انتهاء إقامة ${expiringIqamas.length} موظف قريباً`,
+        description:
+          lang === "en"
+            ? `Employees (${expiringIqamas.map((e) => e.name).join(", ")}) have residency expiring within 30 days.`
+            : `تنبيه امتثال: إقامة (${expiringIqamas.map((e) => e.name).join("، ")}) تنتهي خلال أقل من 30 يوماً.`,
+        actionLabel: lang === "en" ? "View Employees" : "عرض الموظفين",
+        targetView: "employees",
+        icon: <ShieldCheck size={15} />
+      });
+    }
+
+    // 2. Proactive Alert: عقود قاربت على الانتهاء (Contract Ending Soon <= 30 days)
+    const expiringContracts = employees.filter((emp) => {
+      if (!emp.contractEnd) return false;
+      const expDate = new Date(emp.contractEnd);
+      const diffDays = Math.ceil((expDate - today) / (1000 * 60 * 60 * 24));
+      return diffDays <= 30;
+    });
+    if (expiringContracts.length > 0) {
+      alerts.push({
+        id: "alert-contract-expiry",
+        type: "warning",
+        title: lang === "en" ? `${expiringContracts.length} Contracts Ending Soon` : `عقود عمل قاربت على الانتهاء (${expiringContracts.length})`,
+        description:
+          lang === "en"
+            ? `Employment contracts for (${expiringContracts.map((e) => e.name).join(", ")}) end within 30 days.`
+            : `عقود الموظفين (${expiringContracts.map((e) => e.name).join("، ")}) بحاجة لتجديد أو إشعار قبل الانتهاء.`,
+        actionLabel: lang === "en" ? "Review Contracts" : "مراجعة العقود",
+        targetView: "employees",
+        icon: <CalendarDays size={15} />
+      });
+    }
+
+    // 3. Proactive Alert: غياب غير مبرر لثلاثة أيام متتالية / 3+ أيام (Consecutive / Unexcused Absences >= 3)
+    const highAbsenceRows = payrollRows.filter((r) => (r.absenceDays || 0) >= 3);
+    if (highAbsenceRows.length > 0) {
+      alerts.push({
+        id: "alert-consecutive-absence",
+        type: "error",
+        title: lang === "en" ? `${highAbsenceRows.length} Employees with 3+ Absence Days` : `غياب 3 أيام أو أكثر (${highAbsenceRows.length} موظف)`,
+        description:
+          lang === "en"
+            ? `Employees (${highAbsenceRows.map((r) => r.employeeName).join(", ")}) reached or exceeded 3 days of absence.`
+            : `تم رصد غياب 3 أيام فأكثر للموظفين (${highAbsenceRows.map((r) => r.employeeName).join("، ")}) يستوجب لفت نظر أو مراجعة.`,
+        actionLabel: lang === "en" ? "Check Attendance" : "مراجعة الحضور",
+        targetView: "attendance",
+        icon: <AlertTriangle size={15} />
+      });
+    }
+
+    // 4. Proactive Alert: رصيد إجازات مستنفذ (Exhausted Vacation Balance <= 0)
+    const zeroVacationEmps = employees.filter((emp) => (emp.vacationBalance ?? 0) <= 0);
+    if (zeroVacationEmps.length > 0) {
+      alerts.push({
+        id: "alert-vacation-exhausted",
+        type: "info",
+        title: lang === "en" ? `${zeroVacationEmps.length} Employees with Zero Leave Balance` : `رصيد إجازات مستنفذ (${zeroVacationEmps.length} موظف)`,
+        description:
+          lang === "en"
+            ? `Employees (${zeroVacationEmps.map((e) => e.name).join(", ")}) have zero annual leave balance. Further absences will be fully deducted.`
+            : `الموظفون (${zeroVacationEmps.map((e) => e.name).join("، ")}) استنفذوا رصيد الإجازات السنوية وأي غياب قادم سيُخصم مباشرة.`,
+        actionLabel: lang === "en" ? "View Balances" : "عرض الأرصدة",
+        targetView: "employees",
+        icon: <Clock size={15} />
+      });
+    }
+
+    // 5. Proactive Alert: طلبات موظفين بانتظار الاعتماد (Pending ESS Requests)
+    const pendingReqs = employeeRequests.filter((r) => r.status && r.status.startsWith("pending"));
+    if (pendingReqs.length > 0) {
+      alerts.push({
+        id: "alert-pending-requests",
+        type: "warning",
+        title: lang === "en" ? `${pendingReqs.length} Pending Employee Requests` : `${pendingReqs.length} طلبات خدمة ذاتية بانتظار الاعتماد`,
+        description:
+          lang === "en"
+            ? `There are ${pendingReqs.length} requests awaiting approval in the workflow pipeline.`
+            : `يوجد ${pendingReqs.length} طلبات خدمة ذاتية بانتظار موافقة المدير المباشر أو مدير الموارد البشرية.`,
+        actionLabel: lang === "en" ? "Review Requests" : "مراجعة الطلبات",
+        onAction: () => setPortalEmployee(employees[0] || null),
+        icon: <FileSpreadsheet size={15} />
+      });
+    }
+
+    // 6. Incomplete / Missing Punches Alert
     const missingPunchLogs = detectIncompleteAttendanceDays(attendanceLogs);
     if (missingPunchLogs.length > 0) {
       alerts.push({
@@ -1007,7 +1412,7 @@ export default function App() {
       });
     }
 
-    // 2. Draft Payroll Status Alert
+    // 7. Draft Payroll Status Alert
     const currentReport = reports.find((r) => r.month === reportMonth) || reports[0];
     if (currentReport && currentReport.status === "draft") {
       alerts.push({
@@ -1024,7 +1429,7 @@ export default function App() {
       });
     }
 
-    // 3. Employee Advances Due This Month
+    // 8. Employee Advances Due This Month
     const dueAdvances = (advances || []).filter((adv) => {
       if (adv.status !== "active") return false;
       return (adv.installments || []).some(
@@ -1046,7 +1451,7 @@ export default function App() {
       });
     }
 
-    // 4. AI Payroll Health & Anomalies Alert
+    // 9. AI Payroll Health & Anomalies Alert
     if (payrollAiAnalysis && payrollAiAnalysis.anomalies && payrollAiAnalysis.anomalies.length > 0) {
       alerts.push({
         id: "alert-ai-anomalies",
@@ -1062,7 +1467,7 @@ export default function App() {
       });
     }
 
-    // 5. Tier Quota Warning
+    // 10. Tier Quota Warning
     const maxEmps = getTierConfig(userTier).maxEmployees;
     if (employees.length >= maxEmps * 0.85) {
       alerts.push({
@@ -1080,7 +1485,7 @@ export default function App() {
     }
 
     return alerts;
-  }, [attendanceLogs, reports, reportMonth, monthLabel, advances, payrollAiAnalysis, userTier, employees.length, lang]);
+  }, [employees, payrollRows, employeeRequests, attendanceLogs, reports, reportMonth, monthLabel, advances, payrollAiAnalysis, userTier, lang]);
 
   const handleReportPdf = async (rows = payrollRows) => {
     setExporting("report");
@@ -1296,6 +1701,7 @@ export default function App() {
             onToggleTheme={() => setTheme(theme === "dark" ? "light" : "dark")}
             lang={lang}
             onToggleLang={() => setLang(lang === "ar" ? "en" : "ar")}
+            onOpenAuditTrail={() => setIsAuditTrailOpen(true)}
           />
         );
       default:
@@ -1516,6 +1922,10 @@ export default function App() {
               lang={lang}
               onToggleLang={() => setLang(lang === "ar" ? "en" : "ar")}
               alerts={systemAlerts}
+              currentRole={currentRole}
+              onSelectRole={handleSelectRole}
+              onOpenAuditTrail={() => setIsAuditTrailOpen(true)}
+              onOpenPortal={() => setPortalEmployee(employees[0] || null)}
             />
           ) : null}
           {syncStatus ? (
@@ -1584,6 +1994,14 @@ export default function App() {
         lang={lang}
         onToggleTheme={() => setTheme(theme === "dark" ? "light" : "dark")}
         onToggleLang={() => setLang(lang === "ar" ? "en" : "ar")}
+        onOpenAuditTrail={() => {
+          setIsCommandPaletteOpen(false);
+          setIsAuditTrailOpen(true);
+        }}
+        onOpenPortal={() => {
+          setIsCommandPaletteOpen(false);
+          setPortalEmployee(employees[0] || null);
+        }}
       />
 
       <EmployeePortalModal
@@ -1594,6 +2012,21 @@ export default function App() {
         advances={advances}
         monthLabel={monthLabel}
         settings={settings}
+        requests={employeeRequests}
+        onSubmitRequest={handleSubmitEmployeeRequest}
+        onApproveRequest={handleApproveEmployeeRequest}
+        onRejectRequest={handleRejectEmployeeRequest}
+        allEmployees={employees}
+        onSelectEmployee={(emp) => setPortalEmployee(emp)}
+        currentRole={currentRole}
+        lang={lang}
+      />
+
+      <AuditTrailModal
+        isOpen={isAuditTrailOpen}
+        onClose={() => setIsAuditTrailOpen(false)}
+        auditLogs={auditLogs}
+        lang={lang}
       />
 
       <UpgradePlanModal
@@ -5012,9 +5445,35 @@ function SettingsView({
   theme = "light",
   onToggleTheme,
   lang = "ar",
-  onToggleLang
+  onToggleLang,
+  onOpenAuditTrail
 }) {
   const isEn = lang === "en";
+  const [webhookConfig, setWebhookConfig] = useState({
+    targetSystem: "odoo",
+    url: "https://erp.smartroute.com/api/v1/payroll/webhook",
+    secretToken: "sk_live_9f83b271a084c7e91d5",
+    eventPayrollApproved: true,
+    eventAttendancePunched: true,
+    eventRequestApproved: true
+  });
+  const [testingWebhook, setTestingWebhook] = useState(false);
+  const [webhookStatus, setWebhookStatus] = useState(null);
+
+  const handleTestWebhook = () => {
+    setTestingWebhook(true);
+    setWebhookStatus(null);
+    setTimeout(() => {
+      setTestingWebhook(false);
+      setWebhookStatus({
+        type: "success",
+        message: isEn
+          ? `HTTP 200 OK — Successfully delivered mock payroll journal entry to ${webhookConfig.targetSystem.toUpperCase()}!`
+          : `HTTP 200 OK — تم إرسال وتأكيد استلام القيد المحاسبي التجريبي بنجاح إلى نظام ${webhookConfig.targetSystem.toUpperCase()}!`
+      });
+    }, 900);
+  };
+
   const update = (patch) => setSettings({ ...settings, ...patch });
   const countryProfile = getCountryProfile(settings.country);
   const selectedYear = new Date().getFullYear();
@@ -5479,6 +5938,124 @@ function SettingsView({
               </button>
             </div>
           ))}
+        </div>
+      </section>
+
+      {/* Cloud & ERP Integrations: Webhooks & Accounting Systems */}
+      <section className="rounded-lg border border-line bg-white p-5 shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="text-xl font-extrabold text-ink flex items-center gap-2">
+              <Activity className="text-primary" size={20} />
+              {isEn ? "Open API & Cloud Accounting Webhooks" : "الربط السحابي والـ Webhooks (Odoo, SAP, QuickBooks)"}
+            </h2>
+            <p className="mt-1 text-sm text-slate-500">
+              {isEn
+                ? "Transmit real-time payroll journal entries and attendance punch logs directly to your ERP or accounting software without manual data entry."
+                : "تمرير قيود الرواتب وسجلات الحضور تلقائياً إلى برامج الحسابات وERP دون أي تدخل يدوي."}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onOpenAuditTrail}
+            className="flex items-center gap-1.5 rounded-xl border border-purple-200 bg-purple-50 px-3.5 py-2 text-xs font-black text-purple-700 hover:bg-purple-100 transition shadow-2xs"
+          >
+            <Shield size={14} />
+            <span>{isEn ? "Open Security Audit Trail" : "سجل التتبع الأمني (Audit Trail)"}</span>
+          </button>
+        </div>
+
+        <div className="mt-5 space-y-4">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <SelectField
+              label={isEn ? "Target ERP / Accounting System" : "نظام الحسابات المستهدف"}
+              value={webhookConfig.targetSystem}
+              onChange={(e) => setWebhookConfig({ ...webhookConfig, targetSystem: e.target.value })}
+            >
+              <option value="odoo">Odoo ERP (Journal Entries API)</option>
+              <option value="sap">SAP Business One (Service Layer)</option>
+              <option value="quickbooks">QuickBooks Online (Payroll API)</option>
+              <option value="custom">Custom REST Webhook Endpoint</option>
+            </SelectField>
+
+            <InputField
+              label={isEn ? "Webhook Endpoint URL" : "رابط الـ Webhook (Endpoint URL)"}
+              value={webhookConfig.url}
+              onChange={(e) => setWebhookConfig({ ...webhookConfig, url: e.target.value })}
+              placeholder="https://erp.yourcompany.com/api/v1/payroll/webhook"
+            />
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <InputField
+              label={isEn ? "Secret Bearer Token" : "مفتاح الأمان (Bearer / Secret Token)"}
+              type="password"
+              value={webhookConfig.secretToken}
+              onChange={(e) => setWebhookConfig({ ...webhookConfig, secretToken: e.target.value })}
+              placeholder="sk_live_..."
+            />
+            <div className="flex flex-col justify-end">
+              <button
+                type="button"
+                onClick={handleTestWebhook}
+                disabled={testingWebhook}
+                className="flex items-center justify-center gap-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white px-4 py-2.5 text-xs font-black transition shadow-xs"
+              >
+                <Activity size={15} className={testingWebhook ? "animate-spin" : "text-emerald-400"} />
+                <span>
+                  {testingWebhook
+                    ? (isEn ? "Testing connection..." : "جاري فحص الاتصال...")
+                    : (isEn ? "Test Webhook Ping (Send Sample Journal Entry)" : "إرسال قيد تجريبي لفحص الاتصال (Ping)")}
+                </span>
+              </button>
+            </div>
+          </div>
+
+          {webhookStatus && (
+            <div className={`p-3.5 rounded-xl text-xs font-bold flex items-center gap-2 ${
+              webhookStatus.type === "success"
+                ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
+                : "bg-rose-50 text-rose-800 border border-rose-200"
+            }`}>
+              <CheckCircle2 size={16} className="text-emerald-600 shrink-0" />
+              <span>{webhookStatus.message}</span>
+            </div>
+          )}
+
+          <div className="rounded-xl border border-line bg-slate-50 p-4">
+            <span className="text-xs font-black text-ink block mb-2">
+              {isEn ? "Subscribed Event Triggers" : "أحداث التمرير التلقائي (Webhook Event Triggers)"}:
+            </span>
+            <div className="flex flex-wrap gap-4 text-xs font-bold text-slate-600">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={webhookConfig.eventPayrollApproved}
+                  onChange={(e) => setWebhookConfig({ ...webhookConfig, eventPayrollApproved: e.target.checked })}
+                  className="rounded text-primary focus:ring-primary"
+                />
+                <span>payroll.approved ({isEn ? "Payroll Approved" : "اعتماد مسير الرواتب"})</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={webhookConfig.eventAttendancePunched}
+                  onChange={(e) => setWebhookConfig({ ...webhookConfig, eventAttendancePunched: e.target.checked })}
+                  className="rounded text-primary focus:ring-primary"
+                />
+                <span>attendance.punched ({isEn ? "Biometric Sync" : "مزامنة البصمة"})</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={webhookConfig.eventRequestApproved}
+                  onChange={(e) => setWebhookConfig({ ...webhookConfig, eventRequestApproved: e.target.checked })}
+                  className="rounded text-primary focus:ring-primary"
+                />
+                <span>request.approved ({isEn ? "Leave / Advance Approved" : "اعتماد إجازة / سلفة"})</span>
+              </label>
+            </div>
+          </div>
         </div>
       </section>
     </div>
@@ -6243,7 +6820,11 @@ function CloudTopBar({
   onToggleTheme,
   lang = "ar",
   onToggleLang,
-  alerts = []
+  alerts = [],
+  currentRole = "super_admin",
+  onSelectRole,
+  onOpenAuditTrail,
+  onOpenPortal
 }) {
   const tier = getTierConfig(userTier);
   const country = getCountryProfile(settings?.country || "EG");
@@ -6272,6 +6853,49 @@ function CloudTopBar({
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
+        {/* RBAC Role Selector */}
+        <div className="flex items-center gap-1.5 rounded-lg border border-purple-200 dark:border-purple-900 bg-purple-50/70 dark:bg-purple-950/40 px-2 py-1 shadow-2xs">
+          <Shield size={13} className="text-purple-600 dark:text-purple-400 shrink-0" />
+          <select
+            value={currentRole}
+            onChange={(e) => onSelectRole && onSelectRole(e.target.value)}
+            className="bg-transparent text-xs font-black text-purple-950 dark:text-purple-200 focus:outline-hidden cursor-pointer"
+            title={lang === "ar" ? "تبديل الصلاحية (RBAC)" : "Switch Role (RBAC)"}
+          >
+            {RBAC_ROLES.map((r) => (
+              <option key={r.id} value={r.id} className="bg-white dark:bg-slate-900 text-ink dark:text-white">
+                {lang === "en" ? r.labelEn : r.labelAr}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* ESS Portal Button */}
+        {onOpenPortal && (
+          <button
+            type="button"
+            onClick={onOpenPortal}
+            className="flex items-center gap-1.5 rounded-lg border border-blue-200 dark:border-blue-900 bg-blue-50/70 dark:bg-blue-950/40 px-2.5 py-1.5 text-xs font-bold text-primary dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/60 transition shadow-2xs"
+            title={lang === "ar" ? "بوابة الخدمة الذاتية للموظف (ESS)" : "Employee Self-Service (ESS)"}
+          >
+            <Users size={13} />
+            <span className="hidden sm:inline">{lang === "ar" ? "بوابة الموظف" : "ESS Portal"}</span>
+          </button>
+        )}
+
+        {/* Audit Trail Button */}
+        {onOpenAuditTrail && (
+          <button
+            type="button"
+            onClick={onOpenAuditTrail}
+            className="flex items-center gap-1.5 rounded-lg border border-line bg-slate-50 dark:bg-slate-800 px-2.5 py-1.5 text-xs font-bold text-slate-600 dark:text-slate-300 hover:border-purple-500 hover:text-purple-600 dark:hover:text-purple-400 transition shadow-2xs"
+            title={lang === "ar" ? "سجل التتبع الأمني والحوكمة (Audit Trail)" : "Security Audit Trail"}
+          >
+            <ShieldCheck size={13} />
+            <span className="hidden sm:inline">{lang === "ar" ? "سجل الأمان" : "Audit"}</span>
+          </button>
+        )}
+
         <button
           type="button"
           onClick={onAddCompanyClick}

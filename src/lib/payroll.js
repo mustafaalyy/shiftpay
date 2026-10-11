@@ -481,6 +481,10 @@ export const DEFAULT_EMPLOYEES = [
     shiftAssignmentMode: "fixed",
     weeklyRestMode: "fixed",
     flexibleWeeklyRestDays: 0,
+    hireDate: "2023-01-15",
+    contractEnd: "2026-11-05",
+    iqamaExpiry: "2026-10-28",
+    jobTitle: "أخصائي موارد بشرية",
     notes: "مسؤول ملفات الموظفين",
     active: true
   },
@@ -497,6 +501,10 @@ export const DEFAULT_EMPLOYEES = [
     shiftAssignmentMode: "fixed",
     weeklyRestMode: "fixed",
     flexibleWeeklyRestDays: 0,
+    hireDate: "2022-06-01",
+    contractEnd: "2027-06-01",
+    iqamaExpiry: "2027-06-01",
+    jobTitle: "مهندسة برمجيات أولى",
     notes: "مهندسة نظم",
     active: true
   },
@@ -513,6 +521,10 @@ export const DEFAULT_EMPLOYEES = [
     shiftAssignmentMode: "fixed",
     weeklyRestMode: "fixed",
     flexibleWeeklyRestDays: 0,
+    hireDate: "2024-03-01",
+    contractEnd: "2026-10-30",
+    iqamaExpiry: "2027-03-01",
+    jobTitle: "مسؤول مبيعات",
     notes: "مبيعات الشركات",
     active: true
   },
@@ -529,6 +541,10 @@ export const DEFAULT_EMPLOYEES = [
     shiftAssignmentMode: "fixed",
     weeklyRestMode: "fixed",
     flexibleWeeklyRestDays: 0,
+    hireDate: "2023-09-10",
+    contractEnd: "2027-09-10",
+    iqamaExpiry: "2027-09-10",
+    jobTitle: "منسقة عمليات",
     notes: "عمليات التشغيل",
     active: true
   },
@@ -538,6 +554,26 @@ export const DEFAULT_EMPLOYEES = [
     name: "كريم فتحي",
     departmentId: "dep-acc",
     shiftId: "shift-morning",
+    salary: 16000,
+    vacationBalance: 4,
+    extraDeductions: 0,
+    bonuses: 0,
+    shiftAssignmentMode: "fixed",
+    weeklyRestMode: "fixed",
+    flexibleWeeklyRestDays: 0,
+    hireDate: "2024-01-01",
+    contractEnd: "2027-01-01",
+    iqamaExpiry: "2027-01-01",
+    jobTitle: "محاسب مالي",
+    notes: "محاسب",
+    active: true
+  },
+  {
+    id: "emp-archived",
+    code: "E006",
+    name: "مروان سعيد",
+    departmentId: "dep-ops",
+    shiftId: "shift-morning",
     salary: 14000,
     vacationBalance: 1,
     extraDeductions: 0,
@@ -545,6 +581,10 @@ export const DEFAULT_EMPLOYEES = [
     shiftAssignmentMode: "fixed",
     weeklyRestMode: "fixed",
     flexibleWeeklyRestDays: 0,
+    hireDate: "2023-01-01",
+    contractEnd: "2025-01-01",
+    iqamaExpiry: "2025-01-01",
+    jobTitle: "مشرف تشغيل سابق",
     notes: "تم أرشفته مؤقتا",
     active: false
   }
@@ -822,6 +862,68 @@ function buildShiftLogForDate(groupedLogs, employeeCode, date, shift) {
 
 function allocateFlexibleRestDates(missingDates, allowedRestDays) {
   return missingDates.slice(0, allowedRestDays);
+}
+
+/**
+ * End of Service Gratuity Calculator (حساب مكافأة نهاية الخدمة)
+ * In accordance with Articles 84 & 85 of the Saudi Labor Law (نظام العمل السعودي).
+ */
+export function calculateEndOfServiceGratuity({
+  baseSalary = 0,
+  yearsOfService = 0,
+  monthsOfService = 0,
+  reason = "contract_ended" // "contract_ended" | "terminated_by_employer" | "resigned"
+}) {
+  const salary = Number(baseSalary) || 0;
+  const totalYears = (Number(yearsOfService) || 0) + (Number(monthsOfService) || 0) / 12;
+
+  if (totalYears <= 0 || salary <= 0) {
+    return {
+      totalYears: 0,
+      fullGratuity: 0,
+      entitlementFraction: 0,
+      finalAmount: 0,
+      formulaNote: "مدة الخدمة أو الراتب غير كافٍ لاحتساب المكافأة"
+    };
+  }
+
+  // Article 84: Half a month for first 5 years, full month thereafter
+  let fullGratuity = 0;
+  if (totalYears <= 5) {
+    fullGratuity = totalYears * (salary * 0.5);
+  } else {
+    fullGratuity = 5 * (salary * 0.5) + (totalYears - 5) * salary;
+  }
+
+  // Article 85: Entitlement in case of resignation
+  let entitlementFraction = 1.0;
+  let formulaNote = "مستحقة بالكامل (100%) وفق المادة 84 من نظام العمل السعودي";
+
+  if (reason === "resigned") {
+    if (totalYears < 2) {
+      entitlementFraction = 0;
+      formulaNote = "لا يستحق العامل مكافأة نهاية الخدمة إذا استقال قبل إتمام سنتين خدمة (المادة 85)";
+    } else if (totalYears < 5) {
+      entitlementFraction = 1 / 3;
+      formulaNote = "استحقاق ثلث المكافأة (1/3) للاستقالة بعد خدمة بين سنتين و 5 سنوات (المادة 85)";
+    } else if (totalYears < 10) {
+      entitlementFraction = 2 / 3;
+      formulaNote = "استحقاق ثلثي المكافأة (2/3) للاستقالة بعد خدمة بين 5 و 10 سنوات (المادة 85)";
+    } else {
+      entitlementFraction = 1.0;
+      formulaNote = "استحقاق المكافأة كاملة (100%) للاستقالة بعد خدمة 10 سنوات فأكثر (المادة 85)";
+    }
+  }
+
+  const finalAmount = Math.round(fullGratuity * entitlementFraction * 100) / 100;
+
+  return {
+    totalYears: Math.round(totalYears * 100) / 100,
+    fullGratuity: Math.round(fullGratuity * 100) / 100,
+    entitlementFraction,
+    finalAmount,
+    formulaNote
+  };
 }
 
 export function addMonthsToMonth(monthString, count = 1) {

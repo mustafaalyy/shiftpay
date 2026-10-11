@@ -18,7 +18,8 @@ import {
   cancelAdvance,
   calculateAdvanceBalances,
   getEmployeeAdvanceBalance,
-  getMonthlyHolidayAlerts
+  getMonthlyHolidayAlerts,
+  calculateEndOfServiceGratuity
 } from "../src/lib/payroll.js";
 
 describe("ShiftPay HR - Payroll Engine Unit Tests", () => {
@@ -827,6 +828,63 @@ describe("ShiftPay HR - Payroll Engine Unit Tests", () => {
 
       // 15,000 * 10% = 1,500
       assert.equal(result[0].socialInsuranceDeduction, 1500);
+    });
+
+    it("calculates Saudi End of Service Gratuity accurately for normal contract end", () => {
+      // 3 years of service, 6,000 SAR salary -> 3 * (6,000 * 0.5) = 9,000 SAR
+      const res3 = calculateEndOfServiceGratuity({
+        baseSalary: 6000,
+        yearsOfService: 3,
+        reason: "contract_ended"
+      });
+      assert.equal(res3.finalAmount, 9000);
+      assert.equal(res3.entitlementFraction, 1.0);
+
+      // 7 years of service, 10,000 SAR salary -> (5 * 5,000) + (2 * 10,000) = 45,000 SAR
+      const res7 = calculateEndOfServiceGratuity({
+        baseSalary: 10000,
+        yearsOfService: 7,
+        reason: "contract_ended"
+      });
+      assert.equal(res7.finalAmount, 45000);
+    });
+
+    it("applies Article 85 resignation entitlement fractions correctly", () => {
+      // Resigned under 2 years -> 0%
+      const res1 = calculateEndOfServiceGratuity({
+        baseSalary: 10000,
+        yearsOfService: 1.5,
+        reason: "resigned"
+      });
+      assert.equal(res1.finalAmount, 0);
+      assert.equal(res1.entitlementFraction, 0);
+
+      // Resigned between 2 and 5 years -> 1/3
+      // 4 years: 4 * 5,000 = 20,000 * (1/3) = 6666.67
+      const res4 = calculateEndOfServiceGratuity({
+        baseSalary: 10000,
+        yearsOfService: 4,
+        reason: "resigned"
+      });
+      assert.equal(res4.finalAmount, 6666.67);
+
+      // Resigned between 5 and 10 years -> 2/3
+      // 6 years: (5 * 5000 + 1 * 10000) = 35000 * (2/3) = 23333.33
+      const res6 = calculateEndOfServiceGratuity({
+        baseSalary: 10000,
+        yearsOfService: 6,
+        reason: "resigned"
+      });
+      assert.equal(res6.finalAmount, 23333.33);
+
+      // Resigned after 10+ years -> 100%
+      const res10 = calculateEndOfServiceGratuity({
+        baseSalary: 10000,
+        yearsOfService: 10,
+        reason: "resigned"
+      });
+      assert.equal(res10.finalAmount, 75000);
+      assert.equal(res10.entitlementFraction, 1.0);
     });
   });
 });
