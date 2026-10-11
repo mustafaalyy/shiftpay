@@ -14,7 +14,12 @@ import {
   EyeOff,
   Lock,
   Mail,
-  User
+  User,
+  Copy,
+  Share2,
+  Building2,
+  ExternalLink,
+  MessageCircle
 } from "lucide-react";
 import { RBAC_ROLES } from "../App";
 
@@ -26,8 +31,18 @@ export default function StaffUsersModal({
   employees = [],
   onUpdateEmployeePin,
   departments = [],
+  settings = {},
   lang = "ar"
 }) {
+  const companyCode = (settings.companyCode || "MASAR").toUpperCase();
+  const companyName = settings.companyName || "شركة المسار الذكي";
+  const portalUrl = typeof window !== "undefined"
+    ? `${window.location.origin}${window.location.pathname}?c=${companyCode}#portal`
+    : `https://shiftpayhr.com/?c=${companyCode}#portal`;
+
+  const [copiedLink, setCopiedLink] = useState(false);
+  const [copiedEmpId, setCopiedEmpId] = useState(null);
+
   const [activeTab, setActiveTab] = useState("staff"); // "staff" | "employees_pins"
   const [showAddUserModal, setShowAddUserModal] = useState(false);
   const [showPasswordMap, setShowPasswordMap] = useState({});
@@ -288,10 +303,48 @@ export default function StaffUsersModal({
 
           {activeTab === "employees_pins" && (
             <div className="space-y-3">
-              <div className="rounded-xl border border-blue-200 dark:border-blue-900 bg-blue-50/60 dark:bg-blue-950/30 p-3.5 text-xs font-bold text-blue-900 dark:text-blue-300">
-                {isEn
-                  ? "Employees log into the Self-Service Portal using their Employee Code and this PIN/Password. You can reset passwords here anytime."
-                  : "يدخل الموظفون بوابة الخدمة الذاتية عبر كود الموظف وكلمة المرور/PIN أدناه. يمكنك إعادة تعيين كلمة مرور أي موظف فوراً."}
+              {/* Company Portal Direct Link Banner */}
+              <div className="rounded-xl border border-purple-200 dark:border-purple-900 bg-purple-50/70 dark:bg-purple-950/40 p-4 space-y-2">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <Building2 size={16} className="text-purple-600" />
+                    <span className="font-black text-ink dark:text-white text-xs">
+                      {isEn ? "Company Portal Link & Code" : "رابط وكود بوابة الموظفين لشركتك"}:
+                    </span>
+                    <span className="rounded-md bg-purple-600 text-white px-2 py-0.5 font-mono font-black text-xs">
+                      {companyCode}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigator.clipboard?.writeText(portalUrl);
+                        setCopiedLink(true);
+                        setTimeout(() => setCopiedLink(false), 2000);
+                      }}
+                      className="flex items-center gap-1.5 rounded-lg bg-white dark:bg-slate-900 border border-purple-200 dark:border-purple-800 px-3 py-1.5 text-xs font-black text-purple-700 dark:text-purple-300 hover:bg-purple-100 transition shadow-2xs cursor-pointer"
+                    >
+                      <Copy size={13} />
+                      <span>{copiedLink ? (isEn ? "Copied ✓" : "تم نسخ الرابط ✓") : (isEn ? "Copy Direct Link" : "نسخ الرابط المباشر")}</span>
+                    </button>
+                    <a
+                      href={portalUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-1 rounded-lg border border-purple-200 bg-purple-100 dark:bg-purple-900/60 px-2.5 py-1.5 text-xs font-bold text-purple-800 dark:text-purple-200 hover:bg-purple-200 transition"
+                      title={isEn ? "Open portal in new tab" : "فتح البوابة في تبويب جديد"}
+                    >
+                      <ExternalLink size={13} />
+                      <span>{isEn ? "Test Link" : "تجربة"}</span>
+                    </a>
+                  </div>
+                </div>
+                <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400">
+                  {isEn
+                    ? `Share this link with your employees. Opening it automatically binds them to company "${companyName}" (${companyCode}) so they only need their Employee Code and PIN.`
+                    : `أرسل هذا الرابط لموظفيك عبر واتساب أو البريد. عند فتحه يربط هاتف الموظف تلقائياً بشركة "${companyName}" (كود: ${companyCode}) ويمنع أي تداخل مع أي شركة أخرى.`}
+                </p>
               </div>
 
               <div className="divide-y divide-line dark:divide-slate-800 rounded-xl border border-line dark:border-slate-800 bg-white dark:bg-slate-900 overflow-hidden">
@@ -305,7 +358,7 @@ export default function StaffUsersModal({
                       className="p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition text-xs"
                     >
                       <div className="flex items-center gap-3">
-                        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-100 dark:bg-slate-800 text-ink dark:text-white font-black text-xs">
+                        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-100 dark:bg-slate-800 text-ink dark:text-white font-black text-xs font-mono">
                           {emp.code}
                         </div>
                         <div>
@@ -345,9 +398,9 @@ export default function StaffUsersModal({
                             </button>
                           </div>
                         ) : (
-                          <div className="flex items-center gap-3">
+                          <div className="flex items-center gap-2 sm:gap-3">
                             <span className="text-slate-500 dark:text-slate-400 font-bold">
-                              {isEn ? "Portal Password / PIN" : "كلمة مرور البوابة"}:{" "}
+                              {isEn ? "PIN" : "الـ PIN"}:{" "}
                               <code className="rounded bg-slate-100 dark:bg-slate-800 px-2 py-0.5 font-mono font-black text-ink dark:text-white">
                                 {currentPin}
                               </code>
@@ -358,9 +411,25 @@ export default function StaffUsersModal({
                                 setPinEditEmpId(emp.id);
                                 setNewPinValue(currentPin);
                               }}
-                              className="rounded-lg border border-line dark:border-slate-700 px-2.5 py-1 text-[11px] font-black text-slate-700 dark:text-slate-200 hover:bg-slate-100 transition shadow-2xs"
+                              className="rounded-lg border border-line dark:border-slate-700 px-2.5 py-1 text-[11px] font-black text-slate-700 dark:text-slate-200 hover:bg-slate-100 transition shadow-2xs cursor-pointer"
                             >
                               {isEn ? "Reset PIN" : "تعديل الـ PIN"}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const msg = isEn
+                                  ? `Hello ${emp.name},\nHere are your ShiftPay HR Self-Service Portal login credentials:\n• Company: ${companyName} (Code: ${companyCode})\n• Employee Code: ${emp.code}\n• Portal PIN: ${currentPin}\n• Direct Link: ${portalUrl}`
+                                  : `مرحباً ${emp.name}،\nبيانات دخولك لبوابة الخدمة الذاتية للموظفين (ShiftPay HR):\n• الشركة: ${companyName} (كود: ${companyCode})\n• كود الموظف: ${emp.code}\n• كلمة المرور (PIN): ${currentPin}\n• رابط الدخول المباشر: ${portalUrl}\nيرجى الحفاظ على سرية بياناتك.`;
+                                navigator.clipboard?.writeText(msg);
+                                setCopiedEmpId(emp.id);
+                                setTimeout(() => setCopiedEmpId(null), 2500);
+                              }}
+                              className="flex items-center gap-1 rounded-lg border border-blue-200 dark:border-blue-900 bg-blue-50 dark:bg-blue-950/40 px-2.5 py-1 text-[11px] font-black text-primary dark:text-blue-300 hover:bg-blue-100 transition shadow-2xs cursor-pointer"
+                              title={isEn ? "Copy WhatsApp credentials message" : "نسخ رسالة بيانات الدخول للموظف"}
+                            >
+                              <Share2 size={12} />
+                              <span>{copiedEmpId === emp.id ? (isEn ? "Copied ✓" : "تم النسخ ✓") : (isEn ? "Share Card" : "مشاركة الدخول")}</span>
                             </button>
                           </div>
                         )}

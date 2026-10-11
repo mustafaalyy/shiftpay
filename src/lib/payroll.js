@@ -377,6 +377,7 @@ const DAY_INDEX_BY_KEY = WEEK_DAYS.reduce((acc, day) => {
 
 export const DEFAULT_SETTINGS = {
   companyName: "شركة المسار الذكي",
+  companyCode: "MASAR",
   companyLogo: "",
   country: "EG",
   currency: "جنيه",

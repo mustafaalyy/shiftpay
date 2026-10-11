@@ -19,7 +19,8 @@ import {
   Building2,
   ArrowRight,
   ArrowLeft,
-  Smartphone
+  Smartphone,
+  QrCode
 } from "lucide-react";
 import { formatCurrency, formatNumber } from "../lib/payroll";
 import { generateWhatsAppSlipMessage, openWhatsAppSlip } from "../lib/exporters";
@@ -35,6 +36,40 @@ export default function EmployeePortalView({
   onReturnToAdmin,
   lang = "ar"
 }) {
+  const expectedCompanyCode = (settings.companyCode || "MASAR").toUpperCase();
+
+  // Detect company code from URL query parameters (e.g. ?c=MASAR#portal or #portal?c=MASAR)
+  const urlCompanyParam = (() => {
+    try {
+      const searchParams = new URLSearchParams(window.location.search);
+      const fromSearch = searchParams.get("c") || searchParams.get("company");
+      if (fromSearch) return fromSearch.trim().toUpperCase();
+      const hashParts = window.location.hash.split("?");
+      if (hashParts.length > 1) {
+        const hashParams = new URLSearchParams(hashParts[1]);
+        const fromHash = hashParams.get("c") || hashParams.get("company");
+        if (fromHash) return fromHash.trim().toUpperCase();
+      }
+    } catch {}
+    return "";
+  })();
+
+  const [boundCompanyCode, setBoundCompanyCode] = useState(() => {
+    if (urlCompanyParam) {
+      try { localStorage.setItem("shiftpay.portalCompanyCode", urlCompanyParam); } catch {}
+      return urlCompanyParam;
+    }
+    try {
+      return localStorage.getItem("shiftpay.portalCompanyCode") || "";
+    } catch {
+      return "";
+    }
+  });
+
+  const [companyCodeInput, setCompanyCodeInput] = useState(() => {
+    return boundCompanyCode || "";
+  });
+
   const [loggedEmployeeCode, setLoggedEmployeeCode] = useState(() => {
     return localStorage.getItem("shiftpay.portalEmployeeCode") || "";
   });
@@ -64,10 +99,34 @@ export default function EmployeePortalView({
     (r) => r.employeeCode?.toLowerCase() === loggedEmployeeCode.toLowerCase()
   );
 
+  const handleClearCompany = () => {
+    setBoundCompanyCode("");
+    setCompanyCodeInput("");
+    try { localStorage.removeItem("shiftpay.portalCompanyCode"); } catch {}
+    setLoginError("");
+  };
+
   const handleLogin = (e) => {
     e.preventDefault();
     setLoginError("");
 
+    // 1. Resolve & Validate Company Code
+    const effectiveCompany = (boundCompanyCode || companyCodeInput).trim().toUpperCase();
+    if (!effectiveCompany) {
+      setLoginError(isEn ? "Please enter your company code." : "يرجى إدخال كود الشركة للوصول لملف شركتك.");
+      return;
+    }
+
+    if (effectiveCompany !== expectedCompanyCode) {
+      setLoginError(
+        isEn
+          ? `Company code "${effectiveCompany}" not found on this server. (Active demo code: ${expectedCompanyCode})`
+          : `كود الشركة "${effectiveCompany}" غير مسجل على هذا النظام. تأكد من كود شركتك (كود التجربة: ${expectedCompanyCode}) أو استخدم الرابط المباشر.`
+      );
+      return;
+    }
+
+    // 2. Validate Employee Credentials within Company
     const found = employees.find((emp) => {
       const matchCode = emp.code.toLowerCase() === loginInput.trim().toLowerCase();
       const matchEmail = emp.email && emp.email.toLowerCase() === loginInput.trim().toLowerCase();
@@ -75,7 +134,11 @@ export default function EmployeePortalView({
     });
 
     if (!found) {
-      setLoginError(isEn ? "Invalid employee code or email." : "كود الموظف أو البريد الإلكتروني غير صحيح.");
+      setLoginError(
+        isEn
+          ? `Employee "${loginInput}" not found under company ${effectiveCompany}.`
+          : `كود الموظف أو البريد "${loginInput}" غير مسجل في شركة ${settings.companyName || effectiveCompany}.`
+      );
       return;
     }
 
@@ -85,18 +148,25 @@ export default function EmployeePortalView({
       return;
     }
 
+    setBoundCompanyCode(effectiveCompany);
+    try {
+      localStorage.setItem("shiftpay.portalCompanyCode", effectiveCompany);
+      localStorage.setItem("shiftpay.portalEmployeeCode", found.code);
+    } catch {}
     setLoggedEmployeeCode(found.code);
-    localStorage.setItem("shiftpay.portalEmployeeCode", found.code);
     setLoginInput("");
     setPasswordInput("");
   };
 
   const handleLogout = () => {
     setLoggedEmployeeCode("");
-    localStorage.removeItem("shiftpay.portalEmployeeCode");
+    try { localStorage.removeItem("shiftpay.portalEmployeeCode"); } catch {}
   };
 
   const handleQuickFill = (code, pass = "1234") => {
+    setCompanyCodeInput(expectedCompanyCode);
+    setBoundCompanyCode(expectedCompanyCode);
+    try { localStorage.setItem("shiftpay.portalCompanyCode", expectedCompanyCode); } catch {}
     setLoginInput(code);
     setPasswordInput(pass);
     setLoginError("");
@@ -183,6 +253,53 @@ export default function EmployeePortalView({
 
           {/* Form */}
           <form onSubmit={handleLogin} className="space-y-4">
+            {/* Company Workspace Binding / Selector */}
+            {boundCompanyCode ? (
+              <div className="flex items-center justify-between rounded-2xl bg-blue-50/80 dark:bg-slate-900 border border-blue-200 dark:border-slate-700 p-3 text-xs">
+                <div className="flex items-center gap-2.5">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-primary text-white shadow-2xs">
+                    <Building2 size={16} />
+                  </div>
+                  <div>
+                    <span className="font-black text-ink dark:text-white block">
+                      {settings.companyName || "ShiftPay HR"}
+                    </span>
+                    <span className="text-[10px] font-bold text-slate-500">
+                      {isEn ? "Company Code" : "كود الشركة"}: <strong className="text-primary font-mono">{boundCompanyCode}</strong>
+                    </span>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleClearCompany}
+                  className="text-[11px] font-black text-slate-500 hover:text-rose-600 transition underline cursor-pointer"
+                  title={isEn ? "Switch to another company workspace" : "التبديل إلى شركة أخرى"}
+                >
+                  {isEn ? "Switch" : "تغيير"}
+                </button>
+              </div>
+            ) : (
+              <div>
+                <label className="block text-xs font-black text-slate-700 dark:text-slate-300 mb-1.5">
+                  {isEn ? "Company Code" : "كود الشركة (Company Code)"}
+                </label>
+                <div className="relative">
+                  <Building2 size={16} className="absolute right-3.5 rtl:right-3.5 ltr:left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="text"
+                    value={companyCodeInput}
+                    onChange={(e) => setCompanyCodeInput(e.target.value.toUpperCase())}
+                    placeholder={isEn ? "e.g. MASAR" : "مثال: MASAR"}
+                    className="w-full rounded-xl border border-line dark:border-slate-700 bg-slate-50 dark:bg-slate-900 px-10 py-3 text-xs font-black text-ink dark:text-white placeholder-slate-400 focus:outline-hidden focus:border-primary uppercase font-mono"
+                    required
+                  />
+                </div>
+                <span className="text-[10px] text-slate-400 block mt-1 font-bold">
+                  {isEn ? "Ask your HR for your company code or scan your QR code." : "كود مخصص لشركتك لمنع التداخل مع الشركات الأخرى (مثال التجربة: MASAR)."}
+                </span>
+              </div>
+            )}
+
             <div>
               <label className="block text-xs font-black text-slate-700 dark:text-slate-300 mb-1.5">
                 {isEn ? "Employee Code or Email" : "كود الموظف أو البريد الإلكتروني"}
@@ -343,7 +460,7 @@ export default function EmployeePortalView({
                 </span>
               </div>
               <p className="text-xs font-bold text-slate-500 dark:text-slate-400">
-                {isEn ? "Code" : "كود"}: {currentEmployee.code} • {currentEmployee.department || "عام"} • {currentEmployee.jobTitle || "موظف"}
+                {settings.companyName || "ShiftPay HR"} (<span className="text-primary font-mono font-black">{expectedCompanyCode}</span>) • {isEn ? "Code" : "كود"}: {currentEmployee.code} • {currentEmployee.department || "عام"}
               </p>
             </div>
           </div>

@@ -53,7 +53,8 @@ import {
   Globe,
   Lock,
   Sun,
-  Moon
+  Moon,
+  QrCode
 } from "lucide-react";
 import { getTranslation } from "./lib/translations";
 import {
@@ -2203,6 +2204,7 @@ export default function App() {
         employees={employees}
         onUpdateEmployeePin={handleUpdateEmployeePin}
         departments={departments}
+        settings={settings}
         lang={lang}
       />
 
@@ -5638,6 +5640,12 @@ function SettingsView({
   });
   const [testingWebhook, setTestingWebhook] = useState(false);
   const [webhookStatus, setWebhookStatus] = useState(null);
+  const [showQrModal, setShowQrModal] = useState(false);
+  const [copiedPortalLink, setCopiedPortalLink] = useState(false);
+  const companyCode = (settings.companyCode || "MASAR").toUpperCase();
+  const portalDirectUrl = typeof window !== "undefined"
+    ? `${window.location.origin}${window.location.pathname}?c=${companyCode}#portal`
+    : `https://shiftpayhr.com/?c=${companyCode}#portal`;
 
   const handleTestWebhook = () => {
     setTestingWebhook(true);
@@ -5818,6 +5826,19 @@ function SettingsView({
               value={settings.companyName}
               onChange={(event) => update({ companyName: event.target.value })}
             />
+            <div>
+              <InputField
+                label={lang === "en" ? "Company Code (Portal ID)" : "كود الشركة التعريفي (معرف البوابة)"}
+                value={settings.companyCode || ""}
+                onChange={(event) => update({ companyCode: event.target.value.toUpperCase().replace(/[^A-Z0-9_-]/g, "") })}
+                placeholder="مثال: MASAR"
+              />
+              <p className="text-[11px] text-slate-500 font-bold mt-1">
+                {lang === "en"
+                  ? "Unique code identifying your company workspace in the Employee Portal to prevent ID collisions with other companies."
+                  : "كود فريد يُميز شركتك في بوابة الموظفين لتفادي أي تداخل أو تطابق لأكواد الموظفين مع الشركات الأخرى."}
+              </p>
+            </div>
             <InputField
               label="العملة"
               value={settings.currency}
@@ -6275,7 +6296,122 @@ function SettingsView({
             )}
           </div>
         </div>
+
+        {/* Direct Portal Link & Tenant Isolation Banner */}
+        <div className="mt-5 rounded-xl border border-purple-200 dark:border-purple-900 bg-purple-50/70 dark:bg-purple-950/30 p-4 space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <span className="text-xs font-black text-ink dark:text-white flex items-center gap-1.5">
+                <Building2 size={15} className="text-purple-600" />
+                {isEn ? "Dedicated Employee Portal Link (Tenant-Isolated)" : "رابط البوابة المخصص لشركتك (عزل تام للبيانات):"}
+              </span>
+              <p className="text-[11px] text-slate-500 font-bold mt-0.5">
+                {isEn
+                  ? "Share this direct URL with employees. It automatically locks the login session to your company ID so employee IDs never collide with other companies."
+                  : "شارك هذا الرابط مع موظفيك. يربط هاتف الموظف مباشرة بكود شركتك لمنع أي تطابق أو تداخل مع موظفي الشركات الأخرى."}
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  navigator.clipboard?.writeText(portalDirectUrl);
+                  setCopiedPortalLink(true);
+                  setTimeout(() => setCopiedPortalLink(false), 2000);
+                }}
+                className="flex items-center gap-1.5 rounded-lg bg-white dark:bg-slate-900 border border-purple-200 px-3 py-1.5 text-xs font-black text-purple-700 hover:bg-purple-100 transition shadow-2xs cursor-pointer"
+              >
+                <Copy size={13} />
+                <span>{copiedPortalLink ? (isEn ? "Copied ✓" : "تم نسخ الرابط ✓") : (isEn ? "Copy Link" : "نسخ الرابط")}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const text = isEn
+                    ? `Employee Self-Service Portal for ${settings.companyName || "Our Company"}:\nLink: ${portalDirectUrl}\nCompany Code: ${companyCode}`
+                    : `بوابة الخدمة الذاتية لموظفي ${settings.companyName || "الشركة"}:\nرابط الدخول المباشر: ${portalDirectUrl}\nكود الشركة: ${companyCode}`;
+                  window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`, "_blank");
+                }}
+                className="flex items-center gap-1.5 rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-xs font-black text-emerald-800 hover:bg-emerald-100 transition shadow-2xs cursor-pointer"
+              >
+                <Share2 size={13} />
+                <span>{isEn ? "Share WhatsApp" : "واتساب"}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowQrModal(true)}
+                className="flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-black text-slate-700 hover:bg-slate-50 transition shadow-2xs cursor-pointer"
+              >
+                <QrCode size={13} />
+                <span>{isEn ? "Show QR Code" : "رمز QR"}</span>
+              </button>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 bg-white dark:bg-slate-900 rounded-lg p-2.5 border border-purple-100 dark:border-purple-900 text-[11px] font-mono text-slate-600 dark:text-slate-300 overflow-x-auto">
+            <span className="font-bold text-slate-400 select-none">URL:</span>
+            <span className="truncate">{portalDirectUrl}</span>
+          </div>
+        </div>
       </section>
+
+      {/* QR Code Modal */}
+      {showQrModal && (
+        <div className="fixed inset-0 z-60 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
+          <div className="w-full max-w-sm rounded-3xl bg-white dark:bg-slate-900 border border-line p-6 shadow-2xl text-center space-y-4 animate-in fade-in zoom-in-95">
+            <div className="flex items-center justify-between">
+              <span className="font-black text-sm text-ink dark:text-white flex items-center gap-2">
+                <QrCode size={18} className="text-primary" />
+                {isEn ? "Employee Portal QR Code" : "رمز الدخول السريع (QR Code)"}
+              </span>
+              <button
+                type="button"
+                onClick={() => setShowQrModal(false)}
+                className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <div className="bg-white p-4 rounded-2xl border border-line inline-block shadow-sm">
+              <img
+                src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(portalDirectUrl)}`}
+                alt="Portal QR Code"
+                className="w-48 h-48 mx-auto"
+                loading="lazy"
+              />
+            </div>
+            <div>
+              <p className="font-black text-sm text-ink dark:text-white">
+                {settings.companyName || "ShiftPay HR"}
+              </p>
+              <p className="text-xs font-bold text-slate-500 font-mono mt-0.5">
+                {isEn ? "Company Code" : "كود الشركة"}: <strong className="text-primary">{companyCode}</strong>
+              </p>
+              <p className="text-[11px] text-slate-400 mt-2 font-medium">
+                {isEn
+                  ? "Employees can scan this code with their phone camera to open their portal directly without entering company codes."
+                  : "اطبع هذا الرمز أو اعرضه في مقر الشركة؛ يمسحه الموظفون بهواتفهم لفتح بوابتهم مباشرة دون الحاجة لكتابة كود الشركة."}
+              </p>
+            </div>
+            <div className="flex gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => window.print()}
+                className="flex-1 flex items-center justify-center gap-1.5 rounded-xl bg-slate-900 text-white py-2.5 text-xs font-black hover:bg-slate-800 transition"
+              >
+                <Printer size={14} />
+                <span>{isEn ? "Print QR Sheet" : "طباعة الرمز"}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowQrModal(false)}
+                className="flex-1 rounded-xl border border-line py-2.5 text-xs font-bold text-slate-600 hover:bg-slate-50 transition"
+              >
+                {isEn ? "Close" : "إغلاق"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

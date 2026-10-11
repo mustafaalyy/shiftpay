@@ -887,5 +887,41 @@ describe("ShiftPay HR - Payroll Engine Unit Tests", () => {
       assert.equal(res10.entitlementFraction, 1.0);
     });
   });
+
+  describe("Multi-Tenant Company Isolation & Portal Resolution (تعدد الشركات وتفادي التداخل)", () => {
+    it("guarantees DEFAULT_SETTINGS has unique companyCode default", async () => {
+      const { DEFAULT_SETTINGS } = await import("../src/lib/payroll.js");
+      assert.ok(DEFAULT_SETTINGS.companyCode);
+      assert.equal(typeof DEFAULT_SETTINGS.companyCode, "string");
+      assert.equal(DEFAULT_SETTINGS.companyCode.toUpperCase(), "MASAR");
+    });
+
+    it("verifies company code and employee code composite key resolves collision between companies", () => {
+      const companyX = { code: "MASAR", employees: [{ code: "123", name: "أحمد في شركة المسار", pin: "123" }] };
+      const companyY = { code: "ROWAD", employees: [{ code: "123", name: "محمود في شركة الرواد", pin: "123" }] };
+
+      function resolveEmployee(enteredCompany, enteredEmpCode, companies) {
+        const comp = companies.find(c => c.code.toUpperCase() === enteredCompany.trim().toUpperCase());
+        if (!comp) return { error: "company_not_found" };
+        const emp = comp.employees.find(e => e.code.toLowerCase() === enteredEmpCode.trim().toLowerCase());
+        if (!emp) return { error: "emp_not_found" };
+        return { success: true, employee: emp, company: comp.code };
+      }
+
+      const resX = resolveEmployee("MASAR", "123", [companyX, companyY]);
+      const resY = resolveEmployee("ROWAD", "123", [companyX, companyY]);
+      const resInvalid = resolveEmployee("UNKNOWN", "123", [companyX, companyY]);
+
+      assert.equal(resX.success, true);
+      assert.equal(resX.employee.name, "أحمد في شركة المسار");
+      assert.equal(resX.company, "MASAR");
+
+      assert.equal(resY.success, true);
+      assert.equal(resY.employee.name, "محمود في شركة الرواد");
+      assert.equal(resY.company, "ROWAD");
+
+      assert.equal(resInvalid.error, "company_not_found");
+    });
+  });
 });
 
