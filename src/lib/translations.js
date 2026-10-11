@@ -12,6 +12,8 @@ export const translations = {
     nav_archive: "الأرشيف",
     nav_insights: "التحليلات والمؤشرات",
     nav_requests: "الطلبات والموافقات",
+    nav_company_system: "نظام الشركة",
+    nav_users_permissions: "المستخدمين والصلاحيات",
     nav_settings: "الإعدادات",
     brand_subtitle: "إدارة الحضور والرواتب الذكية",
 
@@ -168,6 +170,8 @@ export const translations = {
     nav_archive: "Archive",
     nav_insights: "Analytics & Insights",
     nav_requests: "Requests & Approvals",
+    nav_company_system: "Company System",
+    nav_users_permissions: "Users & Access",
     nav_settings: "Settings",
     brand_subtitle: "Smart Attendance & Payroll",
 

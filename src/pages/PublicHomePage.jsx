@@ -352,26 +352,8 @@ export default function PublicHomePage({
             <div className="hero-actions fade-up fade-up-delay-3">
               <button type="button" className="btn btn-primary btn-large" onClick={primaryAction}>
                 <ArrowLeft size={18} />
-                {isAuthenticated ? "فتح النظام" : (siteContent.primaryCta || "ابدأ الآن")}
+                {isAuthenticated ? "فتح النظام" : (siteContent.primaryCta || "ابدأ تجربة مجانية")}
               </button>
-              <button
-                type="button"
-                className="btn btn-secondary btn-large"
-                onClick={onSignin}
-              >
-                {isAuthenticated ? "تسجيل الدخول بحساب آخر" : (siteContent.secondaryCta || landing.loginCta || "تسجيل الدخول")}
-              </button>
-              {onPortal && (
-                <button
-                  type="button"
-                  className="btn btn-secondary btn-large"
-                  onClick={onPortal}
-                  title="الدخول بكود الشركة وكود الموظف للاطلاع على مسير الراتب وتقديم الطلبات"
-                >
-                  <Smartphone size={18} />
-                  {lang === "en" ? "Employee Portal" : "بوابة الموظفين"}
-                </button>
-              )}
             </div>
 
             <div className="hero-trust fade-up fade-up-delay-4">

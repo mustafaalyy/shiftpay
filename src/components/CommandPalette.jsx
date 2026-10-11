@@ -62,7 +62,9 @@ export default function CommandPalette({
     { id: "archive", label: isEn ? "Historical Archive" : "أرشيف الشهور السابقة", category: isEn ? "Navigation" : "التنقل", icon: Archive },
     { id: "departments", label: isEn ? "Department Management" : "إدارة الأقسام", category: isEn ? "Navigation" : "التنقل", icon: Building2 },
     { id: "shifts", label: isEn ? "Shifts & Working Hours" : "إدارة الشيفتات والورديات", category: isEn ? "Navigation" : "التنقل", icon: Clock },
-    { id: "settings", label: isEn ? "System Settings & Policies" : "الإعدادات العامة وسياسات العمل", category: isEn ? "Navigation" : "التنقل", icon: Settings }
+    { id: "company_system", label: isEn ? "Company System & Labor Regulations" : "نظام الشركة وقوانين العمل", category: isEn ? "Navigation" : "التنقل", icon: ShieldCheck },
+    { id: "users_permissions", label: isEn ? "Users, Roles & Access Control" : "المستخدمين والصلاحيات وفريق الإدارة", category: isEn ? "Navigation" : "التنقل", icon: UserCheck },
+    { id: "settings", label: isEn ? "System Settings & Branding" : "الإعدادات العامة والربط السحابي", category: isEn ? "Navigation" : "التنقل", icon: Settings }
   ];
 
   const quickActionItems = [

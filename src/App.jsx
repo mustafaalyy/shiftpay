@@ -55,7 +55,12 @@ import {
   Sun,
   Moon,
   QrCode,
-  Smartphone
+  Smartphone,
+  Key,
+  Eye,
+  EyeOff,
+  ExternalLink,
+  Check
 } from "lucide-react";
 import { getTranslation } from "./lib/translations";
 import {
@@ -296,6 +301,8 @@ const NAV_ITEMS = [
   { id: "attendance", label: "رفع الحضور", icon: UploadCloud },
   { id: "reports", label: "تقرير الرواتب", icon: FileSpreadsheet },
   { id: "insights", label: "تحليلات", icon: BarChart3 },
+  { id: "company_system", label: "نظام الشركة", icon: ShieldCheck },
+  { id: "users_permissions", label: "المستخدمين والصلاحيات", icon: UserCheck },
   { id: "settings", label: "الإعدادات", icon: Settings }
 ];
 
@@ -305,21 +312,21 @@ export const RBAC_ROLES = [
     labelAr: "مدير النظام العام",
     labelEn: "Super Admin",
     badge: "bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300",
-    allowedViews: ["dashboard", "departments", "shifts", "employees", "requests", "attendance", "reports", "insights", "settings"]
+    allowedViews: ["dashboard", "departments", "shifts", "employees", "requests", "attendance", "reports", "insights", "company_system", "users_permissions", "settings"]
   },
   {
     id: "hr_director",
     labelAr: "مدير الموارد البشرية",
     labelEn: "HR Director",
     badge: "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300",
-    allowedViews: ["dashboard", "departments", "shifts", "employees", "requests", "attendance", "reports", "insights"]
+    allowedViews: ["dashboard", "departments", "shifts", "employees", "requests", "attendance", "reports", "insights", "company_system", "users_permissions"]
   },
   {
     id: "attendance_officer",
     labelAr: "مسؤول الحضور والانصراف",
     labelEn: "Attendance Officer",
     badge: "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300",
-    allowedViews: ["attendance", "shifts"]
+    allowedViews: ["attendance", "shifts", "company_system"]
   },
   {
     id: "dept_manager",
@@ -334,7 +341,7 @@ export const RBAC_ROLES = [
     labelAr: "محاسب الرواتب",
     labelEn: "Payroll Accountant",
     badge: "bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300",
-    allowedViews: ["dashboard", "reports", "insights"]
+    allowedViews: ["dashboard", "reports", "insights", "company_system"]
   }
 ];
 
@@ -1878,6 +1885,30 @@ export default function App() {
             lang={lang}
           />
         );
+      case "company_system":
+        return (
+          <CompanySystemView
+            settings={settings}
+            setSettings={setSettings}
+            setNotice={setNotice}
+            lang={lang}
+          />
+        );
+      case "users_permissions":
+        return (
+          <UsersPermissionsView
+            staffUsers={staffUsers}
+            setStaffUsers={setStaffUsers}
+            employees={employees}
+            setEmployees={setEmployees}
+            departments={departments}
+            settings={settings}
+            auditLogs={auditLogs}
+            addAuditLog={addAuditLog}
+            setNotice={setNotice}
+            lang={lang}
+          />
+        );
       case "settings":
         return (
           <SettingsView
@@ -1897,8 +1928,8 @@ export default function App() {
             lang={lang}
             onToggleLang={() => setLang(lang === "ar" ? "en" : "ar")}
             onOpenAuditTrail={() => setIsAuditTrailOpen(true)}
-            onOpenStaffUsers={() => setIsStaffUsersModalOpen(true)}
-            onOpenPortal={() => navigate("portal")}
+            onOpenStaffUsers={() => navigate("users_permissions")}
+            onNavigate={navigate}
           />
         );
       default:
@@ -2145,10 +2176,10 @@ export default function App() {
               onToggleLang={() => setLang(lang === "ar" ? "en" : "ar")}
               alerts={systemAlerts}
               currentRole={currentRole}
-              onSelectRole={handleSelectRole}
+              userEmail={cloud.user?.email || cloud.session?.user?.email || "admin@shiftpayhr.com"}
+              staffUsers={staffUsers}
               onOpenAuditTrail={() => setIsAuditTrailOpen(true)}
-              onOpenPortal={() => navigate("portal")}
-              onOpenStaffUsers={() => setIsStaffUsersModalOpen(true)}
+              onOpenStaffUsers={() => navigate("users_permissions")}
             />
           ) : null}
           {syncStatus ? (
@@ -3428,11 +3459,6 @@ function DashboardView({
         eyebrow={isEn ? `Current Month: ${getMonthLabel(currentCalendarMonth, "en")}` : `الشهر الحالي: ${getMonthLabel(currentCalendarMonth, "ar")}`}
         title={isEn ? `Welcome, ${settings.companyName}` : `مرحبا، ${settings.companyName}`}
         description={isEn ? "Live real-time summary of employee attendance, payroll status, shifts, and official holidays." : "ملخص مباشر باليوم والتاريخ والوقت لحالة الموظفين والرواتب والإجازات الرسمية المحدثة."}
-        action={
-          <PrimaryButton onClick={() => onNavigate("attendance")} icon={UploadCloud}>
-            {isEn ? "Attendance & Biometrics" : "سجل الحضور والبصمات"}
-          </PrimaryButton>
-        }
       />
 
       {/* Realtime Live Clock & Date Widget */}
@@ -5725,6 +5751,1206 @@ function ReportsView({
   );
 }
 
+function CompanySystemView({ settings, setSettings, setNotice, lang = "ar" }) {
+  const isEn = lang === "en";
+  const [activeTab, setActiveTab] = useState("all");
+  const countryProfile = getCountryProfile(settings.country);
+  const selectedYear = new Date().getFullYear();
+  const holidayOverrides = Array.isArray(settings.holidayOverrides) ? settings.holidayOverrides : [];
+  const overrideMap = new Map(holidayOverrides.filter((item) => item.baseKey).map((item) => [item.baseKey, item]));
+  const officialHolidays = getOfficialHolidays(countryProfile.code, selectedYear).map((holiday) => {
+    const baseKey = getHolidayKey(holiday, countryProfile.code);
+    const override = overrideMap.get(baseKey);
+    return {
+      ...holiday,
+      baseKey,
+      baseDate: holiday.date,
+      date: override?.date || holiday.date,
+      name: override?.name || holiday.name,
+      enabled: override?.enabled !== false,
+      note: override?.note || ""
+    };
+  });
+  const customHolidays = holidayOverrides.filter(
+    (holiday) =>
+      !holiday.baseKey &&
+      holiday.enabled !== false &&
+      (!holiday.country || holiday.country === countryProfile.code) &&
+      holiday.date?.startsWith(String(selectedYear))
+  );
+  const effectiveHolidayCount = getEffectiveHolidays(settings, selectedYear).length;
+  const [customHoliday, setCustomHoliday] = useState({ name: "", date: "" });
+
+  const update = (patch) => setSettings({ ...settings, ...patch });
+
+  const toggleDay = (field, key) => {
+    const hasDay = settings[field].includes(key);
+    update({
+      [field]: hasDay ? settings[field].filter((day) => day !== key) : [...settings[field], key]
+    });
+  };
+
+  const updateHolidayOverride = (holiday, patch) => {
+    const nextOverride = {
+      country: countryProfile.code,
+      baseKey: holiday.baseKey,
+      baseDate: holiday.baseDate,
+      name: holiday.name,
+      date: holiday.date,
+      enabled: holiday.enabled,
+      note: holiday.note || "",
+      ...patch
+    };
+    update({
+      holidayOverrides: [
+        ...holidayOverrides.filter((item) => item.baseKey !== holiday.baseKey),
+        nextOverride
+      ]
+    });
+    setNotice(isEn ? "Official holiday updated." : "تم تحديث الإجازة الرسمية.");
+  };
+
+  const addCustomHoliday = (event) => {
+    event.preventDefault();
+    if (!customHoliday.name.trim() || !customHoliday.date) return;
+    update({
+      holidayOverrides: [
+        ...holidayOverrides,
+        {
+          id: makeId("holiday"),
+          country: countryProfile.code,
+          name: customHoliday.name.trim(),
+          date: customHoliday.date,
+          enabled: true,
+          custom: true
+        }
+      ]
+    });
+    setCustomHoliday({ name: "", date: "" });
+    setNotice(isEn ? "Custom holiday added." : "تمت إضافة إجازة مخصصة.");
+  };
+
+  const removeCustomHoliday = (holidayId) => {
+    update({
+      holidayOverrides: holidayOverrides.filter((holiday) => holiday.id !== holidayId)
+    });
+    setNotice(isEn ? "Custom holiday removed." : "تم حذف الإجازة المخصصة.");
+  };
+
+  const tabs = [
+    { id: "all", label: isEn ? "All Policies" : "جميع السياسات", icon: BookOpen },
+    { id: "workdays", label: isEn ? "Work Days & Weekends" : "أيام العمل والعطلات", icon: CalendarDays },
+    { id: "payroll", label: isEn ? "Salary & Absence Rules" : "سياسات الرواتب والغياب", icon: CircleDollarSign },
+    { id: "permissions", label: isEn ? "Early Leave Policy" : "سياسة الأذونات", icon: Clock },
+    { id: "compliance", label: isEn ? "MENA Compliance & WPS" : "الامتثال والتأمينات وWPS", icon: ShieldCheck },
+    { id: "holidays", label: isEn ? "Official Holidays" : "الإجازات الرسمية", icon: Award }
+  ];
+
+  return (
+    <div className="space-y-6">
+      <PageHeader
+        eyebrow={isEn ? "Company Governance & Labor Rules" : "نظام وسياسات العمل"}
+        title={isEn ? "Company System" : "نظام الشركة"}
+        description={
+          isEn
+            ? "Configure standard work days, weekend schedules, payroll deduction policies, early departure rules, statutory social insurance, and official public holiday calendars."
+            : "اضبط أيام العمل وعطلات نهاية الأسبوع، قواعد احتساب الرواتب والغياب، سياسة الأذونات والمغادرة المبكرة، الامتثال والتأمينات الاجتماعية وWPS، وجدول الإجازات الرسمية السنوية."
+        }
+      />
+
+      {/* Tabs */}
+      <div className="flex flex-wrap gap-2 border-b border-line pb-3">
+        {tabs.map((tab) => {
+          const TabIcon = tab.icon;
+          const isActive = activeTab === tab.id;
+          return (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => setActiveTab(tab.id)}
+              className={`flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-black transition cursor-pointer ${
+                isActive
+                  ? "bg-primary text-white shadow-xs"
+                  : "bg-white dark:bg-slate-900 border border-line text-slate-600 dark:text-slate-300 hover:border-primary/50"
+              }`}
+            >
+              <TabIcon size={15} />
+              <span>{tab.label}</span>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* 1. Work Days & Weekends */}
+      {(activeTab === "all" || activeTab === "workdays") && (
+        <section className="rounded-2xl border border-line bg-white dark:bg-slate-900 p-6 shadow-xs space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line pb-4">
+            <div>
+              <h2 className="text-lg font-black text-ink dark:text-white flex items-center gap-2">
+                <CalendarDays className="text-primary" size={20} />
+                {isEn ? "Work Days & Weekend Schedule" : "أيام العمل وعطلات نهاية الأسبوع"}
+              </h2>
+              <p className="mt-1 text-xs text-slate-500">
+                {isEn
+                  ? "Define which days of the week are regular working days and which are scheduled rest days."
+                  : "تحديد أيام العمل الرسمية الأسبوعية وعطلات نهاية الأسبوع لتفادي احتسابها غياباً بالخطأ."}
+              </p>
+            </div>
+            <span className="rounded-full bg-blue-50 dark:bg-blue-950/60 px-3.5 py-1 text-xs font-extrabold text-primary">
+              {countryProfile.name} • {countryProfile.localeLabel}
+            </span>
+          </div>
+
+          <div className="grid gap-6 lg:grid-cols-2 pt-2">
+            <DaySelector
+              label={isEn ? "Working Days" : "أيام العمل الأسبوعية"}
+              selected={settings.workDays}
+              onToggle={(key) => toggleDay("workDays", key)}
+            />
+            <DaySelector
+              label={isEn ? "Weekend Rest Days" : "عطلات نهاية الأسبوع (الراحة)"}
+              selected={settings.weekends}
+              onToggle={(key) => toggleDay("weekends", key)}
+            />
+          </div>
+        </section>
+      )}
+
+      {/* 2. Salary & Absence Policies */}
+      {(activeTab === "all" || activeTab === "payroll") && (
+        <section className="rounded-2xl border border-line bg-white dark:bg-slate-900 p-6 shadow-xs space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line pb-4">
+            <div>
+              <h2 className="text-lg font-black text-ink dark:text-white flex items-center gap-2">
+                <CircleDollarSign className="text-primary" size={20} />
+                {isEn ? "Salary & Absence Policies" : "سياسات الرواتب والغياب"}
+              </h2>
+              <p className="mt-1 text-xs text-slate-500">
+                {isEn
+                  ? "Define default monthly calculation divisor and unexcused absence deduction behaviors."
+                  : "قواعد قسمة الراتب اليومي وآلية الخصم عند الغياب غير المبرر أو استنفاذ رصيد الإجازات."}
+              </p>
+            </div>
+          </div>
+
+          <div className="grid gap-4 lg:grid-cols-3 pt-2">
+            <InputField
+              label={isEn ? "Default Monthly Days Divisor" : "أيام الشهر الافتراضية لقسمة الراتب"}
+              type="number"
+              min="1"
+              value={settings.payrollMonthDays || 30}
+              onChange={(event) => update({ payrollMonthDays: Number(event.target.value) || 30 })}
+            />
+            <SelectField
+              label={isEn ? "Absence Deduction Policy" : "سياسة خصم الغياب"}
+              value={settings.absencePolicy}
+              onChange={(event) => update({ absencePolicy: event.target.value })}
+            >
+              <option value="خصم يوم كامل من الراتب الأساسي">{isEn ? "Deduct 1 full day from base salary" : "خصم يوم كامل من الراتب الأساسي"}</option>
+              <option value="خصم نصف يوم لأول غياب ثم يوم كامل">{isEn ? "Deduct 0.5 day for first absence then 1 full day" : "خصم نصف يوم لأول غياب ثم يوم كامل"}</option>
+              <option value="عدم الخصم عند وجود رصيد إجازات">{isEn ? "No deduction if vacation balance available" : "عدم الخصم عند وجود رصيد إجازات"}</option>
+            </SelectField>
+            <SelectField
+              label={isEn ? "Payroll Automation Rule" : "إعدادات الأتمتة واعتماد الخصومات"}
+              value={settings.payrollSettings}
+              onChange={(event) => update({ payrollSettings: event.target.value })}
+            >
+              <option value="يتم تطبيق رصيد الإجازات تلقائيا قبل خصم الغياب.">
+                {isEn ? "Auto-apply vacation balance before deducting absence" : "تطبيق رصيد الإجازات تلقائياً قبل خصم الغياب"}
+              </option>
+              <option value="مراجعة يدوية قبل اعتماد أي خصم غياب.">
+                {isEn ? "Manual review required before confirming absence deduction" : "مراجعة يدوية قبل اعتماد أي خصم غياب"}
+              </option>
+              <option value="اعتماد الخصومات والمكافآت مباشرة بعد رفع الملف.">
+                {isEn ? "Directly apply deductions upon file upload" : "اعتماد الخصومات والمكافآت مباشرة بعد رفع الملف"}
+              </option>
+            </SelectField>
+          </div>
+        </section>
+      )}
+
+      {/* 3. Permissions & Early Departure Policy */}
+      {(activeTab === "all" || activeTab === "permissions") && (
+        <section className="rounded-2xl border border-line bg-white dark:bg-slate-900 p-6 shadow-xs space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line pb-4">
+            <div>
+              <h2 className="text-lg font-black text-ink dark:text-white flex items-center gap-2">
+                <Clock className="text-primary" size={20} />
+                {isEn ? "Early Departure & Permission Policy" : "سياسة الأذونات (المغادرة المبكرة)"}
+              </h2>
+              <p className="mt-1 text-xs text-slate-500 max-w-3xl leading-6">
+                {isEn
+                  ? "Early departure is automatically calculated from attendance punches when an employee leaves before shift end time. Set whether hours are deducted directly, against monthly quota, or deducted from annual leave."
+                  : "الإذن يعني مغادرة الموظف قبل موعد نهاية الشيفت مع وجود بصمة خروج. النظام يكتشف الساعات تلقائياً من البصمة ويطبق السياسة المحددة."}
+              </p>
+            </div>
+          </div>
+
+          <div className="grid gap-4 lg:grid-cols-2 pt-2">
+            <SelectField
+              label={isEn ? "Calculation Method" : "طريقة حساب الأذونات"}
+              value={settings.permissionPolicy || "monthly_balance"}
+              onChange={(event) => update({ permissionPolicy: event.target.value })}
+            >
+              <option value="annual_leave">{isEn ? "Deduct from annual leave balance" : "خصم من رصيد الإجازات السنوية"}</option>
+              <option value="monthly_balance">{isEn ? "Separate monthly permission quota (refreshes monthly)" : "رصيد أذونات شهري منفصل (يتجدد كل شهر)"}</option>
+              <option value="direct_hourly">{isEn ? "No free quota — direct hourly salary deduction" : "بدون رصيد — خصم مباشر على قد الساعات الفعلية"}</option>
+            </SelectField>
+            {settings.permissionPolicy !== "annual_leave" && settings.permissionPolicy !== "direct_hourly" ? (
+              <InputField
+                label={isEn ? "Monthly Permission Quota (Hours / Employee)" : "رصيد الأذونات الشهري (بالساعات لكل موظف)"}
+                type="number"
+                min="0"
+                step="0.5"
+                value={settings.monthlyPermissionHours ?? 4}
+                onChange={(event) => update({ monthlyPermissionHours: Number(event.target.value) || 0 })}
+              />
+            ) : null}
+          </div>
+
+          <div className="rounded-xl bg-blue-50 dark:bg-blue-950/40 border border-blue-100 dark:border-blue-900 p-4 text-xs font-bold leading-6 text-blue-900 dark:text-blue-300">
+            {settings.permissionPolicy === "annual_leave"
+              ? (isEn ? "Permission hours will be deducted from employee annual leave balance. If balance is exhausted, remainder is deducted from salary." : "ساعات الإذن تُخصم من رصيد إجازات الموظف السنوية تلقائياً، ولو خلص الرصيد يُخصم الباقي من المرتب.")
+              : settings.permissionPolicy === "direct_hourly"
+              ? (isEn ? "No free quota: any early departure hour is directly deducted at the employee's actual hourly rate." : "مفيش رصيد أذونات مجاني — أي ساعة مغادرة مبكرة تُخصم فوراً من المرتب بسعر ساعة الموظف الفعلي.")
+              : (isEn ? `Each employee receives ${settings.monthlyPermissionHours ?? 4} free permission hours per month. Excess hours are deducted from salary.` : `كل موظف له ${settings.monthlyPermissionHours ?? 4} ساعات إذن شهرياً بدون خصم ومستقلة عن الإجازات السنوية، والزيادة تُخصم من الراتب.`)}
+          </div>
+        </section>
+      )}
+
+      {/* 4. MENA Compliance, Social Insurance & WPS */}
+      {(activeTab === "all" || activeTab === "compliance") && (
+        <section className="rounded-2xl border border-line bg-white dark:bg-slate-900 p-6 shadow-xs space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line pb-4">
+            <div>
+              <h2 className="text-lg font-black text-ink dark:text-white flex items-center gap-2">
+                <ShieldCheck className="text-primary" size={20} />
+                {isEn ? "MENA Labor Compliance, Social Insurance & WPS" : "الامتثال المؤسسي، التأمينات الاجتماعية وحماية الأجور (WPS)"}
+              </h2>
+              <p className="mt-1 text-xs text-slate-500">
+                {isEn
+                  ? "Statutory social insurance contributions (GOSI / Egyptian Labor Law 148 of 2019) and Wage Protection System (WPS) bank file credentials."
+                  : "تطبيق نسب اشتراكات التأمينات الاجتماعية وقوانين العمل الإقليمية، وتوليد ملفات حماية الأجور المعتمدة للبنوك ووزارات العمل."}
+              </p>
+            </div>
+            <span className="rounded-full bg-blue-50 dark:bg-blue-950/60 px-3.5 py-1 text-xs font-extrabold text-primary">
+              {countryProfile.name}
+            </span>
+          </div>
+
+          <div className="space-y-4 pt-2">
+            <label className="flex items-center gap-3 rounded-xl border border-line bg-slate-50 dark:bg-slate-800/40 p-4 cursor-pointer hover:border-primary/50 transition">
+              <input
+                type="checkbox"
+                checked={Boolean(settings.socialInsuranceEnabled)}
+                onChange={(e) => update({ socialInsuranceEnabled: e.target.checked })}
+                className="h-5 w-5 rounded border-line text-primary focus:ring-primary"
+              />
+              <div>
+                <span className="text-sm font-black text-ink dark:text-white">
+                  {isEn ? "Enable Statutory Social Insurance Deductions" : "تفعيل احتساب خصم التأمينات الاجتماعية تلقائياً"}
+                </span>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  {isEn
+                    ? "Deducts employee statutory insurance rate from base salary and tracks employer contribution."
+                    : "استقطاع حصة الموظف القانونية من الراتب الأساسي مع توثيق حصة المنشأة في القيود المالية."}
+                </p>
+              </div>
+            </label>
+
+            {settings.socialInsuranceEnabled && (
+              <div className="grid gap-4 sm:grid-cols-3 rounded-xl border border-blue-100 dark:border-blue-900 bg-blue-50/50 dark:bg-blue-950/30 p-4">
+                <InputField
+                  label={isEn ? "Employee Contribution Rate (%)" : "نسبة خصم الموظف (%)"}
+                  type="number"
+                  min="0"
+                  max="50"
+                  step="0.25"
+                  value={settings.employeeInsuranceRate ?? 11}
+                  onChange={(e) => update({ employeeInsuranceRate: Number(e.target.value) || 0 })}
+                />
+                <InputField
+                  label={isEn ? "Employer Contribution Rate (%)" : "نسبة مساهمة المنشأة (%)"}
+                  type="number"
+                  min="0"
+                  max="50"
+                  step="0.25"
+                  value={settings.companyInsuranceRate ?? 18.75}
+                  onChange={(e) => update({ companyInsuranceRate: Number(e.target.value) || 0 })}
+                />
+                <InputField
+                  label={isEn ? "Insurance Salary Cap" : "الحد الأقصى للأجر التأميني"}
+                  type="number"
+                  min="0"
+                  value={settings.insuranceSalaryCap ?? 12600}
+                  onChange={(e) => update({ insuranceSalaryCap: Number(e.target.value) || 0 })}
+                />
+              </div>
+            )}
+
+            <div className="pt-4 border-t border-line">
+              <h3 className="text-sm font-black text-ink dark:text-white mb-3">
+                {isEn ? "Wage Protection System (WPS) Credentials" : "بيانات نظام حماية الأجور (WPS) للبنوك ووزارة العمل"}
+              </h3>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <InputField
+                  label={isEn ? "Employer ID / Commercial Register (CR)" : "الرقم الموحد للمنشأة / السجل التجاري"}
+                  value={settings.wpsEmployerCr || "1010000000"}
+                  onChange={(e) => update({ wpsEmployerCr: e.target.value })}
+                  placeholder="مثال: 1010000000 أو رقم الملف الوزاري"
+                />
+                <InputField
+                  label={isEn ? "Bank Routing / Identifier Code" : "رمز البنك المعتمد للمنشأة (Bank Code)"}
+                  value={settings.wpsBankCode || "RIBL"}
+                  onChange={(e) => update({ wpsBankCode: e.target.value })}
+                  placeholder="مثال: RIBL, ALBI, CIB, NBE, FAB"
+                />
+              </div>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* 5. Annual Official Holidays */}
+      {(activeTab === "all" || activeTab === "holidays") && (
+        <section className="rounded-2xl border border-line bg-white dark:bg-slate-900 p-6 shadow-xs space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line pb-4">
+            <div>
+              <h2 className="text-lg font-black text-ink dark:text-white flex items-center gap-2">
+                <Award className="text-primary" size={20} />
+                {isEn ? "Official Public Holidays Calendar" : "الإجازات الرسمية السنوية"}
+              </h2>
+              <p className="mt-1 text-xs text-slate-500">
+                {isEn
+                  ? "Statutory paid holidays for the selected country. Override specific dates or add company-specific days."
+                  : "العطلات الرسمية المعتمدة لكل دولة، مع إمكانية تعديل التاريخ الفعلي أو تعطيل الإجازة أو إضافة أيام مخصصة."}
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <span className="rounded-full bg-blue-50 dark:bg-blue-950/60 px-3 py-1 text-xs font-black text-primary">
+                {countryProfile.name} - {selectedYear}
+              </span>
+              <span className="rounded-full bg-emerald-50 dark:bg-emerald-950/60 px-3 py-1 text-xs font-black text-emerald-700 dark:text-emerald-400">
+                {isEn ? `Active: ${formatNumber(effectiveHolidayCount)} days` : `فعال: ${formatNumber(effectiveHolidayCount)} يوم`}
+              </span>
+            </div>
+          </div>
+
+          <form onSubmit={addCustomHoliday} className="grid gap-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 p-4 md:grid-cols-[1fr_180px_auto]">
+            <InputField
+              label={isEn ? "Custom Holiday Name" : "اسم إجازة إضافية"}
+              value={customHoliday.name}
+              onChange={(event) => setCustomHoliday({ ...customHoliday, name: event.target.value })}
+              placeholder={isEn ? "e.g. Company Foundation Day" : "مثال: عطلة إضافية لعيد الأضحى"}
+            />
+            <InputField
+              label={isEn ? "Date" : "التاريخ"}
+              type="date"
+              value={customHoliday.date}
+              onChange={(event) => setCustomHoliday({ ...customHoliday, date: event.target.value })}
+            />
+            <div className="self-end">
+              <PrimaryButton type="submit" icon={Plus}>
+                {isEn ? "Add Holiday" : "إضافة إجازة"}
+              </PrimaryButton>
+            </div>
+          </form>
+
+          <div className="grid gap-3 lg:grid-cols-2 pt-2">
+            {officialHolidays.map((holiday) => (
+              <div key={holiday.baseKey} className="rounded-xl border border-line bg-white dark:bg-slate-800/40 p-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="font-black text-ink dark:text-white text-sm">{holiday.name}</p>
+                    <p className="mt-0.5 text-xs font-bold text-slate-400">الأصل: {holiday.baseDate}</p>
+                  </div>
+                  <label className="inline-flex items-center gap-2 text-xs font-black text-slate-600 dark:text-slate-300 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={holiday.enabled}
+                      onChange={(event) => updateHolidayOverride(holiday, { enabled: event.target.checked })}
+                      className="rounded text-primary focus:ring-primary"
+                    />
+                    {isEn ? "Active" : "تفعيل"}
+                  </label>
+                </div>
+                <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                  <InputField
+                    label={isEn ? "Holiday Name" : "اسم الإجازة"}
+                    value={holiday.name}
+                    onChange={(event) => updateHolidayOverride(holiday, { name: event.target.value })}
+                  />
+                  <InputField
+                    label={isEn ? "Actual Date" : "التاريخ الفعلي"}
+                    type="date"
+                    value={holiday.date}
+                    onChange={(event) => updateHolidayOverride(holiday, { date: event.target.value })}
+                  />
+                </div>
+              </div>
+            ))}
+            {customHolidays.map((holiday) => (
+              <div key={holiday.id} className="rounded-xl border border-emerald-200 dark:border-emerald-900 bg-emerald-50 dark:bg-emerald-950/40 p-4 flex items-center justify-between gap-3">
+                <div>
+                  <p className="font-black text-ink dark:text-white text-sm">{holiday.name}</p>
+                  <p className="mt-0.5 text-xs font-bold text-emerald-700 dark:text-emerald-400">{holiday.date}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => removeCustomHoliday(holiday.id)}
+                  className="rounded-lg border border-emerald-200 bg-white dark:bg-slate-900 px-3 py-1.5 text-xs font-black text-rose-600 hover:bg-rose-50 transition cursor-pointer"
+                >
+                  {isEn ? "Delete" : "حذف"}
+                </button>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+    </div>
+  );
+}
+
+function UsersPermissionsView({
+  staffUsers = [],
+  setStaffUsers,
+  employees = [],
+  setEmployees,
+  departments = [],
+  settings = {},
+  auditLogs = [],
+  addAuditLog,
+  setNotice,
+  lang = "ar"
+}) {
+  const isEn = lang === "en";
+  const [activeTab, setActiveTab] = useState("staff");
+  const companyCode = (settings.companyCode || "MASAR").toUpperCase();
+  const portalUrl = typeof window !== "undefined"
+    ? `${window.location.origin}${window.location.pathname}?c=${companyCode}#portal`
+    : `https://shiftpayhr.com/?c=${companyCode}#portal`;
+
+  // Staff users state
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [editingUserId, setEditingUserId] = useState(null);
+  const [formName, setFormName] = useState("");
+  const [formUsername, setFormUsername] = useState("");
+  const [formEmail, setFormEmail] = useState("");
+  const [formPassword, setFormPassword] = useState("");
+  const [formRole, setFormRole] = useState("hr_director");
+  const [formDept, setFormDept] = useState("");
+  const [showPasswordMap, setShowPasswordMap] = useState({});
+
+  // Employee PINs state
+  const [pinSearch, setPinSearch] = useState("");
+  const [pinDeptFilter, setPinDeptFilter] = useState("all");
+  const [pinEditEmpId, setPinEditEmpId] = useState(null);
+  const [newPinValue, setNewPinValue] = useState("");
+  const [copiedLink, setCopiedLink] = useState(false);
+  const [copiedEmpId, setCopiedEmpId] = useState(null);
+
+  // Audit trail state
+  const [auditSearch, setAuditSearch] = useState("");
+  const [auditActionFilter, setAuditActionFilter] = useState("all");
+
+  const openAddUser = () => {
+    setEditingUserId(null);
+    setFormName("");
+    setFormUsername("");
+    setFormEmail("");
+    setFormPassword("");
+    setFormRole("hr_director");
+    setFormDept("");
+    setShowAddModal(true);
+  };
+
+  const openEditUser = (u) => {
+    setEditingUserId(u.id);
+    setFormName(u.name || "");
+    setFormUsername(u.username || "");
+    setFormEmail(u.email || "");
+    setFormPassword(u.password || "");
+    setFormRole(u.role || "hr_director");
+    setFormDept(u.departmentId || "");
+    setShowAddModal(true);
+  };
+
+  const handleSaveStaffUser = (e) => {
+    e.preventDefault();
+    if (!formUsername.trim() || !formPassword.trim()) return;
+
+    if (editingUserId) {
+      const updated = staffUsers.map((u) =>
+        u.id === editingUserId
+          ? {
+              ...u,
+              name: formName.trim() || formUsername.trim(),
+              username: formUsername.trim(),
+              email: formEmail.trim(),
+              password: formPassword.trim(),
+              role: formRole,
+              departmentId: formRole === "dept_manager" ? formDept : ""
+            }
+          : u
+      );
+      setStaffUsers(updated);
+      if (addAuditLog) addAuditLog("تعديل حساب إداري", `تعديل بيانات المستخدم ${formUsername}`);
+      setNotice(isEn ? "User updated successfully." : "تم تحديث بيانات المستخدم بنجاح.");
+    } else {
+      const newUser = {
+        id: `usr-${Date.now()}`,
+        name: formName.trim() || formUsername.trim(),
+        username: formUsername.trim(),
+        email: formEmail.trim(),
+        password: formPassword.trim(),
+        role: formRole,
+        departmentId: formRole === "dept_manager" ? formDept : "",
+        active: true,
+        lastLogin: "-"
+      };
+      setStaffUsers([newUser, ...staffUsers]);
+      if (addAuditLog) addAuditLog("إضافة مستخدم إداري جديد", `إضافة المستخدم ${newUser.username} بصلاحية ${newUser.role}`);
+      setNotice(isEn ? "New user created successfully." : "تم إنشاء المستخدم الجديد بنجاح.");
+    }
+    setShowAddModal(false);
+  };
+
+  const handleDeleteStaffUser = (userId) => {
+    const target = staffUsers.find((u) => u.id === userId);
+    if (!target) return;
+    if (target.role === "super_admin" && staffUsers.filter((u) => u.role === "super_admin").length <= 1) {
+      setNotice(isEn ? "Cannot delete the primary Super Admin account." : "لا يمكن حذف حساب مدير النظام العام الرئيسي.");
+      return;
+    }
+    setStaffUsers(staffUsers.filter((u) => u.id !== userId));
+    if (addAuditLog) addAuditLog("حذف مستخدم إداري", `حذف المستخدم ${target.username}`);
+    setNotice(isEn ? "User removed." : "تم حذف حساب المستخدم.");
+  };
+
+  const handleToggleStaffActive = (userId) => {
+    setStaffUsers(
+      staffUsers.map((u) => (u.id === userId ? { ...u, active: !u.active } : u))
+    );
+  };
+
+  const handleSavePin = (empId) => {
+    if (!newPinValue.trim()) return;
+    setEmployees(
+      employees.map((emp) =>
+        emp.id === empId ? { ...emp, portalPin: newPinValue.trim() } : emp
+      )
+    );
+    if (addAuditLog) {
+      const emp = employees.find((e) => e.id === empId);
+      addAuditLog("تعديل رمز دخول موظف (PIN)", `تعديل PIN للموظف ${emp?.name || empId}`);
+    }
+    setPinEditEmpId(null);
+    setNewPinValue("");
+    setNotice(isEn ? "Employee PIN updated." : "تم تحديث رمز PIN للموظف بنجاح.");
+  };
+
+  // Filtered employees for PIN tab
+  const filteredEmployees = employees.filter((emp) => {
+    const matchesSearch =
+      (emp.name || "").toLowerCase().includes(pinSearch.toLowerCase()) ||
+      (emp.code || "").toLowerCase().includes(pinSearch.toLowerCase());
+    const matchesDept = pinDeptFilter === "all" || emp.departmentId === pinDeptFilter;
+    return matchesSearch && matchesDept;
+  });
+
+  // Filtered audit logs
+  const filteredAuditLogs = auditLogs.filter((log) => {
+    const matchesSearch =
+      (log.user || "").toLowerCase().includes(auditSearch.toLowerCase()) ||
+      (log.details || "").toLowerCase().includes(auditSearch.toLowerCase()) ||
+      (log.action || "").toLowerCase().includes(auditSearch.toLowerCase()) ||
+      (log.ip || "").includes(auditSearch);
+    if (!matchesSearch) return false;
+    if (auditActionFilter === "all") return true;
+    if (auditActionFilter === "salary") return (log.action || "").includes("راتب") || (log.action || "").toLowerCase().includes("salary");
+    if (auditActionFilter === "payroll") return (log.action || "").includes("مسير") || (log.action || "").toLowerCase().includes("payroll");
+    if (auditActionFilter === "wps") return (log.action || "").includes("WPS") || (log.action || "").includes("بنوك");
+    if (auditActionFilter === "attendance") return (log.action || "").includes("بصمة") || (log.action || "").toLowerCase().includes("attendance");
+    if (auditActionFilter === "request") return (log.action || "").includes("طلب") || (log.action || "").toLowerCase().includes("request");
+    if (auditActionFilter === "users") return (log.action || "").includes("مستخدم") || (log.action || "").includes("PIN");
+    return true;
+  });
+
+  const handleExportAuditCsv = () => {
+    const headers = isEn
+      ? ["ID", "Timestamp", "User", "Action", "Details", "IP Address", "Status"]
+      : ["المعرف", "التوقيت", "المستخدم", "العملية", "التفاصيل", "عنوان IP", "الحالة"];
+    const rows = filteredAuditLogs.map((l) => [
+      l.id,
+      l.timestamp,
+      l.user,
+      l.action,
+      `"${(l.details || "").replace(/"/g, '""')}"`,
+      l.ip,
+      l.status
+    ]);
+    const csvContent = "\uFEFF" + [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.setAttribute("download", `ShiftPay-Audit-Trail-${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const tabs = [
+    { id: "staff", label: isEn ? "Staff Accounts & RBAC" : "فريق الإدارة والصلاحيات", icon: UserCheck, count: staffUsers.length },
+    { id: "employee_pins", label: isEn ? "Employee Portal PINs" : "رموز دخول وبطاقات الموظفين", icon: Key, count: employees.length },
+    { id: "audit_trail", label: isEn ? "Security Audit Trail" : "سجل التدقيق والحوكمة الأمنية", icon: Shield, count: auditLogs.length }
+  ];
+
+  return (
+    <div className="space-y-6">
+      <PageHeader
+        eyebrow={isEn ? "Enterprise Access Control & Governance" : "إدارة الوصول والحوكمة"}
+        title={isEn ? "Users & Permissions" : "المستخدمين والصلاحيات"}
+        description={
+          isEn
+            ? "Manage administrative staff accounts, assign RBAC access roles, generate Employee Portal access cards & PINs, and inspect tamper-evident audit logs."
+            : "إدارة حسابات فريق الإدارة وتوزيع الصلاحيات (RBAC)، التحكم برموز دخول وبطاقات الموظفين لبوابة الخدمة الذاتية، ومتابعة سجل التدقيق الأمني التوثيقي."
+        }
+      />
+
+      {/* Tabs */}
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line pb-3">
+        <div className="flex flex-wrap gap-2">
+          {tabs.map((tab) => {
+            const TabIcon = tab.icon;
+            const isActive = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setActiveTab(tab.id)}
+                className={`flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-black transition cursor-pointer ${
+                  isActive
+                    ? "bg-purple-600 text-white shadow-xs"
+                    : "bg-white dark:bg-slate-900 border border-line text-slate-600 dark:text-slate-300 hover:border-purple-400"
+                }`}
+              >
+                <TabIcon size={15} />
+                <span>{tab.label}</span>
+                <span className={`rounded-full px-2 py-0.5 text-[10px] font-black ${
+                  isActive ? "bg-white/20 text-white" : "bg-slate-100 dark:bg-slate-800 text-slate-500"
+                }`}>
+                  {tab.count}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        {activeTab === "staff" && (
+          <PrimaryButton
+            type="button"
+            onClick={openAddUser}
+            icon={Plus}
+            className="!bg-purple-600 hover:!bg-purple-700 !shadow-none !text-xs !py-2.5 !px-4"
+          >
+            {isEn ? "Add Staff User" : "إضافة مستخدم إداري"}
+          </PrimaryButton>
+        )}
+      </div>
+
+      {/* TAB 1: Staff Accounts */}
+      {activeTab === "staff" && (
+        <section className="space-y-4">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {RBAC_ROLES.map((role) => {
+              const count = staffUsers.filter((u) => u.role === role.id).length;
+              return (
+                <div key={role.id} className="rounded-xl border border-line bg-white dark:bg-slate-900 p-4 shadow-xs">
+                  <div className="flex items-center justify-between">
+                    <span className={`rounded-md px-2.5 py-1 text-xs font-black ${role.badge}`}>
+                      {isEn ? role.labelEn : role.labelAr}
+                    </span>
+                    <span className="text-xs font-black text-slate-400">
+                      {count} {isEn ? "users" : "مستخدم"}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-500 mt-2 font-medium">
+                    {role.id === "super_admin" && (isEn ? "Full access to all system modules, settings, and users." : "صلاحية شاملة لكل أقسام النظام والإعدادات والنسخ الاحتياطي.")}
+                    {role.id === "hr_director" && (isEn ? "Full access to employees, shifts, leaves, and payroll." : "إدارة كاملة للموظفين والشفتات والطلبات ومسير الرواتب.")}
+                    {role.id === "attendance_officer" && (isEn ? "Access to biometric sync, shifts, and attendance logs." : "متابعة الحضور والبصمة ورفع ملفات الحركات والشفتات.")}
+                    {role.id === "dept_manager" && (isEn ? "Approves team requests and views department employees only." : "اعتماد طلبات فريقه والاطلاع على موظفي قسمه فقط.")}
+                    {role.id === "payroll_accountant" && (isEn ? "Financial reports, WPS exports, and ERP journal syncing." : "اعتماد الرواتب وتصدير ملفات البنوك وقيود الـ ERP.")}
+                  </p>
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="rounded-2xl border border-line bg-white dark:bg-slate-900 overflow-hidden shadow-xs">
+            <div className="overflow-x-auto">
+              <table className={`w-full border-collapse ${isEn ? "text-left" : "text-right"}`}>
+                <thead className="bg-slate-50 dark:bg-slate-800/60 text-xs text-slate-500 font-black border-b border-line">
+                  <tr>
+                    <th className="px-5 py-4">{isEn ? "User / Name" : "المستخدم / الاسم"}</th>
+                    <th className="px-5 py-4">{isEn ? "Username / Email" : "اسم الدخول / الإيميل"}</th>
+                    <th className="px-5 py-4">{isEn ? "Role" : "الدور والصلاحية"}</th>
+                    <th className="px-5 py-4">{isEn ? "Department" : "القسم التابع"}</th>
+                    <th className="px-5 py-4">{isEn ? "Password" : "كلمة المرور"}</th>
+                    <th className="px-5 py-4">{isEn ? "Status" : "الحالة"}</th>
+                    <th className="px-5 py-4">{isEn ? "Actions" : "الإجراءات"}</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-line text-sm">
+                  {staffUsers.map((u) => {
+                    const roleCfg = RBAC_ROLES.find((r) => r.id === u.role) || RBAC_ROLES[0];
+                    const deptObj = departments.find((d) => d.id === u.departmentId);
+                    const showPwd = Boolean(showPasswordMap[u.id]);
+                    return (
+                      <tr key={u.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/40 transition">
+                        <td className="px-5 py-4">
+                          <p className="font-black text-ink dark:text-white">{u.name || u.username}</p>
+                          <span className="text-[11px] text-slate-400 font-mono">ID: {u.id}</span>
+                        </td>
+                        <td className="px-5 py-4">
+                          <p className="font-mono text-xs font-bold text-slate-700 dark:text-slate-300">@{u.username}</p>
+                          {u.email && <p className="text-xs text-slate-400">{u.email}</p>}
+                        </td>
+                        <td className="px-5 py-4">
+                          <span className={`inline-block rounded-md px-2.5 py-1 text-xs font-black ${roleCfg.badge}`}>
+                            {isEn ? roleCfg.labelEn : roleCfg.labelAr}
+                          </span>
+                        </td>
+                        <td className="px-5 py-4 text-xs font-bold text-slate-600 dark:text-slate-300">
+                          {deptObj ? deptObj.name : <span className="text-slate-400">{isEn ? "All" : "الكل"}</span>}
+                        </td>
+                        <td className="px-5 py-4">
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono text-xs bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded">
+                              {showPwd ? u.password : "••••••"}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => setShowPasswordMap({ ...showPasswordMap, [u.id]: !showPwd })}
+                              className="text-slate-400 hover:text-slate-600 cursor-pointer"
+                            >
+                              {showPwd ? <EyeOff size={14} /> : <Eye size={14} />}
+                            </button>
+                          </div>
+                        </td>
+                        <td className="px-5 py-4">
+                          <button
+                            type="button"
+                            onClick={() => handleToggleStaffActive(u.id)}
+                            className={`rounded-full px-2.5 py-0.5 text-xs font-black cursor-pointer transition ${
+                              u.active !== false
+                                ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300"
+                                : "bg-slate-100 text-slate-400 dark:bg-slate-800"
+                            }`}
+                          >
+                            {u.active !== false ? (isEn ? "Active" : "نشط") : (isEn ? "Disabled" : "معطل")}
+                          </button>
+                        </td>
+                        <td className="px-5 py-4">
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => openEditUser(u)}
+                              className="rounded-lg border border-line p-1.5 text-slate-600 hover:border-primary hover:text-primary transition cursor-pointer"
+                              title={isEn ? "Edit User" : "تعديل"}
+                            >
+                              <Pencil size={14} />
+                            </button>
+                            {u.role !== "super_admin" && (
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteStaffUser(u.id)}
+                                className="rounded-lg border border-rose-200 p-1.5 text-rose-600 hover:bg-rose-50 transition cursor-pointer"
+                                title={isEn ? "Delete User" : "حذف"}
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* TAB 2: Employee Portal PINs & Access Cards */}
+      {activeTab === "employee_pins" && (
+        <section className="space-y-4">
+          {/* Portal Link Banner */}
+          <div className="rounded-2xl border border-purple-200 dark:border-purple-900 bg-purple-50/70 dark:bg-purple-950/30 p-5 flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <span className="text-xs font-black text-ink dark:text-white flex items-center gap-1.5">
+                <Building2 size={16} className="text-purple-600" />
+                {isEn ? "Employee Portal Link (Company-Isolated):" : "رابط بوابة الموظفين الخاص بشركتك:"}
+              </span>
+              <p className="text-xs font-mono text-purple-900 dark:text-purple-300 mt-1 select-all font-bold">
+                {portalUrl}
+              </p>
+              <p className="text-[11px] text-slate-500 font-medium mt-1">
+                {isEn
+                  ? `Company Code is '${companyCode}'. Employees can log in using this code along with their employee code and PIN.`
+                  : `كود الشركة الموحد هو '${companyCode}'. يدخل الموظف بكود الشركة + كوده الشخصي + رمز PIN.`}
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  navigator.clipboard?.writeText(portalUrl);
+                  setCopiedLink(true);
+                  setTimeout(() => setCopiedLink(false), 2000);
+                }}
+                className="flex items-center gap-1.5 rounded-xl bg-white dark:bg-slate-900 border border-purple-200 px-4 py-2 text-xs font-black text-purple-700 hover:bg-purple-100 transition shadow-2xs cursor-pointer"
+              >
+                <Copy size={14} />
+                <span>{copiedLink ? (isEn ? "Copied ✓" : "تم النسخ ✓") : (isEn ? "Copy Portal Link" : "نسخ رابط البوابة")}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const text = isEn
+                    ? `Self-Service Portal for ${settings.companyName || "Our Company"}:\nLink: ${portalUrl}\nCompany Code: ${companyCode}`
+                    : `بوابة الخدمة الذاتية لموظفي ${settings.companyName || "الشركة"}:\nرابط الدخول المباشر: ${portalUrl}\nكود الشركة: ${companyCode}`;
+                  window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`, "_blank");
+                }}
+                className="flex items-center gap-1.5 rounded-xl border border-emerald-300 bg-emerald-50 px-4 py-2 text-xs font-black text-emerald-800 hover:bg-emerald-100 transition shadow-2xs cursor-pointer"
+              >
+                <Share2 size={14} />
+                <span>{isEn ? "Share via WhatsApp" : "مشاركة عبر واتساب"}</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Filters */}
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex-1 min-w-[220px]">
+              <SearchField
+                value={pinSearch}
+                onChange={(e) => setPinSearch(e.target.value)}
+                placeholder={isEn ? "Search employee name or code..." : "ابحث باسم الموظف أو الكود..."}
+              />
+            </div>
+            <select
+              value={pinDeptFilter}
+              onChange={(e) => setPinDeptFilter(e.target.value)}
+              className="rounded-xl border border-line bg-white dark:bg-slate-900 px-4 py-2.5 text-xs font-bold text-ink dark:text-white outline-none"
+            >
+              <option value="all">{isEn ? "All Departments" : "جميع الأقسام"}</option>
+              {departments.map((d) => (
+                <option key={d.id} value={d.id}>
+                  {d.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Employee PIN Grid */}
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {filteredEmployees.map((emp) => {
+              const dept = departments.find((d) => d.id === emp.departmentId);
+              const pin = emp.portalPin || "1234";
+              const isEditingThisPin = pinEditEmpId === emp.id;
+              const isCopied = copiedEmpId === emp.id;
+
+              return (
+                <div
+                  key={emp.id}
+                  className="rounded-2xl border border-line bg-white dark:bg-slate-900 p-5 shadow-xs space-y-3 hover:border-purple-300 transition"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="font-black text-ink dark:text-white text-base">{emp.name}</p>
+                      <div className="flex items-center gap-2 mt-1">
+                        <span className="font-mono text-xs font-extrabold text-primary bg-blue-50 dark:bg-blue-950/60 px-2 py-0.5 rounded">
+                          {emp.code}
+                        </span>
+                        <span className="text-xs text-slate-500 font-bold">{dept?.name || "عام"}</span>
+                      </div>
+                    </div>
+                    <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-purple-50 dark:bg-purple-950/50 text-purple-600 border border-purple-100">
+                      <Key size={16} />
+                    </span>
+                  </div>
+
+                  {/* PIN Display / Edit */}
+                  <div className="rounded-xl border border-line bg-slate-50 dark:bg-slate-800/50 p-3 flex items-center justify-between">
+                    <div>
+                      <span className="text-[10px] font-bold text-slate-400 block">{isEn ? "PORTAL PIN" : "رمز الدخول (PIN)"}:</span>
+                      {isEditingThisPin ? (
+                        <div className="flex items-center gap-2 mt-1">
+                          <input
+                            type="text"
+                            value={newPinValue}
+                            onChange={(e) => setNewPinValue(e.target.value)}
+                            className="w-20 rounded border border-purple-400 px-2 py-0.5 text-xs font-mono font-bold outline-none"
+                            placeholder="1234"
+                            autoFocus
+                          />
+                          <button
+                            type="button"
+                            onClick={() => handleSavePin(emp.id)}
+                            className="rounded bg-purple-600 px-2 py-0.5 text-[11px] font-black text-white cursor-pointer"
+                          >
+                            {isEn ? "Save" : "حفظ"}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setPinEditEmpId(null)}
+                            className="text-[11px] text-slate-400 cursor-pointer"
+                          >
+                            {isEn ? "Cancel" : "إلغاء"}
+                          </button>
+                        </div>
+                      ) : (
+                        <span className="font-mono font-black text-sm text-ink dark:text-white tracking-widest">
+                          {pin}
+                        </span>
+                      )}
+                    </div>
+                    {!isEditingThisPin && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPinEditEmpId(emp.id);
+                          setNewPinValue(pin);
+                        }}
+                        className="rounded-lg border border-line p-1 text-slate-500 hover:text-purple-600 transition cursor-pointer"
+                        title={isEn ? "Change PIN" : "تعديل الرمز"}
+                      >
+                        <Pencil size={13} />
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Direct WhatsApp Share & Copy */}
+                  <div className="flex gap-2 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const message = isEn
+                          ? `Welcome ${emp.name}!\nYour Employee Self-Service credentials:\nPortal: ${portalUrl}\nCompany Code: ${companyCode}\nYour Code: ${emp.code}\nYour PIN: ${pin}`
+                          : `مرحباً ${emp.name}!\nبيانات دخولك لبوابة الخدمة الذاتية للموظفين:\nرابط البوابة: ${portalUrl}\nكود الشركة: ${companyCode}\nكود الموظف: ${emp.code}\nالرمز السري (PIN): ${pin}`;
+                        const phone = (emp.phone || "").replace(/[^0-9]/g, "");
+                        const waUrl = phone
+                          ? `https://api.whatsapp.com/send?phone=${phone}&text=${encodeURIComponent(message)}`
+                          : `https://api.whatsapp.com/send?text=${encodeURIComponent(message)}`;
+                        window.open(waUrl, "_blank");
+                      }}
+                      className="flex-1 flex items-center justify-center gap-1.5 rounded-xl border border-emerald-300 bg-emerald-50 dark:bg-emerald-950/40 py-2 text-xs font-black text-emerald-800 dark:text-emerald-300 hover:bg-emerald-100 transition cursor-pointer"
+                    >
+                      <Share2 size={13} />
+                      <span>{isEn ? "Send WhatsApp" : "إرسال البطاقة واتساب"}</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const info = `${emp.name} | كود الشركة: ${companyCode} | كود الموظف: ${emp.code} | PIN: ${pin} | الرابط: ${portalUrl}`;
+                        navigator.clipboard?.writeText(info);
+                        setCopiedEmpId(emp.id);
+                        setTimeout(() => setCopiedEmpId(null), 2000);
+                      }}
+                      className="rounded-xl border border-line bg-white dark:bg-slate-900 p-2 text-slate-600 hover:text-purple-600 transition cursor-pointer"
+                      title={isEn ? "Copy Login Card" : "نسخ بيانات الدخول"}
+                    >
+                      {isCopied ? <Check size={15} className="text-emerald-600" /> : <Copy size={15} />}
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
+      {/* TAB 3: Security Audit Trail */}
+      {activeTab === "audit_trail" && (
+        <section className="space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center gap-3 flex-1">
+              <div className="flex-1 min-w-[220px]">
+                <SearchField
+                  value={auditSearch}
+                  onChange={(e) => setAuditSearch(e.target.value)}
+                  placeholder={isEn ? "Search action, user, or IP..." : "بحث في العمليات، اسم المستخدم، أو IP..."}
+                />
+              </div>
+              <select
+                value={auditActionFilter}
+                onChange={(e) => setAuditActionFilter(e.target.value)}
+                className="rounded-xl border border-line bg-white dark:bg-slate-900 px-4 py-2.5 text-xs font-bold text-ink dark:text-white outline-none"
+              >
+                <option value="all">{isEn ? "All Actions" : "جميع العمليات"}</option>
+                <option value="salary">{isEn ? "Salary Changes" : "تعديل رواتب"}</option>
+                <option value="payroll">{isEn ? "Payroll Approval" : "اعتماد مسير رواتب"}</option>
+                <option value="wps">{isEn ? "WPS / Bank Export" : "تصدير WPS وبنوك"}</option>
+                <option value="attendance">{isEn ? "Biometric Sync" : "حركات البصمة"}</option>
+                <option value="request">{isEn ? "Requests" : "طلبات الموظفين"}</option>
+                <option value="users">{isEn ? "User Management" : "إدارة المستخدمين وPIN"}</option>
+              </select>
+            </div>
+            <SecondaryButton type="button" onClick={handleExportAuditCsv} icon={Download}>
+              {isEn ? "Export CSV" : "تصدير سجل الأمان (CSV)"}
+            </SecondaryButton>
+          </div>
+
+          <div className="rounded-2xl border border-line bg-white dark:bg-slate-900 overflow-hidden shadow-xs">
+            <div className="overflow-x-auto">
+              <table className={`w-full border-collapse ${isEn ? "text-left" : "text-right"}`}>
+                <thead className="bg-slate-50 dark:bg-slate-800/60 text-xs text-slate-500 font-black border-b border-line">
+                  <tr>
+                    <th className="px-5 py-4">{isEn ? "Timestamp" : "التوقيت"}</th>
+                    <th className="px-5 py-4">{isEn ? "User" : "المستخدم"}</th>
+                    <th className="px-5 py-4">{isEn ? "Action" : "العملية"}</th>
+                    <th className="px-5 py-4">{isEn ? "Details" : "التفاصيل"}</th>
+                    <th className="px-5 py-4">{isEn ? "IP Address" : "عنوان IP"}</th>
+                    <th className="px-5 py-4">{isEn ? "Status" : "الحالة"}</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-line text-sm">
+                  {filteredAuditLogs.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="text-center py-8 text-slate-400 text-xs font-bold">
+                        {isEn ? "No audit records matching search." : "لا توجد سجلات مطابقة للبحث."}
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredAuditLogs.map((log) => (
+                      <tr key={log.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/40 transition">
+                        <td className="px-5 py-4 font-mono text-xs text-slate-500 whitespace-nowrap">
+                          {log.timestamp}
+                        </td>
+                        <td className="px-5 py-4 font-black text-ink dark:text-white text-xs">
+                          {log.user}
+                        </td>
+                        <td className="px-5 py-4 text-xs font-black text-purple-700 dark:text-purple-300">
+                          {log.action}
+                        </td>
+                        <td className="px-5 py-4 text-xs text-slate-600 dark:text-slate-300 max-w-xs">
+                          {log.details}
+                        </td>
+                        <td className="px-5 py-4 font-mono text-xs text-slate-400 whitespace-nowrap">
+                          {log.ip}
+                        </td>
+                        <td className="px-5 py-4 whitespace-nowrap">
+                          <span className="rounded-full bg-emerald-50 dark:bg-emerald-950/60 px-2.5 py-0.5 text-[11px] font-black text-emerald-700 dark:text-emerald-300">
+                            {log.status === "success" ? (isEn ? "Success" : "ناجح") : log.status}
+                          </span>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* Add / Edit Staff User Modal */}
+      {showAddModal && (
+        <div className="fixed inset-0 z-60 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
+          <form
+            onSubmit={handleSaveStaffUser}
+            className="w-full max-w-md rounded-3xl bg-white dark:bg-slate-900 border border-line p-6 shadow-2xl space-y-4 animate-in fade-in zoom-in-95"
+          >
+            <div className="flex items-center justify-between border-b border-line pb-3">
+              <h3 className="font-black text-ink dark:text-white text-base">
+                {editingUserId ? (isEn ? "Edit Staff User" : "تعديل مستخدم إداري") : (isEn ? "Add New Staff User" : "إضافة مستخدم إداري جديد")}
+              </h3>
+              <button
+                type="button"
+                onClick={() => setShowAddModal(false)}
+                className="text-slate-400 hover:text-slate-600 cursor-pointer"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <InputField
+              label={isEn ? "Display Name" : "الاسم الكامل"}
+              value={formName}
+              onChange={(e) => setFormName(e.target.value)}
+              placeholder="مثال: أحمد محمود"
+              required
+            />
+
+            <InputField
+              label={isEn ? "Username" : "اسم المستخدم للدخول"}
+              value={formUsername}
+              onChange={(e) => setFormUsername(e.target.value)}
+              placeholder="مثال: ahmed.admin"
+              required
+            />
+
+            <InputField
+              label={isEn ? "Email Address" : "البريد الإلكتروني"}
+              type="email"
+              value={formEmail}
+              onChange={(e) => setFormEmail(e.target.value)}
+              placeholder="ahmed@company.com"
+            />
+
+            <InputField
+              label={isEn ? "Password" : "كلمة المرور"}
+              type="text"
+              value={formPassword}
+              onChange={(e) => setFormPassword(e.target.value)}
+              placeholder="••••••••"
+              required
+            />
+
+            <SelectField
+              label={isEn ? "Assigned Role" : "الدور والصلاحية (Role)"}
+              value={formRole}
+              onChange={(e) => setFormRole(e.target.value)}
+            >
+              {RBAC_ROLES.map((r) => (
+                <option key={r.id} value={r.id}>
+                  {isEn ? r.labelEn : r.labelAr}
+                </option>
+              ))}
+            </SelectField>
+
+            {formRole === "dept_manager" && (
+              <SelectField
+                label={isEn ? "Assigned Department" : "القسم التابع للمدير"}
+                value={formDept}
+                onChange={(e) => setFormDept(e.target.value)}
+              >
+                <option value="">{isEn ? "Select Department" : "اختر القسم"}</option>
+                {departments.map((d) => (
+                  <option key={d.id} value={d.id}>
+                    {d.name}
+                  </option>
+                ))}
+              </SelectField>
+            )}
+
+            <div className="flex gap-2 pt-2">
+              <PrimaryButton type="submit" full icon={Save}>
+                {isEn ? "Save User" : "حفظ المستخدم"}
+              </PrimaryButton>
+              <SecondaryButton type="button" onClick={() => setShowAddModal(false)}>
+                {isEn ? "Cancel" : "إلغاء"}
+              </SecondaryButton>
+            </div>
+          </form>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function SettingsView({
   settings,
   setSettings,
@@ -5743,7 +6969,8 @@ function SettingsView({
   onToggleLang,
   onOpenAuditTrail,
   onOpenStaffUsers,
-  onOpenPortal
+  onOpenPortal,
+  onNavigate
 }) {
   const isEn = lang === "en";
   const [webhookConfig, setWebhookConfig] = useState({
@@ -5779,31 +7006,6 @@ function SettingsView({
 
   const update = (patch) => setSettings({ ...settings, ...patch });
   const countryProfile = getCountryProfile(settings.country);
-  const selectedYear = new Date().getFullYear();
-  const holidayOverrides = Array.isArray(settings.holidayOverrides) ? settings.holidayOverrides : [];
-  const overrideMap = new Map(holidayOverrides.filter((item) => item.baseKey).map((item) => [item.baseKey, item]));
-  const officialHolidays = getOfficialHolidays(countryProfile.code, selectedYear).map((holiday) => {
-    const baseKey = getHolidayKey(holiday, countryProfile.code);
-    const override = overrideMap.get(baseKey);
-    return {
-      ...holiday,
-      baseKey,
-      baseDate: holiday.date,
-      date: override?.date || holiday.date,
-      name: override?.name || holiday.name,
-      enabled: override?.enabled !== false,
-      note: override?.note || ""
-    };
-  });
-  const customHolidays = holidayOverrides.filter(
-    (holiday) =>
-      !holiday.baseKey &&
-      holiday.enabled !== false &&
-      (!holiday.country || holiday.country === countryProfile.code) &&
-      holiday.date?.startsWith(String(selectedYear))
-  );
-  const effectiveHolidayCount = getEffectiveHolidays(settings, selectedYear).length;
-  const [customHoliday, setCustomHoliday] = useState({ name: "", date: "" });
 
   const changeCountry = (countryCode) => {
     const profile = getCountryProfile(countryCode);
@@ -5817,13 +7019,6 @@ function SettingsView({
     setNotice(`تم ضبط النظام على ${profile.name}.`);
   };
 
-  const toggleDay = (field, key) => {
-    const hasDay = settings[field].includes(key);
-    update({
-      [field]: hasDay ? settings[field].filter((day) => day !== key) : [...settings[field], key]
-    });
-  };
-
   const handleLogo = (event) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -5835,60 +7030,74 @@ function SettingsView({
     reader.readAsDataURL(file);
   };
 
-  const updateHolidayOverride = (holiday, patch) => {
-    const nextOverride = {
-      country: countryProfile.code,
-      baseKey: holiday.baseKey,
-      baseDate: holiday.baseDate,
-      name: holiday.name,
-      date: holiday.date,
-      enabled: holiday.enabled,
-      note: holiday.note || "",
-      ...patch
-    };
-    update({
-      holidayOverrides: [
-        ...holidayOverrides.filter((item) => item.baseKey !== holiday.baseKey),
-        nextOverride
-      ]
-    });
-    setNotice("تم تحديث الإجازة الرسمية.");
-  };
-
-  const addCustomHoliday = (event) => {
-    event.preventDefault();
-    if (!customHoliday.name.trim() || !customHoliday.date) return;
-    update({
-      holidayOverrides: [
-        ...holidayOverrides,
-        {
-          id: makeId("holiday"),
-          country: countryProfile.code,
-          name: customHoliday.name.trim(),
-          date: customHoliday.date,
-          enabled: true,
-          custom: true
-        }
-      ]
-    });
-    setCustomHoliday({ name: "", date: "" });
-    setNotice("تمت إضافة إجازة مخصصة.");
-  };
-
-  const removeCustomHoliday = (holidayId) => {
-    update({
-      holidayOverrides: holidayOverrides.filter((holiday) => holiday.id !== holidayId)
-    });
-    setNotice("تم حذف الإجازة المخصصة.");
-  };
-
   return (
     <div className="space-y-6">
       <PageHeader
         eyebrow={lang === "en" ? "System Configuration" : "تهيئة النظام"}
         title={lang === "en" ? "Settings" : "الإعدادات"}
-        description={lang === "en" ? "Configure company profile, work days, and deduction policies used across payroll." : "اضبط بيانات الشركة وأيام العمل وسياسات الخصم التي يستخدمها تقرير الرواتب."}
+        description={lang === "en" ? "Configure company profile, tenant portal link, accounting webhooks, and data backups." : "اضبط بيانات وهوية الشركة، رابط بوابة الموظفين المخصص، الربط المحاسبي السحابي، والنسخ الاحتياطي."}
       />
+
+      {/* Quick Navigation Cards to Dedicated Views */}
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div className="rounded-2xl border border-blue-200 dark:border-blue-900 bg-gradient-to-br from-blue-50/80 to-white dark:from-slate-900 dark:to-slate-800/60 p-5 shadow-xs flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between">
+              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-white shadow-2xs">
+                <BookOpen size={20} />
+              </span>
+              <span className="rounded-full bg-blue-100 text-primary dark:bg-blue-950 px-2.5 py-0.5 text-[11px] font-black">
+                {isEn ? "Dedicated View" : "قسم مخصص في القائمة"}
+              </span>
+            </div>
+            <h3 className="font-black text-ink dark:text-white text-base mt-3">
+              {isEn ? "Company System & Labor Policies" : "نظام وسياسات الشركة"}
+            </h3>
+            <p className="text-xs text-slate-500 mt-1 leading-5">
+              {isEn
+                ? "Manage work days, salary calculation rules, early leave policies, statutory compliance (GOSI / Labor Law 148), and official public holidays."
+                : "تم نقل أيام العمل وسياسات الرواتب والأذونات والتأمينات والإجازات الرسمية إلى صفحة مخصصة في القائمة الجانبية."}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => onNavigate && onNavigate("company_system")}
+            className="mt-4 flex items-center justify-center gap-2 rounded-xl bg-primary hover:bg-blue-700 text-white py-2.5 text-xs font-black transition cursor-pointer shadow-xs"
+          >
+            <span>{isEn ? "Open Company System" : "الانتقال إلى نظام الشركة"}</span>
+            <ExternalLink size={14} />
+          </button>
+        </div>
+
+        <div className="rounded-2xl border border-purple-200 dark:border-purple-900 bg-gradient-to-br from-purple-50/80 to-white dark:from-slate-900 dark:to-slate-800/60 p-5 shadow-xs flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between">
+              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-purple-600 text-white shadow-2xs">
+                <UserCheck size={20} />
+              </span>
+              <span className="rounded-full bg-purple-100 text-purple-700 dark:bg-purple-950 px-2.5 py-0.5 text-[11px] font-black">
+                {isEn ? "Dedicated View" : "قسم مخصص في القائمة"}
+              </span>
+            </div>
+            <h3 className="font-black text-ink dark:text-white text-base mt-3">
+              {isEn ? "Users & Permissions (RBAC & Portal PINs)" : "المستخدمين والصلاحيات"}
+            </h3>
+            <p className="text-xs text-slate-500 mt-1 leading-5">
+              {isEn
+                ? "Manage administrative staff accounts, assign RBAC access roles, generate Employee Portal access cards & PINs, and inspect security audit logs."
+                : "تم نقل إدارة فريق الإدارة والصلاحيات وبطاقات ورموز دخول الموظفين وسجل التدقيق الأمني إلى صفحة مخصصة في القائمة الجانبية."}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => onNavigate && onNavigate("users_permissions")}
+            className="mt-4 flex items-center justify-center gap-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white py-2.5 text-xs font-black transition cursor-pointer shadow-xs"
+          >
+            <span>{isEn ? "Open Users & Permissions" : "الانتقال إلى المستخدمين والصلاحيات"}</span>
+            <ExternalLink size={14} />
+          </button>
+        </div>
+      </div>
 
       {cloud.session ? (
         <CloudAccessPanel
@@ -5901,6 +7110,7 @@ function SettingsView({
         />
       ) : null}
 
+      {/* Backup Section */}
       <section className="rounded-lg border border-line bg-white p-5 shadow-sm">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
@@ -5922,338 +7132,125 @@ function SettingsView({
         </div>
       </section>
 
-      <section className="grid gap-6 xl:grid-cols-2">
-        <div className="rounded-lg border border-line bg-white p-5 shadow-sm">
-          <h2 className="text-xl font-extrabold text-ink">بيانات الشركة</h2>
-          <div className="mt-5 space-y-4">
-            <SelectField
-              label="الدولة"
-              value={countryProfile.code}
-              onChange={(event) => changeCountry(event.target.value)}
-            >
-              {COUNTRY_OPTIONS.map((country) => (
-                <option key={country.code} value={country.code}>
-                  {country.name} - {country.localeLabel}
-                </option>
-              ))}
-            </SelectField>
-            <InputField
-              label="اسم الشركة"
-              value={settings.companyName}
-              onChange={(event) => update({ companyName: event.target.value })}
-            />
-            <div>
-              <InputField
-                label={lang === "en" ? "Company Code (Portal ID)" : "كود الشركة التعريفي (معرف البوابة)"}
-                value={settings.companyCode || ""}
-                onChange={(event) => update({ companyCode: event.target.value.toUpperCase().replace(/[^A-Z0-9_-]/g, "") })}
-                placeholder="مثال: MASAR"
-              />
-              <p className="text-[11px] text-slate-500 font-bold mt-1">
-                {lang === "en"
-                  ? "Unique code identifying your company workspace in the Employee Portal to prevent ID collisions with other companies."
-                  : "كود فريد يُميز شركتك في بوابة الموظفين لتفادي أي تداخل أو تطابق لأكواد الموظفين مع الشركات الأخرى."}
-              </p>
-            </div>
-            <InputField
-              label="العملة"
-              value={settings.currency}
-              onChange={(event) => update({ currency: event.target.value })}
-            />
-            <label>
-              <span className="mb-2 block text-sm font-bold text-slate-700">شعار الشركة</span>
-              <input
-                type="file"
-                accept="image/*"
-                onChange={handleLogo}
-                className="w-full rounded-lg border border-line bg-white px-4 py-3 text-sm"
-              />
-            </label>
-            {settings.companyLogo ? (
-              <div className="flex items-center gap-3 rounded-lg border border-line p-3">
-                <img
-                  src={settings.companyLogo}
-                  alt="شعار الشركة"
-                  className="h-14 w-14 rounded-lg object-contain"
-                />
-                <button
-                  type="button"
-                  onClick={() => update({ companyLogo: "" })}
-                  className="text-sm font-bold text-rose-600"
-                >
-                  إزالة الشعار
-                </button>
-              </div>
-            ) : null}
-          </div>
-        </div>
-
-        <div className="rounded-lg border border-line bg-white p-5 shadow-sm">
-          <h2 className="text-xl font-extrabold text-ink">أيام العمل والعطلات</h2>
-          <div className="mt-4 rounded-lg bg-blue-50 p-4 text-sm font-bold leading-7 text-blue-900">
-            الدولة الحالية: {countryProfile.name}، لغة الواجهة المناسبة: {countryProfile.localeLabel}.
-          </div>
-          <div className="mt-5 space-y-5">
-            <DaySelector
-              label="أيام العمل"
-              selected={settings.workDays}
-              onToggle={(key) => toggleDay("workDays", key)}
-            />
-            <DaySelector
-              label="عطلات نهاية الأسبوع"
-              selected={settings.weekends}
-              onToggle={(key) => toggleDay("weekends", key)}
-            />
-          </div>
-        </div>
-      </section>
-
+      {/* Company Profile Section */}
       <section className="rounded-lg border border-line bg-white p-5 shadow-sm">
-        <h2 className="text-xl font-extrabold text-ink">سياسات الرواتب</h2>
-        <div className="mt-5 grid gap-4 lg:grid-cols-2">
+        <h2 className="text-xl font-extrabold text-ink">بيانات الشركة</h2>
+        <div className="mt-5 space-y-4 max-w-2xl">
+          <SelectField
+            label="الدولة"
+            value={countryProfile.code}
+            onChange={(event) => changeCountry(event.target.value)}
+          >
+            {COUNTRY_OPTIONS.map((country) => (
+              <option key={country.code} value={country.code}>
+                {country.name} - {country.localeLabel}
+              </option>
+            ))}
+          </SelectField>
           <InputField
-            label="أيام الشهر الافتراضية للراتب"
-            type="number"
-            min="1"
-            value={settings.payrollMonthDays || 30}
-            onChange={(event) => update({ payrollMonthDays: Number(event.target.value) || 30 })}
+            label="اسم الشركة"
+            value={settings.companyName}
+            onChange={(event) => update({ companyName: event.target.value })}
           />
-          <SelectField
-            label="سياسة الغياب"
-            value={settings.absencePolicy}
-            onChange={(event) => update({ absencePolicy: event.target.value })}
-          >
-            <option value="خصم يوم كامل من الراتب الأساسي">خصم يوم كامل من الراتب الأساسي</option>
-            <option value="خصم نصف يوم لأول غياب ثم يوم كامل">خصم نصف يوم لأول غياب ثم يوم كامل</option>
-            <option value="عدم الخصم عند وجود رصيد إجازات">عدم الخصم عند وجود رصيد إجازات</option>
-          </SelectField>
-          <SelectField
-            label="إعدادات الرواتب"
-            value={settings.payrollSettings}
-            onChange={(event) => update({ payrollSettings: event.target.value })}
-          >
-            <option value="يتم تطبيق رصيد الإجازات تلقائيا قبل خصم الغياب.">
-              تطبيق رصيد الإجازات تلقائيا قبل خصم الغياب
-            </option>
-            <option value="مراجعة يدوية قبل اعتماد أي خصم غياب.">
-              مراجعة يدوية قبل اعتماد أي خصم غياب
-            </option>
-            <option value="اعتماد الخصومات والمكافآت مباشرة بعد رفع الملف.">
-              اعتماد الخصومات والمكافآت مباشرة بعد رفع الملف
-            </option>
-          </SelectField>
-        </div>
-      </section>
-
-      <section className="rounded-lg border border-line bg-white p-5 shadow-sm">
-        <h2 className="text-xl font-extrabold text-ink">سياسة الأذونات (المغادرة المبكرة)</h2>
-        <p className="mt-2 max-w-3xl leading-7 text-slate-500">
-          الإذن هنا معناه إن الموظف بصم حضور وانصراف فعلاً لكن مشى قبل معاد نهاية الشيفت — ده مختلف تماماً عن نظام
-          خصم البصمة الناقصة (لما تكون مفيش بصمة خالص). النظام بيكتشف الفرق بين معاد نهاية الشيفت ووقت الانصراف
-          الفعلي تلقائياً من نفس ملف البصمة، من غير أي إدخال يدوي.
-        </p>
-        <div className="mt-5 grid gap-4 lg:grid-cols-2">
-          <SelectField
-            label="طريقة حساب الأذونات"
-            value={settings.permissionPolicy || "monthly_balance"}
-            onChange={(event) => update({ permissionPolicy: event.target.value })}
-          >
-            <option value="annual_leave">خصم من رصيد الإجازات السنوية</option>
-            <option value="monthly_balance">رصيد أذونات شهري منفصل (يتجدد كل شهر)</option>
-            <option value="direct_hourly">بدون رصيد — خصم مباشر على قد الساعات الفعلية</option>
-          </SelectField>
-          {settings.permissionPolicy !== "annual_leave" && settings.permissionPolicy !== "direct_hourly" ? (
+          <div>
             <InputField
-              label="رصيد الأذونات الشهري (بالساعات لكل موظف)"
-              type="number"
-              min="0"
-              step="0.5"
-              value={settings.monthlyPermissionHours ?? 4}
-              onChange={(event) => update({ monthlyPermissionHours: Number(event.target.value) || 0 })}
+              label={lang === "en" ? "Company Code (Portal ID)" : "كود الشركة التعريفي (معرف البوابة)"}
+              value={settings.companyCode || ""}
+              onChange={(event) => update({ companyCode: event.target.value.toUpperCase().replace(/[^A-Z0-9_-]/g, "") })}
+              placeholder="مثال: MASAR"
             />
+            <p className="text-[11px] text-slate-500 font-bold mt-1">
+              {lang === "en"
+                ? "Unique code identifying your company workspace in the Employee Portal to prevent ID collisions with other companies."
+                : "كود فريد يُميز شركتك في بوابة الموظفين لتفادي أي تداخل أو تطابق لأكواد الموظفين مع الشركات الأخرى."}
+            </p>
+          </div>
+          <InputField
+            label="العملة"
+            value={settings.currency}
+            onChange={(event) => update({ currency: event.target.value })}
+          />
+          <label>
+            <span className="mb-2 block text-sm font-bold text-slate-700">شعار الشركة</span>
+            <input
+              type="file"
+              accept="image/*"
+              onChange={handleLogo}
+              className="w-full rounded-lg border border-line bg-white px-4 py-3 text-sm"
+            />
+          </label>
+          {settings.companyLogo ? (
+            <div className="flex items-center gap-3 rounded-lg border border-line p-3">
+              <img
+                src={settings.companyLogo}
+                alt="شعار الشركة"
+                className="h-14 w-14 rounded-lg object-contain"
+              />
+              <button
+                type="button"
+                onClick={() => update({ companyLogo: "" })}
+                className="text-sm font-bold text-rose-600"
+              >
+                إزالة الشعار
+              </button>
+            </div>
           ) : null}
         </div>
-        <div className="mt-4 rounded-lg bg-blue-50 p-4 text-sm font-bold leading-7 text-blue-900">
-          {settings.permissionPolicy === "annual_leave"
-            ? "ساعات الإذن هتتخصم من رصيد إجازات الموظف السنوية (محوّلة تلقائياً لساعات حسب مدة شيفته)، ولو الرصيد خلص هيتخصم الباقي من المرتب."
-            : settings.permissionPolicy === "direct_hourly"
-            ? "مفيش رصيد إذونات خالص — أي ساعة مغادرة مبكرة هتتخصم فوراً من المرتب على حساب سعر الساعة الفعلي للموظف."
-            : `كل موظف له ${settings.monthlyPermissionHours ?? 4} ساعة إذن شهرياً بدون خصم ومن غير أي علاقة برصيد الإجازات السنوية، ولو زادت هيتخصم الفرق من المرتب.`}
-        </div>
       </section>
 
-      {/* MENA Compliance, Social Insurance & WPS */}
-      <section className="rounded-lg border border-line bg-white p-5 shadow-sm">
+      {/* Direct Portal Link & Tenant Isolation Banner */}
+      <section className="rounded-lg border border-purple-200 bg-white p-5 shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h2 className="text-xl font-extrabold text-ink flex items-center gap-2">
-              <ShieldCheck className="text-primary" size={20} />
-              {isEn ? "MENA Labor Compliance, Social Insurance & WPS" : "الامتثال المؤسسي، التأمينات الاجتماعية وحماية الأجور (WPS)"}
+              <Building2 className="text-purple-600" size={20} />
+              {isEn ? "Dedicated Employee Portal Link (Tenant-Isolated)" : "رابط البوابة المخصص لشركتك (عزل تام للبيانات)"}
             </h2>
             <p className="mt-1 text-sm text-slate-500">
               {isEn
-                ? "Configure social insurance statutory contributions (GOSI / Egyptian Labor Law 148) and Wage Protection System (WPS) bank file credentials."
-                : "ضبط نسب اشتراكات التأمينات الاجتماعية وقوانين العمل الإقليمية، وبيانات ملفات حماية الأجور المعتمدة للبنوك ووزارات العمل."}
+                ? "Share this direct URL with employees. It automatically locks the login session to your company ID so employee IDs never collide with other companies."
+                : "شارك هذا الرابط مع موظفيك. يربط هاتف الموظف مباشرة بكود شركتك لمنع أي تطابق أو تداخل مع موظفي الشركات الأخرى."}
             </p>
           </div>
-          <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-black text-primary">
-            {countryProfile.name}
-          </span>
-        </div>
-
-        <div className="mt-5 space-y-4">
-          <label className="flex items-center gap-3 rounded-xl border border-line bg-slate-50 p-4 cursor-pointer hover:border-primary/50 transition">
-            <input
-              type="checkbox"
-              checked={Boolean(settings.socialInsuranceEnabled)}
-              onChange={(e) => update({ socialInsuranceEnabled: e.target.checked })}
-              className="h-5 w-5 rounded border-line text-primary focus:ring-primary"
-            />
-            <div>
-              <span className="text-sm font-extrabold text-ink">
-                {isEn ? "Enable Statutory Social Insurance Deduction" : "تفعيل احتساب خصم التأمينات الاجتماعية تلقائياً"}
-              </span>
-              <p className="text-xs text-slate-500 mt-0.5">
-                {isEn
-                  ? "Automatically deducts employee statutory insurance from base salary and tracks employer contribution."
-                  : "يقوم بحساب واستقطاع حصة الموظف من الراتب الأساسي مع توضيح مساهمة المنشأة في قيود الرواتب."}
-              </p>
-            </div>
-          </label>
-
-          {settings.socialInsuranceEnabled ? (
-            <div className="grid gap-4 sm:grid-cols-3 rounded-xl border border-blue-100 bg-blue-50/50 p-4">
-              <InputField
-                label={isEn ? "Employee Contribution Rate (%)" : "نسبة خصم الموظف (%)"}
-                type="number"
-                min="0"
-                max="50"
-                step="0.25"
-                value={settings.employeeInsuranceRate ?? 11}
-                onChange={(e) => update({ employeeInsuranceRate: Number(e.target.value) || 0 })}
-              />
-              <InputField
-                label={isEn ? "Employer Contribution Rate (%)" : "نسبة مساهمة المنشأة (%)"}
-                type="number"
-                min="0"
-                max="50"
-                step="0.25"
-                value={settings.companyInsuranceRate ?? 18.75}
-                onChange={(e) => update({ companyInsuranceRate: Number(e.target.value) || 0 })}
-              />
-              <InputField
-                label={isEn ? "Insurance Salary Cap" : "الحد الأقصى للأجر التأميني"}
-                type="number"
-                min="0"
-                value={settings.insuranceSalaryCap ?? 12600}
-                onChange={(e) => update({ insuranceSalaryCap: Number(e.target.value) || 0 })}
-              />
-            </div>
-          ) : null}
-
-          <div className="mt-4 pt-4 border-t border-line">
-            <h3 className="text-sm font-extrabold text-ink mb-3">
-              {isEn ? "Wage Protection System (WPS) Credentials" : "بيانات نظام حماية الأجور (WPS) للبنوك ووزارة العمل"}
-            </h3>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <InputField
-                label={isEn ? "Employer ID / Commercial Register (CR)" : "الرقم الموحد للمنشأة / السجل التجاري"}
-                value={settings.wpsEmployerCr || "1010000000"}
-                onChange={(e) => update({ wpsEmployerCr: e.target.value })}
-                placeholder="مثال: 1010000000 أو رقم الملف الوزاري"
-              />
-              <InputField
-                label={isEn ? "Bank Routing / Identifier Code" : "رمز البنك المعتمد للمنشأة (Bank Code)"}
-                value={settings.wpsBankCode || "RIBL"}
-                onChange={(e) => update({ wpsBankCode: e.target.value })}
-                placeholder="مثال: RIBL, ALBI, CIB, NBE, FAB"
-              />
-            </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                navigator.clipboard?.writeText(portalDirectUrl);
+                setCopiedPortalLink(true);
+                setTimeout(() => setCopiedPortalLink(false), 2000);
+              }}
+              className="flex items-center gap-1.5 rounded-lg bg-white dark:bg-slate-900 border border-purple-200 px-3 py-1.5 text-xs font-black text-purple-700 hover:bg-purple-100 transition shadow-2xs cursor-pointer"
+            >
+              <Copy size={13} />
+              <span>{copiedPortalLink ? (isEn ? "Copied ✓" : "تم نسخ الرابط ✓") : (isEn ? "Copy Link" : "نسخ الرابط")}</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                const text = isEn
+                  ? `Employee Self-Service Portal for ${settings.companyName || "Our Company"}:\nLink: ${portalDirectUrl}\nCompany Code: ${companyCode}`
+                  : `بوابة الخدمة الذاتية لموظفي ${settings.companyName || "الشركة"}:\nرابط الدخول المباشر: ${portalDirectUrl}\nكود الشركة: ${companyCode}`;
+                window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`, "_blank");
+              }}
+              className="flex items-center gap-1.5 rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-xs font-black text-emerald-800 hover:bg-emerald-100 transition shadow-2xs cursor-pointer"
+            >
+              <Share2 size={13} />
+              <span>{isEn ? "Share WhatsApp" : "واتساب"}</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowQrModal(true)}
+              className="flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-black text-slate-700 hover:bg-slate-50 transition shadow-2xs cursor-pointer"
+            >
+              <QrCode size={13} />
+              <span>{isEn ? "Show QR Code" : "رمز QR"}</span>
+            </button>
           </div>
         </div>
-      </section>
-
-      <section className="rounded-lg border border-line bg-white p-5 shadow-sm">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h2 className="text-xl font-extrabold text-ink">الإجازات الرسمية السنوية</h2>
-            <p className="mt-1 text-sm text-slate-500">
-              يمكن ترحيل تاريخ الإجازة أو تعطيلها أو إضافة أيام مخصصة حسب قرار الدولة أو الشركة.
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <span className="rounded-full bg-blue-50 px-3 py-1 text-sm font-bold text-primary">
-              {countryProfile.name} - {selectedYear}
-            </span>
-            <span className="rounded-full bg-emerald-50 px-3 py-1 text-sm font-bold text-emerald-700">
-              فعال: {formatNumber(effectiveHolidayCount)} يوم
-            </span>
-          </div>
-        </div>
-        <form onSubmit={addCustomHoliday} className="mt-5 grid gap-3 rounded-lg bg-slate-50 p-4 md:grid-cols-[1fr_180px_auto]">
-          <InputField
-            label="إجازة إضافية"
-            value={customHoliday.name}
-            onChange={(event) => setCustomHoliday({ ...customHoliday, name: event.target.value })}
-            placeholder="مثال: عطلة إضافية لعيد الأضحى"
-          />
-          <InputField
-            label="التاريخ"
-            type="date"
-            value={customHoliday.date}
-            onChange={(event) => setCustomHoliday({ ...customHoliday, date: event.target.value })}
-          />
-          <div className="self-end">
-            <PrimaryButton type="submit" icon={Plus}>
-              إضافة
-            </PrimaryButton>
-          </div>
-        </form>
-        <div className="mt-5 grid gap-3 lg:grid-cols-2">
-          {officialHolidays.map((holiday) => (
-            <div key={holiday.baseKey} className="rounded-lg border border-line p-4">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <p className="font-extrabold text-ink">{holiday.name}</p>
-                  <p className="mt-1 text-xs font-bold text-slate-400">الأصل: {holiday.baseDate}</p>
-                </div>
-                <label className="inline-flex items-center gap-2 text-sm font-bold text-slate-600">
-                  <input
-                    type="checkbox"
-                    checked={holiday.enabled}
-                    onChange={(event) => updateHolidayOverride(holiday, { enabled: event.target.checked })}
-                  />
-                  تفعيل
-                </label>
-              </div>
-              <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                <InputField
-                  label="اسم الإجازة"
-                  value={holiday.name}
-                  onChange={(event) => updateHolidayOverride(holiday, { name: event.target.value })}
-                />
-                <InputField
-                  label="التاريخ الفعلي"
-                  type="date"
-                  value={holiday.date}
-                  onChange={(event) => updateHolidayOverride(holiday, { date: event.target.value })}
-                />
-              </div>
-            </div>
-          ))}
-          {customHolidays.map((holiday) => (
-            <div key={holiday.id} className="rounded-lg border border-emerald-200 bg-emerald-50 p-4">
-              <p className="font-extrabold text-ink">{holiday.name}</p>
-              <p className="mt-1 text-sm font-bold text-emerald-700">{holiday.date}</p>
-              <button
-                type="button"
-                onClick={() => removeCustomHoliday(holiday.id)}
-                className="mt-3 rounded-lg border border-emerald-200 bg-white px-3 py-2 text-sm font-bold text-rose-600"
-              >
-                حذف
-              </button>
-            </div>
-          ))}
+        <div className="mt-4 flex items-center gap-2 bg-slate-50 dark:bg-slate-900 rounded-lg p-3 border border-purple-100 dark:border-purple-900 text-xs font-mono text-slate-600 dark:text-slate-300 overflow-x-auto">
+          <span className="font-bold text-slate-400 select-none">URL:</span>
+          <span className="truncate">{portalDirectUrl}</span>
         </div>
       </section>
 
@@ -6371,101 +7368,6 @@ function SettingsView({
                 <span>request.approved ({isEn ? "Leave / Advance Approved" : "اعتماد إجازة / سلفة"})</span>
               </label>
             </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Staff Identity & Employee Self-Service (ESS) Access */}
-      <section className="rounded-lg border border-purple-200 bg-white p-5 shadow-sm">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h2 className="text-xl font-extrabold text-ink flex items-center gap-2">
-              <Users className="text-purple-600" size={20} />
-              {isEn ? "Staff Accounts, Roles & ESS Portal Access" : "حسابات مسؤولي النظام وبوابة الخدمة الذاتية للموظفين"}
-            </h2>
-            <p className="mt-1 text-sm text-slate-500">
-              {isEn
-                ? "Manage Super Admin, HR Director, Attendance Officer, Department Managers, and Payroll Accountant credentials, plus reset Employee Portal PIN passwords."
-                : "إدارة حسابات وكلمات مرور مسؤولي النظام (مدير النظام، مدير الموارد البشرية، مدير القسم، مسؤول الحضور، محاسب الرواتب)، وتعيين كلمات مرور وبطاقات دخول الموظفين لبوابة الخدمة الذاتية."}
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {onOpenStaffUsers && (
-              <button
-                type="button"
-                onClick={onOpenStaffUsers}
-                className="flex items-center gap-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white px-4 py-2.5 text-xs font-black transition shadow-xs cursor-pointer"
-              >
-                <UserCheck size={15} />
-                <span>{isEn ? "Manage Users & Passwords" : "إدارة المستخدمين وكلمات المرور"}</span>
-              </button>
-            )}
-            {onOpenPortal && (
-              <button
-                type="button"
-                onClick={onOpenPortal}
-                className="flex items-center gap-2 rounded-xl border border-blue-200 bg-blue-50 hover:bg-blue-100 text-primary px-4 py-2.5 text-xs font-black transition shadow-xs cursor-pointer"
-              >
-                <Users size={15} />
-                <span>{isEn ? "Open Employee Portal (#portal)" : "فتح بوابة الموظف (#portal)"}</span>
-              </button>
-            )}
-          </div>
-        </div>
-
-        {/* Direct Portal Link & Tenant Isolation Banner */}
-        <div className="mt-5 rounded-xl border border-purple-200 dark:border-purple-900 bg-purple-50/70 dark:bg-purple-950/30 p-4 space-y-3">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <span className="text-xs font-black text-ink dark:text-white flex items-center gap-1.5">
-                <Building2 size={15} className="text-purple-600" />
-                {isEn ? "Dedicated Employee Portal Link (Tenant-Isolated)" : "رابط البوابة المخصص لشركتك (عزل تام للبيانات):"}
-              </span>
-              <p className="text-[11px] text-slate-500 font-bold mt-0.5">
-                {isEn
-                  ? "Share this direct URL with employees. It automatically locks the login session to your company ID so employee IDs never collide with other companies."
-                  : "شارك هذا الرابط مع موظفيك. يربط هاتف الموظف مباشرة بكود شركتك لمنع أي تطابق أو تداخل مع موظفي الشركات الأخرى."}
-              </p>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  navigator.clipboard?.writeText(portalDirectUrl);
-                  setCopiedPortalLink(true);
-                  setTimeout(() => setCopiedPortalLink(false), 2000);
-                }}
-                className="flex items-center gap-1.5 rounded-lg bg-white dark:bg-slate-900 border border-purple-200 px-3 py-1.5 text-xs font-black text-purple-700 hover:bg-purple-100 transition shadow-2xs cursor-pointer"
-              >
-                <Copy size={13} />
-                <span>{copiedPortalLink ? (isEn ? "Copied ✓" : "تم نسخ الرابط ✓") : (isEn ? "Copy Link" : "نسخ الرابط")}</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  const text = isEn
-                    ? `Employee Self-Service Portal for ${settings.companyName || "Our Company"}:\nLink: ${portalDirectUrl}\nCompany Code: ${companyCode}`
-                    : `بوابة الخدمة الذاتية لموظفي ${settings.companyName || "الشركة"}:\nرابط الدخول المباشر: ${portalDirectUrl}\nكود الشركة: ${companyCode}`;
-                  window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`, "_blank");
-                }}
-                className="flex items-center gap-1.5 rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-xs font-black text-emerald-800 hover:bg-emerald-100 transition shadow-2xs cursor-pointer"
-              >
-                <Share2 size={13} />
-                <span>{isEn ? "Share WhatsApp" : "واتساب"}</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setShowQrModal(true)}
-                className="flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-black text-slate-700 hover:bg-slate-50 transition shadow-2xs cursor-pointer"
-              >
-                <QrCode size={13} />
-                <span>{isEn ? "Show QR Code" : "رمز QR"}</span>
-              </button>
-            </div>
-          </div>
-          <div className="flex items-center gap-2 bg-white dark:bg-slate-900 rounded-lg p-2.5 border border-purple-100 dark:border-purple-900 text-[11px] font-mono text-slate-600 dark:text-slate-300 overflow-x-auto">
-            <span className="font-bold text-slate-400 select-none">URL:</span>
-            <span className="truncate">{portalDirectUrl}</span>
           </div>
         </div>
       </section>
@@ -7291,15 +8193,18 @@ function CloudTopBar({
   lang = "ar",
   onToggleLang,
   alerts = [],
-  currentRole = "super_admin",
-  onSelectRole,
+  userEmail,
+  staffUsers = [],
   onOpenAuditTrail,
-  onOpenPortal,
   onOpenStaffUsers
 }) {
   const tier = getTierConfig(userTier);
   const country = getCountryProfile(settings?.country || "EG");
   const companyName = settings?.companyName || "شركة المسار الذكي";
+  const roleCfg = RBAC_ROLES.find((r) => r.id === currentRole) || RBAC_ROLES[0];
+  const activeStaff = (staffUsers || []).find((u) => u.role === currentRole && (u.email === userEmail || u.username === userEmail)) || (staffUsers || []).find((u) => u.role === currentRole);
+  const roleTitle = lang === "en" ? roleCfg.labelEn : roleCfg.labelAr;
+  const displayIdentifier = userEmail || activeStaff?.email || activeStaff?.username || "admin@shiftpayhr.com";
 
   return (
     <div className="mb-5 flex flex-col gap-3 rounded-xl border border-line bg-white dark:bg-slate-900 px-4 py-3.5 shadow-xs sm:flex-row sm:items-center sm:justify-between transition-colors">
@@ -7324,35 +8229,20 @@ function CloudTopBar({
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
-        {/* RBAC Role Selector */}
-        <div className="flex items-center gap-1.5 rounded-lg border border-purple-200 dark:border-purple-900 bg-purple-50/70 dark:bg-purple-950/40 px-2 py-1 shadow-2xs">
-          <Shield size={13} className="text-purple-600 dark:text-purple-400 shrink-0" />
-          <select
-            value={currentRole}
-            onChange={(e) => onSelectRole && onSelectRole(e.target.value)}
-            className="bg-transparent text-xs font-black text-purple-950 dark:text-purple-200 focus:outline-hidden cursor-pointer"
-            title={lang === "ar" ? "تبديل الصلاحية (RBAC)" : "Switch Role (RBAC)"}
-          >
-            {RBAC_ROLES.map((r) => (
-              <option key={r.id} value={r.id} className="bg-white dark:bg-slate-900 text-ink dark:text-white">
-                {lang === "en" ? r.labelEn : r.labelAr}
-              </option>
-            ))}
-          </select>
+        {/* User Identity & Active Role Badge */}
+        <div className="flex items-center gap-2 rounded-xl border border-line dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60 px-3 py-1.5 shadow-2xs">
+          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary text-white text-xs font-black shadow-2xs">
+            {((activeStaff?.name || displayIdentifier)[0] || "A").toUpperCase()}
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs font-bold text-slate-700 dark:text-slate-300 max-w-[170px] truncate" title={displayIdentifier}>
+              {displayIdentifier}
+            </span>
+            <span className={`rounded-md px-2 py-0.5 text-[10px] font-black ${roleCfg.badge}`}>
+              {roleTitle}
+            </span>
+          </div>
         </div>
-
-        {/* ESS Portal Button */}
-        {onOpenPortal && (
-          <button
-            type="button"
-            onClick={onOpenPortal}
-            className="flex items-center gap-1.5 rounded-lg border border-blue-200 dark:border-blue-900 bg-blue-50/70 dark:bg-blue-950/40 px-2.5 py-1.5 text-xs font-bold text-primary dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/60 transition shadow-2xs"
-            title={lang === "ar" ? "بوابة الخدمة الذاتية للموظف (ESS)" : "Employee Self-Service (ESS)"}
-          >
-            <Users size={13} />
-            <span className="hidden sm:inline">{lang === "ar" ? "بوابة الموظف" : "ESS Portal"}</span>
-          </button>
-        )}
 
         {/* Staff & Identity Manager Button */}
         {onOpenStaffUsers && (
