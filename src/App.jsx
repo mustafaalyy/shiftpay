@@ -8536,6 +8536,7 @@ function CloudTopBar({
   lang = "ar",
   onToggleLang,
   alerts = [],
+  currentRole = "super_admin",
   userEmail,
   staffUsers = [],
   onOpenAuditTrail,
