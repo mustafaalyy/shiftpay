@@ -17,7 +17,9 @@ import {
   Sun,
   Moon,
   Globe,
-  Lock
+  Lock,
+  Users,
+  Smartphone
 } from "lucide-react";
 import { DEFAULT_SITE_CONTENT } from "../lib/constants";
 import "./landing.css";
@@ -33,7 +35,8 @@ export default function PublicHomePage({
   onToggleTheme,
   lang = "ar",
   onToggleLang,
-  onOpenAdmin
+  onOpenAdmin,
+  onPortal
 }) {
   const landing = siteContent.landing || DEFAULT_SITE_CONTENT.landing;
   const rootRef = useRef(null);
@@ -161,6 +164,20 @@ export default function PublicHomePage({
               </div>
               {isAuthenticated ? (
                 <>
+                  {onPortal && (
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      onClick={() => {
+                        setMobileOpen(false);
+                        onPortal();
+                      }}
+                      style={{ borderColor: "rgba(37, 99, 235, 0.4)", color: "var(--primary, #2563eb)", fontWeight: "bold" }}
+                    >
+                      <Smartphone size={15} style={{ marginLeft: "5px" }} />
+                      {lang === "en" ? "Employee Portal (ESS)" : "بوابة الموظفين"}
+                    </button>
+                  )}
                   <button
                     type="button"
                     className="btn btn-primary"
@@ -194,6 +211,20 @@ export default function PublicHomePage({
                 </>
               ) : (
                 <>
+                  {onPortal && (
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      onClick={() => {
+                        setMobileOpen(false);
+                        onPortal();
+                      }}
+                      style={{ borderColor: "rgba(37, 99, 235, 0.4)", color: "var(--primary, #2563eb)", fontWeight: "bold" }}
+                    >
+                      <Smartphone size={15} style={{ marginLeft: "5px" }} />
+                      {lang === "en" ? "Employee Portal (ESS)" : "بوابة الموظفين"}
+                    </button>
+                  )}
                   <button
                     type="button"
                     className="btn btn-secondary"
@@ -247,6 +278,18 @@ export default function PublicHomePage({
             )}
             {isAuthenticated ? (
               <>
+                {onPortal && (
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    onClick={onPortal}
+                    title={lang === "en" ? "Employee Portal (ESS)" : "بوابة الخدمة الذاتية للموظفين"}
+                    style={{ borderColor: "rgba(37, 99, 235, 0.4)", color: "var(--primary, #2563eb)", fontWeight: "bold" }}
+                  >
+                    <Smartphone size={14} style={{ marginLeft: "4px" }} />
+                    {lang === "en" ? "Employee Portal" : "بوابة الموظفين"}
+                  </button>
+                )}
                 <button type="button" className="btn btn-secondary" onClick={onSignin} title="تسجيل الدخول بحساب آخر">
                   تسجيل الدخول
                 </button>
@@ -259,6 +302,18 @@ export default function PublicHomePage({
               </>
             ) : (
               <>
+                {onPortal && (
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    onClick={onPortal}
+                    title={lang === "en" ? "Employee Portal (ESS)" : "بوابة الخدمة الذاتية للموظفين (عرض مسير الراتب والطلبات)"}
+                    style={{ borderColor: "rgba(37, 99, 235, 0.4)", color: "var(--primary, #2563eb)", fontWeight: "bold" }}
+                  >
+                    <Smartphone size={14} style={{ marginLeft: "4px" }} />
+                    {lang === "en" ? "Employee Portal" : "بوابة الموظفين"}
+                  </button>
+                )}
                 <button type="button" className="btn btn-secondary" onClick={onSignin}>
                   {landing.loginCta || "تسجيل الدخول"}
                 </button>
@@ -306,6 +361,17 @@ export default function PublicHomePage({
               >
                 {isAuthenticated ? "تسجيل الدخول بحساب آخر" : (siteContent.secondaryCta || landing.loginCta || "تسجيل الدخول")}
               </button>
+              {onPortal && (
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-large"
+                  onClick={onPortal}
+                  title="الدخول بكود الشركة وكود الموظف للاطلاع على مسير الراتب وتقديم الطلبات"
+                >
+                  <Smartphone size={18} />
+                  {lang === "en" ? "Employee Portal" : "بوابة الموظفين"}
+                </button>
+              )}
             </div>
 
             <div className="hero-trust fade-up fade-up-delay-4">
@@ -635,6 +701,11 @@ export default function PublicHomePage({
                 <button type="button" className="footer-link" onClick={secondaryAction}>
                   {landing.loginCta}
                 </button>
+                {onPortal && (
+                  <button type="button" className="footer-link" onClick={onPortal} style={{ color: "#60a5fa" }}>
+                    بوابة الموظفين (ESS)
+                  </button>
+                )}
                 <a href="#pricing" className="footer-link" onClick={scrollToId("pricing")}>
                   الباقات والأسعار
                 </a>

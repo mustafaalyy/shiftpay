@@ -33,7 +33,7 @@ export default function EmployeePortalView({
   settings = {},
   monthLabel = "",
   onSubmitRequest,
-  onReturnToAdmin,
+  onReturnToHome,
   lang = "ar"
 }) {
   const expectedCompanyCode = (settings.companyCode || "MASAR").toUpperCase();
@@ -373,15 +373,15 @@ export default function EmployeePortalView({
             </div>
           </div>
 
-          {/* Back to Admin */}
-          {onReturnToAdmin && (
+          {/* Back to Home */}
+          {onReturnToHome && (
             <div className="text-center pt-2">
               <button
                 type="button"
-                onClick={onReturnToAdmin}
-                className="text-xs font-bold text-primary hover:underline"
+                onClick={onReturnToHome}
+                className="text-xs font-bold text-slate-500 hover:text-primary transition"
               >
-                {isEn ? "← Return to Admin Dashboard" : "← العودة إلى لوحة تحكم الإدارة"}
+                {isEn ? "← Back to Homepage" : "← العودة إلى الموقع الرئيسي"}
               </button>
             </div>
           )}
@@ -466,15 +466,6 @@ export default function EmployeePortalView({
           </div>
 
           <div className="flex items-center gap-2">
-            {onReturnToAdmin && (
-              <button
-                type="button"
-                onClick={onReturnToAdmin}
-                className="hidden sm:inline-flex rounded-xl border border-line dark:border-slate-700 px-3 py-2 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-50 transition"
-              >
-                {isEn ? "Admin View" : "لوحة الإدارة"}
-              </button>
-            )}
             <button
               type="button"
               onClick={handleLogout}

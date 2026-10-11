@@ -54,7 +54,8 @@ import {
   Lock,
   Sun,
   Moon,
-  QrCode
+  QrCode,
+  Smartphone
 } from "lucide-react";
 import { getTranslation } from "./lib/translations";
 import {
@@ -1102,6 +1103,58 @@ export default function App() {
   const handleCloudLogin = async ({ mode, email, password, companyName, phoneCountry, phone }) => {
     setCloud((previous) => ({ ...previous, loading: true, error: "" }));
     try {
+      if (mode === "signin") {
+        const cleanIdent = (email || "").trim().toLowerCase();
+        const matchedStaff = (staffUsers || []).find(
+          (u) =>
+            u.active &&
+            (u.username?.toLowerCase() === cleanIdent || u.email?.toLowerCase() === cleanIdent)
+        );
+
+        if (matchedStaff) {
+          if (matchedStaff.password !== password) {
+            throw new Error("كلمة المرور غير صحيحة لهذا الحساب الإداري.");
+          }
+          // Authenticate staff user
+          setCurrentRole(matchedStaff.role);
+          const nowStr = new Date().toISOString().slice(0, 16).replace("T", " ");
+          setStaffUsers((prev) =>
+            prev.map((u) => (u.id === matchedStaff.id ? { ...u, lastLogin: nowStr } : u))
+          );
+
+          const roleCfg = RBAC_ROLES.find((r) => r.id === matchedStaff.role);
+          const staffSession = {
+            access_token: `staff-${matchedStaff.id}-${Date.now()}`,
+            user: {
+              id: matchedStaff.id,
+              email: matchedStaff.email,
+              user_metadata: {
+                name: matchedStaff.name,
+                role: matchedStaff.role,
+                company_name: settings.companyName || "ShiftPay HR"
+              }
+            }
+          };
+          storeSession(staffSession);
+          setCloud((previous) => ({
+            ...previous,
+            loading: false,
+            session: staffSession,
+            user: staffSession.user,
+            error: ""
+          }));
+          addAuditLog(
+            "staff_login",
+            `تسجيل دخول إداري: ${matchedStaff.name} بدور (${roleCfg?.labelAr || matchedStaff.role})`,
+            matchedStaff.role
+          );
+          setNotice(`مرحباً ${matchedStaff.name} — تم تسجيل الدخول بصلاحيات (${roleCfg?.labelAr || matchedStaff.role})`);
+          const targetView = roleCfg?.allowedViews?.[0] || "dashboard";
+          setActiveView(targetView);
+          return;
+        }
+      }
+
       const session =
         mode === "signup"
           ? await signUpWithEmail({ email, password, companyName, phoneCountry, phone })
@@ -1875,7 +1928,7 @@ export default function App() {
         settings={settings}
         monthLabel={monthLabel}
         onSubmitRequest={handleSubmitEmployeeRequest}
-        onReturnToAdmin={() => navigate("dashboard")}
+        onReturnToHome={() => navigate("landing")}
         lang={lang}
       />
     );
@@ -1912,6 +1965,7 @@ export default function App() {
         onLogin={handleCloudLogin}
         onGoogleLogin={handleGoogleLogin}
         onLanding={() => navigate("landing")}
+        onPortal={() => navigate("portal")}
       />
     );
   }
@@ -1930,6 +1984,7 @@ export default function App() {
           isAuthenticated={Boolean(cloud.session)}
           onSignup={() => openAuth("signup")}
           onSignin={() => openAuth("signin")}
+          onPortal={() => navigate("portal")}
           onLogout={handleCloudLogout}
           onEnter={() => navigate("dashboard")}
           theme={theme}
@@ -1953,6 +2008,7 @@ export default function App() {
         onGoogleLogin={handleGoogleLogin}
         onLanding={() => navigate("landing")}
         onEnter={() => navigate("dashboard")}
+        onPortal={() => navigate("portal")}
       />
     );
   }
@@ -2771,7 +2827,7 @@ function SiteAdminPage({
   );
 }
 
-function AuthPage({ mode, setMode, siteContent, cloud, onLogin, onGoogleLogin, onLanding, onEnter }) {
+function AuthPage({ mode, setMode, siteContent, cloud, onLogin, onGoogleLogin, onLanding, onEnter, onPortal }) {
   const [form, setForm] = useState({
     email: "",
     password: "",
@@ -2917,10 +2973,11 @@ function AuthPage({ mode, setMode, siteContent, cloud, onLogin, onGoogleLogin, o
             ) : null}
 
             <InputField
-              label="البريد الإلكتروني"
-              type="email"
+              label={isSignup ? "البريد الإلكتروني" : "البريد الإلكتروني أو اسم المستخدم"}
+              type={isSignup ? "email" : "text"}
               value={form.email}
               onChange={(event) => setForm({ ...form, email: event.target.value })}
+              placeholder={isSignup ? "name@company.com" : "admin أو hr.sara أو البريد"}
               required
             />
             <InputField
@@ -2930,12 +2987,71 @@ function AuthPage({ mode, setMode, siteContent, cloud, onLogin, onGoogleLogin, o
               onChange={(event) => setForm({ ...form, password: event.target.value })}
               required
             />
-            <PrimaryButton type="submit" icon={Users} disabled={cloud.loading || !cloud.configured} full>
+            <PrimaryButton type="submit" icon={Users} disabled={cloud.loading || (isSignup && !cloud.configured)} full>
               {cloud.loading ? "جاري التنفيذ" : isSignup ? "إنشاء الحساب" : "دخول"}
             </PrimaryButton>
           </form>
 
-          {!cloud.configured ? (
+          {!isSignup && (
+            <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs">
+              <p className="font-extrabold text-slate-700 mb-2">الدخول السريع بحسابات فريق الإدارة (RBAC):</p>
+              <div className="flex flex-wrap gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setForm({ ...form, email: "admin", password: "admin" })}
+                  className="rounded-lg border border-slate-300 bg-white px-2 py-1 font-bold text-slate-700 hover:border-primary text-[11px]"
+                >
+                  مدير النظام (admin)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setForm({ ...form, email: "hr.sara", password: "hr" })}
+                  className="rounded-lg border border-slate-300 bg-white px-2 py-1 font-bold text-slate-700 hover:border-primary text-[11px]"
+                >
+                  مديرة HR (hr.sara)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setForm({ ...form, email: "tarek.att", password: "att" })}
+                  className="rounded-lg border border-slate-300 bg-white px-2 py-1 font-bold text-slate-700 hover:border-primary text-[11px]"
+                >
+                  مسؤول حضور (tarek.att)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setForm({ ...form, email: "amr.it", password: "mgr" })}
+                  className="rounded-lg border border-slate-300 bg-white px-2 py-1 font-bold text-slate-700 hover:border-primary text-[11px]"
+                >
+                  مدير قسم IT (amr.it)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setForm({ ...form, email: "hani.acc", password: "acc" })}
+                  className="rounded-lg border border-slate-300 bg-white px-2 py-1 font-bold text-slate-700 hover:border-primary text-[11px]"
+                >
+                  محاسب رواتب (hani.acc)
+                </button>
+              </div>
+            </div>
+          )}
+
+          {onPortal && (
+            <div className="mt-5 rounded-xl border border-blue-200 bg-blue-50/70 p-4 text-center">
+              <p className="text-xs font-bold text-slate-700">
+                هل أنت موظف وتريد استعراض مسير راتبك أو تقديم طلب إجازة؟
+              </p>
+              <button
+                type="button"
+                onClick={onPortal}
+                className="mt-2.5 inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-xs font-black text-white hover:bg-primary-dark transition shadow-xs"
+              >
+                <Smartphone size={15} />
+                الدخول عبر بوابة الموظفين الذاتية (ESS) ←
+              </button>
+            </div>
+          )}
+
+          {!cloud.configured && isSignup ? (
             <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm font-bold leading-7 text-amber-800">
               تسجيل الدخول السحابي غير مفعل في هذه النسخة.
             </div>
