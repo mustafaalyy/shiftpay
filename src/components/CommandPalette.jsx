@@ -22,7 +22,8 @@ import {
   Moon,
   Globe,
   Bell,
-  Plus
+  Plus,
+  Send
 } from "lucide-react";
 
 export default function CommandPalette({
@@ -53,6 +54,7 @@ export default function CommandPalette({
 
   const navigationItems = [
     { id: "dashboard", label: isEn ? "Dashboard" : "لوحة التحكم", category: isEn ? "Navigation" : "التنقل", icon: LayoutDashboard },
+    { id: "requests", label: isEn ? "Requests & Approvals (ESS)" : "الطلبات والموافقات والخدمة الذاتية", category: isEn ? "Navigation" : "التنقل", icon: Send },
     { id: "employees", label: isEn ? "Employees & Advances" : "ملفات الموظفين والسلف", category: isEn ? "Navigation" : "التنقل", icon: Users },
     { id: "attendance", label: isEn ? "Attendance & Biometrics" : "سجلات الحضور والبصمة", category: isEn ? "Navigation" : "التنقل", icon: UploadCloud },
     { id: "reports", label: isEn ? "Payroll Reports & Slips" : "كشوف الرواتب وقسائم الموظفين", category: isEn ? "Navigation" : "التنقل", icon: FileSpreadsheet },
@@ -64,6 +66,13 @@ export default function CommandPalette({
   ];
 
   const quickActionItems = [
+    {
+      id: "open_portal",
+      label: isEn ? "Open Employee Self-Service Portal (ESS)" : "فتح بوابة الخدمة الذاتية للموظفين (ESS)",
+      category: isEn ? "Quick Actions" : "إجراءات سريعة",
+      icon: Users,
+      action: () => onOpenPortal?.()
+    },
     {
       id: "wps_export",
       label: isEn ? "Export Wage Protection System (WPS SIF)" : "تصدير حماية الأجور (WPS SIF)",

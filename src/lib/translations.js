@@ -11,6 +11,7 @@ export const translations = {
     nav_reports: "تقارير الرواتب",
     nav_archive: "الأرشيف",
     nav_insights: "التحليلات والمؤشرات",
+    nav_requests: "الطلبات والموافقات",
     nav_settings: "الإعدادات",
     brand_subtitle: "إدارة الحضور والرواتب الذكية",
 
@@ -166,6 +167,7 @@ export const translations = {
     nav_reports: "Payroll Reports",
     nav_archive: "Archive",
     nav_insights: "Analytics & Insights",
+    nav_requests: "Requests & Approvals",
     nav_settings: "Settings",
     brand_subtitle: "Smart Attendance & Payroll",
 

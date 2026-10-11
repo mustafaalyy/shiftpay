@@ -82,6 +82,9 @@ import CommandPalette from "./components/CommandPalette";
 import EmployeePortalModal from "./components/EmployeePortalModal";
 import NotificationBell from "./components/NotificationBell";
 import AuditTrailModal from "./components/AuditTrailModal";
+import RequestsView from "./components/RequestsView";
+import StaffUsersModal from "./components/StaffUsersModal";
+import EmployeePortalView from "./components/EmployeePortalView";
 import AiPayrollAssistantCard from "./components/AiPayrollAssistantCard";
 import BiometricDevicesManager from "./components/BiometricDevicesManager";
 import LiveAttendanceSheet from "./components/LiveAttendanceSheet";
@@ -287,6 +290,7 @@ const NAV_ITEMS = [
   { id: "departments", label: "الأقسام", icon: Building2 },
   { id: "shifts", label: "النوبات", icon: Clock },
   { id: "employees", label: "الموظفون", icon: Users },
+  { id: "requests", label: "الطلبات والموافقات", icon: Send },
   { id: "attendance", label: "رفع الحضور", icon: UploadCloud },
   { id: "reports", label: "تقرير الرواتب", icon: FileSpreadsheet },
   { id: "insights", label: "تحليلات", icon: BarChart3 },
@@ -299,14 +303,14 @@ export const RBAC_ROLES = [
     labelAr: "مدير النظام العام",
     labelEn: "Super Admin",
     badge: "bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300",
-    allowedViews: ["dashboard", "departments", "shifts", "employees", "attendance", "reports", "insights", "settings"]
+    allowedViews: ["dashboard", "departments", "shifts", "employees", "requests", "attendance", "reports", "insights", "settings"]
   },
   {
     id: "hr_director",
     labelAr: "مدير الموارد البشرية",
     labelEn: "HR Director",
     badge: "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300",
-    allowedViews: ["dashboard", "departments", "shifts", "employees", "attendance", "reports", "insights"]
+    allowedViews: ["dashboard", "departments", "shifts", "employees", "requests", "attendance", "reports", "insights"]
   },
   {
     id: "attendance_officer",
@@ -320,7 +324,7 @@ export const RBAC_ROLES = [
     labelAr: "مدير القسم",
     labelEn: "Department Manager",
     badge: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300",
-    allowedViews: ["dashboard", "employees", "attendance"],
+    allowedViews: ["dashboard", "employees", "requests", "attendance"],
     filterByDept: true
   },
   {
@@ -329,6 +333,64 @@ export const RBAC_ROLES = [
     labelEn: "Payroll Accountant",
     badge: "bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300",
     allowedViews: ["dashboard", "reports", "insights"]
+  }
+];
+
+export const DEFAULT_STAFF_USERS = [
+  {
+    id: "usr-admin",
+    name: "مدير النظام العام (Admin)",
+    username: "admin",
+    email: "admin@shiftpayhr.com",
+    password: "admin",
+    role: "super_admin",
+    departmentId: "",
+    active: true,
+    lastLogin: "2026-10-11 05:30"
+  },
+  {
+    id: "usr-hr",
+    name: "سارة علي (مديرة الموارد البشرية)",
+    username: "hr.sara",
+    email: "sara@company.com",
+    password: "hr",
+    role: "hr_director",
+    departmentId: "dep-hr",
+    active: true,
+    lastLogin: "2026-10-10 14:15"
+  },
+  {
+    id: "usr-att",
+    name: "طارق حسني (مسؤول الحضور)",
+    username: "tarek.att",
+    email: "tarek@company.com",
+    password: "att",
+    role: "attendance_officer",
+    departmentId: "",
+    active: true,
+    lastLogin: "2026-10-11 04:00"
+  },
+  {
+    id: "usr-mgr-it",
+    name: "عمرو كمال (مدير قسم IT)",
+    username: "amr.it",
+    email: "amr@company.com",
+    password: "mgr",
+    role: "dept_manager",
+    departmentId: "dep-it",
+    active: true,
+    lastLogin: "2026-10-09 11:20"
+  },
+  {
+    id: "usr-acc",
+    name: "هاني رضوان (محاسب الرواتب)",
+    username: "hani.acc",
+    email: "hani@company.com",
+    password: "acc",
+    role: "payroll_accountant",
+    departmentId: "dep-acc",
+    active: true,
+    lastLogin: "2026-10-08 16:45"
   }
 ];
 
@@ -450,8 +512,9 @@ export default function App() {
   const [activeView, setActiveView] = useState(() => {
     const rawHash = window.location.hash.replace("#", "");
     if (["site-admin", "admin", "sp-platform-admin", "master-console"].includes(rawHash)) return "site-admin";
-    const appViews = ["dashboard","departments","shifts","employees","attendance","reports","archive","insights","settings"];
-    if (appViews.includes(rawHash)) return hash;
+    if (rawHash === "portal" || rawHash === "ess") return "portal";
+    const appViews = ["dashboard","departments","shifts","employees","requests","attendance","reports","archive","insights","settings","portal"];
+    if (appViews.includes(rawHash)) return rawHash;
     return "landing";
   });
   const [isBooting, setIsBooting] = useState(() => Boolean(getStoredSession()));
@@ -497,8 +560,10 @@ export default function App() {
   const [exporting, setExporting] = useState("");
   const [reportExportRows, setReportExportRows] = useState(null);
 
-  // Enterprise RBAC & Governance
+  // Enterprise RBAC, Staff Identity & Governance
   const [currentRole, setCurrentRole] = useLocalStorage("shiftpay.currentRole", "super_admin");
+  const [staffUsers, setStaffUsers] = useLocalStorage("shiftpay.staffUsers", DEFAULT_STAFF_USERS);
+  const [isStaffUsersModalOpen, setIsStaffUsersModalOpen] = useState(false);
   const [isAuditTrailOpen, setIsAuditTrailOpen] = useState(false);
   const [auditLogs, setAuditLogs] = useState(() => {
     try {
@@ -570,10 +635,15 @@ export default function App() {
   };
 
   const handleApproveEmployeeRequest = (reqId, role) => {
+    const targetReq = employeeRequests.find((r) => r.id === reqId);
+    if (!targetReq) return;
+
+    const willBeFullyApproved = targetReq.status === "pending_hr" || role === "super_admin";
+
     setEmployeeRequests((prev) => {
       const updated = prev.map((req) => {
         if (req.id !== reqId) return req;
-        if (req.status === "pending_manager") {
+        if (req.status === "pending_manager" && role !== "super_admin") {
           return {
             ...req,
             status: "pending_hr",
@@ -592,14 +662,14 @@ export default function App() {
           return {
             ...req,
             status: "approved",
-            currentStage: lang === "en" ? "Fully Approved" : "معتمد نهائياً",
+            currentStage: lang === "en" ? "Fully Approved" : "معتمد نهائياً ومُنفذ",
             history: [
               ...req.history,
               {
                 step: "hr_approved",
                 by: role,
                 at: new Date().toISOString().slice(0, 16).replace("T", " "),
-                note: lang === "en" ? "Final approval by HR Director" : "اعتماد نهائي من مدير الموارد البشرية"
+                note: lang === "en" ? "Final approval & balance execution" : "اعتماد وتنفيذ نهائي من إدارة الموارد البشرية"
               }
             ]
           };
@@ -611,19 +681,60 @@ export default function App() {
       return updated;
     });
 
-    const targetReq = employeeRequests.find((r) => r.id === reqId);
+    // Automated balance & financial execution on final approval
+    if (willBeFullyApproved) {
+      if (targetReq.type === "leave") {
+        const daysToDeduct = targetReq.days || 1;
+        setEmployees((prev) =>
+          prev.map((e) =>
+            e.code === targetReq.employeeCode || e.id === targetReq.employeeId
+              ? { ...e, vacationBalance: Math.max(0, (e.vacationBalance ?? 0) - daysToDeduct) }
+              : e
+          )
+        );
+      } else if (targetReq.type === "advance") {
+        const installmentsCount = targetReq.installments || 3;
+        const totalAmount = targetReq.amount || 1500;
+        const installmentAmount = Math.round(totalAmount / installmentsCount);
+        const newAdv = {
+          id: `adv-${Date.now()}`,
+          employeeId: targetReq.employeeId || "",
+          employeeCode: targetReq.employeeCode,
+          totalAmount,
+          installmentsCount,
+          installmentAmount,
+          startMonth: reportMonth || CURRENT_MONTH,
+          remainingBalance: totalAmount,
+          status: "active",
+          reason: targetReq.details || "سلفة معتمدة عبر بوابة الموظف",
+          createdAt: new Date().toISOString(),
+          installments: Array.from({ length: installmentsCount }, (_, idx) => {
+            const d = new Date();
+            d.setMonth(d.getMonth() + idx);
+            return {
+              installmentNumber: idx + 1,
+              dueMonth: d.toISOString().slice(0, 7),
+              amount: installmentAmount,
+              status: "pending"
+            };
+          })
+        };
+        setAdvances((prev) => [newAdv, ...(prev || [])]);
+      }
+    }
+
     addAuditLog(
-      lang === "en" ? "Request Approved" : "اعتماد طلب موظف",
-      `تمت الموافقة على ${targetReq?.typeLabelAr || "طلب"} للموظف ${targetReq?.employeeName || ""}`,
+      lang === "en" ? "Request Approved & Executed" : "اعتماد وتنفيذ طلب موظف",
+      `تمت الموافقة على ${targetReq.typeLabelAr} للموظف ${targetReq.employeeName} (${targetReq.employeeCode}) وتحديث الأرصدة تلقائياً`,
       role
     );
     setToastMessage({
-      message: lang === "en" ? "Request approved successfully!" : "تمت الموافقة على الطلب بنجاح وتحديث المسار!",
+      message: lang === "en" ? "Request approved & executed successfully!" : "تمت الموافقة على الطلب بنجاح وتحديث الأرصدة آلياً!",
       type: "success"
     });
   };
 
-  const handleRejectEmployeeRequest = (reqId) => {
+  const handleRejectEmployeeRequest = (reqId, reason = "") => {
     setEmployeeRequests((prev) => {
       const updated = prev.map((req) => {
         if (req.id !== reqId) return req;
@@ -637,7 +748,7 @@ export default function App() {
               step: "rejected",
               by: currentRole,
               at: new Date().toISOString().slice(0, 16).replace("T", " "),
-              note: lang === "en" ? "Request rejected" : "تم رفض الطلب"
+              note: reason || (lang === "en" ? "Request rejected" : "تم رفض الطلب")
             }
           ]
         };
@@ -648,8 +759,19 @@ export default function App() {
       return updated;
     });
     setToastMessage({
-      message: lang === "en" ? "Request rejected." : "تم رفض الطلب.",
+      message: lang === "en" ? "Request rejected." : "تم رفض الطلب وتسجيل السبب.",
       type: "info"
+    });
+  };
+
+  const handleUpdateEmployeePin = (empId, newPin) => {
+    setEmployees((prev) =>
+      prev.map((e) => (e.id === empId || e.code === empId ? { ...e, portalPassword: newPin } : e))
+    );
+    addAuditLog("تعديل كلمة مرور بوابة الموظف", `تم تعيين PIN جديد للموظف ${empId}`);
+    setToastMessage({
+      message: lang === "en" ? "Employee Portal PIN updated successfully!" : "تم تحديث كلمة مرور بوابة الموظف بنجاح!",
+      type: "success"
     });
   };
 
@@ -693,6 +815,10 @@ export default function App() {
       }),
     [lang, shiftCopy.plural, activeRoleConfig]
   );
+
+  const pendingRequestsCount = useMemo(() => {
+    return employeeRequests.filter((r) => r.status?.startsWith("pending")).length;
+  }, [employeeRequests]);
 
   const selectedReport = reports.find((report) => report.id === selectedReportId) || reports[0];
   const activeAttendanceLogs =
@@ -1208,9 +1334,11 @@ export default function App() {
 
   const navigate = (view) => {
     setActiveView(view);
-    const appViews = ["dashboard","departments","shifts","employees","attendance","reports","archive","insights","settings"];
+    const appViews = ["dashboard","departments","shifts","employees","requests","attendance","reports","archive","insights","settings","portal"];
     if (view === "site-admin" || view === "admin") {
       window.location.hash = "sp-platform-admin";
+    } else if (view === "portal" || view === "ess") {
+      window.location.hash = "portal";
     } else if (appViews.includes(view)) {
       window.location.hash = view;
     } else {
@@ -1602,6 +1730,19 @@ export default function App() {
             lang={lang}
           />
         );
+      case "requests":
+        return (
+          <RequestsView
+            requests={employeeRequests}
+            employees={employees}
+            departments={departments}
+            settings={settings}
+            currentRole={currentRole}
+            onApproveRequest={handleApproveEmployeeRequest}
+            onRejectRequest={handleRejectEmployeeRequest}
+            lang={lang}
+          />
+        );
       case "attendance":
         return (
           <AttendanceView
@@ -1702,6 +1843,8 @@ export default function App() {
             lang={lang}
             onToggleLang={() => setLang(lang === "ar" ? "en" : "ar")}
             onOpenAuditTrail={() => setIsAuditTrailOpen(true)}
+            onOpenStaffUsers={() => setIsStaffUsersModalOpen(true)}
+            onOpenPortal={() => navigate("portal")}
           />
         );
       default:
@@ -1718,6 +1861,22 @@ export default function App() {
           <p className="text-sm font-bold text-slate-500">جاري التحميل...</p>
         </div>
       </div>
+    );
+  }
+
+  if (activeView === "portal") {
+    return (
+      <EmployeePortalView
+        employees={employees}
+        payrollRows={payrollRows}
+        advances={advances}
+        requests={employeeRequests}
+        settings={settings}
+        monthLabel={monthLabel}
+        onSubmitRequest={handleSubmitEmployeeRequest}
+        onReturnToAdmin={() => navigate("dashboard")}
+        lang={lang}
+      />
     );
   }
 
@@ -1820,6 +1979,7 @@ export default function App() {
                 key={item.id}
                 item={item}
                 active={activeView === item.id}
+                badge={item.id === "requests" ? pendingRequestsCount : undefined}
                 onClick={() => navigate(item.id)}
               />
             ))}
@@ -1891,7 +2051,12 @@ export default function App() {
               }`}
             >
               <item.icon size={16} />
-              {item.label}
+              <span>{item.label}</span>
+              {item.id === "requests" && Boolean(pendingRequestsCount) && (
+                <span className="flex h-4 min-w-[16px] items-center justify-center rounded-full bg-amber-500 px-1 text-[10px] font-black text-white">
+                  {pendingRequestsCount}
+                </span>
+              )}
             </button>
           ))}
         </nav>
@@ -1925,7 +2090,8 @@ export default function App() {
               currentRole={currentRole}
               onSelectRole={handleSelectRole}
               onOpenAuditTrail={() => setIsAuditTrailOpen(true)}
-              onOpenPortal={() => setPortalEmployee(employees[0] || null)}
+              onOpenPortal={() => navigate("portal")}
+              onOpenStaffUsers={() => setIsStaffUsersModalOpen(true)}
             />
           ) : null}
           {syncStatus ? (
@@ -2026,6 +2192,17 @@ export default function App() {
         isOpen={isAuditTrailOpen}
         onClose={() => setIsAuditTrailOpen(false)}
         auditLogs={auditLogs}
+        lang={lang}
+      />
+
+      <StaffUsersModal
+        isOpen={isStaffUsersModalOpen}
+        onClose={() => setIsStaffUsersModalOpen(false)}
+        staffUsers={staffUsers}
+        onSaveStaffUsers={setStaffUsers}
+        employees={employees}
+        onUpdateEmployeePin={handleUpdateEmployeePin}
+        departments={departments}
         lang={lang}
       />
 
@@ -5446,7 +5623,9 @@ function SettingsView({
   onToggleTheme,
   lang = "ar",
   onToggleLang,
-  onOpenAuditTrail
+  onOpenAuditTrail,
+  onOpenStaffUsers,
+  onOpenPortal
 }) {
   const isEn = lang === "en";
   const [webhookConfig, setWebhookConfig] = useState({
@@ -6055,6 +6234,45 @@ function SettingsView({
                 <span>request.approved ({isEn ? "Leave / Advance Approved" : "اعتماد إجازة / سلفة"})</span>
               </label>
             </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Staff Identity & Employee Self-Service (ESS) Access */}
+      <section className="rounded-lg border border-purple-200 bg-white p-5 shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="text-xl font-extrabold text-ink flex items-center gap-2">
+              <Users className="text-purple-600" size={20} />
+              {isEn ? "Staff Accounts, Roles & ESS Portal Access" : "حسابات مسؤولي النظام وبوابة الخدمة الذاتية للموظفين"}
+            </h2>
+            <p className="mt-1 text-sm text-slate-500">
+              {isEn
+                ? "Manage Super Admin, HR Director, Attendance Officer, Department Managers, and Payroll Accountant credentials, plus reset Employee Portal PIN passwords."
+                : "إدارة حسابات وكلمات مرور مسؤولي النظام (مدير النظام، مدير الموارد البشرية، مدير القسم، مسؤول الحضور، محاسب الرواتب)، وتعيين كلمات مرور وبطاقات دخول الموظفين لبوابة الخدمة الذاتية."}
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {onOpenStaffUsers && (
+              <button
+                type="button"
+                onClick={onOpenStaffUsers}
+                className="flex items-center gap-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white px-4 py-2.5 text-xs font-black transition shadow-xs cursor-pointer"
+              >
+                <UserCheck size={15} />
+                <span>{isEn ? "Manage Users & Passwords" : "إدارة المستخدمين وكلمات المرور"}</span>
+              </button>
+            )}
+            {onOpenPortal && (
+              <button
+                type="button"
+                onClick={onOpenPortal}
+                className="flex items-center gap-2 rounded-xl border border-blue-200 bg-blue-50 hover:bg-blue-100 text-primary px-4 py-2.5 text-xs font-black transition shadow-xs cursor-pointer"
+              >
+                <Users size={15} />
+                <span>{isEn ? "Open Employee Portal (#portal)" : "فتح بوابة الموظف (#portal)"}</span>
+              </button>
+            )}
           </div>
         </div>
       </section>
@@ -6824,7 +7042,8 @@ function CloudTopBar({
   currentRole = "super_admin",
   onSelectRole,
   onOpenAuditTrail,
-  onOpenPortal
+  onOpenPortal,
+  onOpenStaffUsers
 }) {
   const tier = getTierConfig(userTier);
   const country = getCountryProfile(settings?.country || "EG");
@@ -6880,6 +7099,19 @@ function CloudTopBar({
           >
             <Users size={13} />
             <span className="hidden sm:inline">{lang === "ar" ? "بوابة الموظف" : "ESS Portal"}</span>
+          </button>
+        )}
+
+        {/* Staff & Identity Manager Button */}
+        {onOpenStaffUsers && (
+          <button
+            type="button"
+            onClick={onOpenStaffUsers}
+            className="flex items-center gap-1.5 rounded-lg border border-purple-200 dark:border-purple-900 bg-purple-50/70 dark:bg-purple-950/40 px-2.5 py-1.5 text-xs font-bold text-purple-700 dark:text-purple-300 hover:bg-purple-100 dark:hover:bg-purple-900/60 transition shadow-2xs"
+            title={lang === "ar" ? "إدارة مستخدمي النظام وكلمات المرور (Staff Users)" : "Manage Staff Users & Portal PINs"}
+          >
+            <UserCheck size={13} />
+            <span className="hidden sm:inline">{lang === "ar" ? "المستخدمين والصلاحيات" : "Users & Access"}</span>
           </button>
         )}
 
@@ -7606,19 +7838,26 @@ function SecondaryButton({ children, icon: Icon, full = false, className = "", .
   );
 }
 
-function NavButton({ item, active, onClick }) {
+function NavButton({ item, active, onClick, badge }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className={`flex w-full items-center gap-3 rounded-lg px-4 py-3 text-start font-bold transition ${
+      className={`flex w-full items-center justify-between rounded-lg px-4 py-3 text-start font-bold transition ${
         active
           ? "bg-primary text-white shadow-lg shadow-blue-100 dark:shadow-none"
           : "text-slate-600 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-800"
       }`}
     >
-      <item.icon size={20} />
-      <span>{item.label}</span>
+      <div className="flex items-center gap-3">
+        <item.icon size={20} />
+        <span>{item.label}</span>
+      </div>
+      {Boolean(badge) && (
+        <span className="flex h-5 min-w-[20px] items-center justify-center rounded-full bg-amber-500 px-1.5 text-[11px] font-black text-white shadow-2xs">
+          {badge}
+        </span>
+      )}
     </button>
   );
 }
